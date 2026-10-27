@@ -83,8 +83,9 @@ export class InspirationNote {
       return;
     }
 
-    const root = document.createElement("div");
-    root.className = "novelview-sticky-note novelview-inspiration-note";
+    const root = createEl("div", {
+      cls: "novelview-sticky-note novelview-inspiration-note",
+    });
     root.setAttr("role", "dialog");
     root.setAttr("aria-label", "灵感便签");
     root.style.zIndex = String(this.data.zIndex);

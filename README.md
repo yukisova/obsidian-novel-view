@@ -1,9 +1,10 @@
 # NovelView
 
-**为 Obsidian 打造的小说写作工作流。**
+**为 Obsidian 打造的小说写作工作流。**  
+**A novel-writing workflow for Obsidian.**
 
 ![version](https://img.shields.io/badge/version-0.3.6-9a5a2d)
-![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.6.0-7c3aed)
+![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
 
@@ -13,9 +14,131 @@ NovelView 不接管 `.md` 文件，而是在原生 Obsidian Markdown 之上提�
   <img src="docs/novelview-workbench.png" alt="NovelView 工作台" width="100%" />
 </p>
 
-> 界面预览使用插件真实 CSS 与组件渲染，并非 Obsidian 实拍截图。
+> 界面预览使用插件真实 CSS 与组件渲染，并非 Obsidian 实拍截图。  
+> Interface previews are rendered with the plugin's real CSS and components, not Obsidian screenshots.
+
+<p align="center">
+  <a href="#english">English</a> ·
+  <a href="#中文文档">中文</a>
+</p>
 
 ---
+
+## English
+
+**NovelView** is a Markdown-first novel-writing workflow for Obsidian. It does not take over `.md` files or replace the native editor. Instead, it adds novel-aware presentation, article/volume management, outline slides, special content pages, inspiration notes, and find/replace on top of Obsidian.
+
+### Highlights
+
+- **Novel groups** — any non-root folder can become a novel group.
+- **Automatic novel mode** — normal Markdown inside a group is styled automatically; there is no manual mode button or command.
+- **Article tree** — volumes expand/collapse, articles are draggable, and the list supports focus, inline rename, and a virtual “Scattered Volume” for root-level articles.
+- **Focused writing workspace** — the workbench follows the novel group selected in the article list, not the last edited article.
+- **Special pages** — outline, settings, characters, foreshadowing, inspiration, and timeline files open as dedicated pages instead of raw Markdown.
+- **Outline slides** — volume/chapter synopses are presented as slides; use `---` in the body to separate slides.
+- **Inspiration cards** — up to 8 floating notes, unique titles, automatic save on close, card grid in the special page, and click-to-resume editing.
+- **Novel typography** — first-line indent, line height, paragraph spacing, native lists/quotes/callouts, and centered tables/images.
+
+### Installation
+
+1. Download [novel-view-0.3.6.zip](dist/novel-view-0.3.6.zip).
+2. Extract it to:
+
+```text
+<Vault>/.obsidian/plugins/novel-view/
+```
+
+3. Enable **NovelView** in **Settings → Community plugins**.
+
+Requires Obsidian **1.7.2** or newer.
+
+### Quick Start
+
+1. Right-click a **non-root** folder → **Create novel group**.
+2. Click the novel group: the article list opens on the left and the workbench opens in the main area.
+3. Write normally — novel mode is applied automatically.
+4. Right-click an article/volume for rename, delete, or **Add to outline**.
+5. Use **Got inspired** in the floating toolbar to create an inspiration note.
+
+### Article List
+
+- Volumes expand/collapse; root-level articles live in the virtual **Scattered Volume**.
+- Click an article/volume to focus it. New articles are created inside the focused volume.
+- Right-click → **Rename** starts inline editing; Enter saves, Escape cancels.
+- Drag articles between volumes/root; dragging volumes only reorders them.
+- **New article** creates “Untitled” without a title prompt and without duplicating the title as an H1.
+- **New volume** creates “Unnamed Volume” directly, with automatic numbering on conflict.
+- The Scattered Volume cannot be renamed, deleted, outlined, or dragged.
+
+### Workbench
+
+- Two cards are currently shown: **Outline** and **Inspiration**.
+- Cards are tiled and resizable.
+- Double-click a card border to open the underlying file/special page.
+- **Edit novel info** only edits description, cover, and status; the novel name follows the folder name.
+- Character/setting cards are temporarily hidden; timeline/foreshadowing workbench UI has been removed for a later version.
+
+### Special Pages
+
+| File | Page |
+| --- | --- |
+| `大纲.md` | Outline slides |
+| `设定.md` | Settings cards |
+| `人物.md` | Character cards |
+| `伏笔.md` | Foreshadowing cards |
+| `悬浮标签.md` | Inspiration cards |
+| `时间线.md` | Timeline cards |
+
+From the file explorer, workbench, keyword links, or card double-click, these files open as their dedicated pages.
+
+### Novel Mode
+
+- Automatic for normal Markdown inside a novel group; never for special files.
+- No manual toggle.
+- Multi-level lists and continuation lines receive no first-line indent or extra line spacing.
+- Tables and images are centered in both editing and reading views.
+- Lists, quotes, and callouts keep their native appearance.
+- The floating toolbar has exactly three actions: **Auto format**, **Add image**, and **Got inspired**.
+
+> Auto format removes **all blank lines**, including blank lines inside fenced code blocks. Use undo if that is not desired.
+
+### Settings
+
+The settings tab only contains controls:
+
+- First-line indent
+- Line height
+- Paragraph spacing
+- Paragraph mode
+- Hide Markdown markers
+- Hide line numbers
+- Restore defaults
+
+### Development
+
+```bash
+npm install
+npm run dev     # esbuild watch
+npm run check   # TypeScript strict
+npm test        # core tests
+npm run build   # production build
+```
+
+### Known Limitations
+
+- Special pages replace the Markdown view; switching back to the source file in the same leaf is not supported.
+- Unsaved inspiration notes are not persisted and are limited to 8 open notes.
+- The workbench currently exposes only Outline and Inspiration.
+- Outline parsing/writing may normalize hand-edited formatting.
+- Old folder-based reference notes are not migrated automatically.
+
+### Author
+
+**yukisova** · MIT License · [Design notes](docs/DESIGN.md)
+
+---
+
+## 中文文档
 
 ## 目录
 
@@ -36,17 +159,17 @@ NovelView 不接管 `.md` 文件，而是在原生 Obsidian Markdown 之上提�
 
 ## 核心功能
 
-| 模块 | 能力 |
-| --- | --- |
-| 小说组 | 文件夹即小说组；根目录文章自动归入“分散卷” |
+| 模块   | 能力                           |
+| ---- | ---------------------------- |
+| 小说组  | 文件夹即小说组；根目录文章自动归入“分散卷”       |
 | 文章列表 | 卷展开/收起、拖拽、聚焦、行内重命名、新建“无标题”文章 |
-| 小说模式 | 小说组普通 Markdown 自动开启，无需按钮或命令 |
-| 工作台 | 大纲/灵感卡片，平铺可调大小，关联文章列表当前组 |
-| 特殊页面 | 大纲、设定、人物、伏笔、灵感以专用页面展示 |
-| 关键词 | 设定/人物等条目标题在正文中分类着色，点击跳转 |
-| 灵感 | 最多 8 个浮动便签，标题唯一，保存为卡片并可恢复编辑 |
-| 大纲 | 卷纲/章纲，幻灯片分页，支持 `---` 分隔 |
-| 查找替换 | 当前目录、正则/全词/大小写、右侧结果面板 |
+| 小说模式 | 小说组普通 Markdown 自动开启，无需按钮或命令  |
+| 工作台  | 大纲/灵感卡片，平铺可调大小，关联文章列表当前组     |
+| 特殊页面 | 大纲、设定、人物、伏笔、灵感以专用页面展示        |
+| 关键词  | 设定/人物等条目标题在正文中分类着色，点击跳转      |
+| 灵感   | 最多 8 个浮动便签，标题唯一，保存为卡片并可恢复编辑  |
+| 大纲   | 卷纲/章纲，幻灯片分页，支持 `---` 分隔      |
+| 查找替换 | 当前目录、正则/全词/大小写、右侧结果面板        |
 
 ## 界面预览
 
@@ -71,7 +194,7 @@ NovelView 不接管 `.md` 文件，而是在原生 Obsidian Markdown 之上提�
 
 3. 在 Obsidian 的 **设置 → 第三方插件** 中启用 **NovelView**。
 
-最低支持 Obsidian **1.6.0**。
+最低支持 Obsidian **1.7.2**。
 
 ### 从源码构建
 

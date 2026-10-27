@@ -100,8 +100,8 @@ function buildDecorations(view: EditorView): DecorationSet {
 
         if (line.number > frontmatterEnd && line.text.trim().length === 0) {
           // Keep the caret in the visual first-line indent even before the
-          // paragraph has any text. `text-indent` alone cannot move an empty
-          // line's caret, so this line gets horizontal padding in CSS.
+          // paragraph has any text. A generated first-line spacer alone cannot
+          // move an empty line's caret, so this line gets horizontal padding.
           builder.add(line.from, line.from, lineDecoration(EMPTY_LINE));
         } else if (line.number > frontmatterEnd) {
           const previous = line.number > 1 && line.number - 1 > frontmatterEnd

@@ -32,15 +32,19 @@
 
 .novelview-novel-mode.novelview-paragraph-mode-line
   .markdown-source-view.mod-cm6
-  .cm-line.novelview-prose-line {
-  padding-bottom: var(--novelview-paragraph-spacing, 0.65em) !important;
-  text-indent: var(--novelview-first-line-indent, 2em) !important;
-}
-
+  .cm-line.novelview-prose-line::before,
 .novelview-novel-mode.novelview-paragraph-mode-blank-line
   .markdown-source-view.mod-cm6
-  .cm-line.novelview-paragraph-start {
-  text-indent: var(--novelview-first-line-indent, 2em) !important;
+  .cm-line.novelview-paragraph-start::before {
+  content: "";
+  display: inline-block;
+  width: var(--novelview-first-line-indent, 2em);
+}
+
+.novelview-novel-mode.novelview-paragraph-mode-line
+  .markdown-source-view.mod-cm6
+  .cm-line.novelview-prose-line {
+  padding-bottom: var(--novelview-paragraph-spacing, 0.65em) !important;
 }
 
 .novelview-novel-mode.novelview-paragraph-mode-blank-line
@@ -55,11 +59,11 @@
  */
 .novelview-novel-mode.novelview-paragraph-mode-line
   .markdown-source-view.mod-cm6
-  .cm-line.novelview-prose-line.novelview-preindented,
+  .cm-line.novelview-prose-line.novelview-preindented::before,
 .novelview-novel-mode.novelview-paragraph-mode-blank-line
   .markdown-source-view.mod-cm6
-  .cm-line.novelview-paragraph-start.novelview-preindented {
-  text-indent: 0 !important;
+  .cm-line.novelview-paragraph-start.novelview-preindented::before {
+  content: none;
 }
 
 /* Hide only the syntax tokens, never the prose they wrap. */
@@ -89,7 +93,6 @@
   .markdown-source-view.mod-cm6
   .cm-line.novelview-block-line {
   line-height: var(--line-height-normal, 1.5) !important;
-  text-indent: 0 !important;
 }
 
 .novelview-novel-mode
@@ -120,66 +123,15 @@
   line-height: 1.6;
 }
 
-.novelview-settings-preview {
-  margin: 12px 0 22px;
-  padding: 12px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m, 8px);
-}
-
-.novelview-settings-preview-label {
-  margin: 0 0 7px 2px;
-  color: var(--text-faint);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-
-.novelview-settings-preview-paper {
-  max-width: 40em;
-  padding: 16px 20px;
-  overflow: hidden;
-  color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
-  font-size: 15px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 4px);
-}
-
-.novelview-settings-preview-paragraph {
-  margin: 0 0 var(--novelview-preview-paragraph-spacing, 0.65em);
-  line-height: var(--novelview-preview-line-height, 1.8);
-  text-indent: var(--novelview-preview-indent, 2em);
-}
-
-.novelview-settings-preview-paragraph:last-child {
-  margin-bottom: 0;
-}
-
-.novelview-settings-about {
-  margin-top: 1.5em;
-  padding-top: 0.5em;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.novelview-settings-about p {
-  max-width: 48em;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small, 13px);
-  line-height: 1.6;
-}
-
 /* --------------------------------------------------------------------------
    Caret position for empty paragraphs
    -------------------------------------------------------------------------- */
 
 /*
- * text-indent cannot move the caret on a line with no inline text. Use left
- * padding on empty lines so a fresh paragraph/caret is visually indented before
- * the first character is typed. Once text exists, the normal text-indent rule
- * takes over.
+ * A generated first-line spacer cannot move the caret on a line with no inline
+ * text. Use left padding on empty lines so a fresh paragraph/caret is visually
+ * indented before the first character is typed. Once text exists, the spacer
+ * pseudo-element takes over.
  */
 .novelview-novel-mode
   .markdown-source-view.mod-cm6
@@ -199,17 +151,24 @@
 .novelview-novel-mode .markdown-preview-view p {
   margin-block: 0 var(--novelview-paragraph-spacing, 0.65em) !important;
   line-height: var(--novelview-line-height, 1.8) !important;
-  text-indent: var(--novelview-first-line-indent, 2em) !important;
+}
+
+.novelview-novel-mode .markdown-preview-view p::before {
+  content: "";
+  display: inline-block;
+  width: var(--novelview-first-line-indent, 2em);
 }
 
 .novelview-novel-mode .markdown-preview-view p:last-child {
   margin-block-end: 0 !important;
 }
 
-.novelview-novel-mode .markdown-preview-view li p,
-.novelview-novel-mode .markdown-preview-view .callout p,
-.novelview-novel-mode .markdown-preview-view table p {
-  text-indent: 0 !important;
+.novelview-novel-mode .markdown-preview-view li p::before,
+.novelview-novel-mode .markdown-preview-view .callout p::before,
+.novelview-novel-mode .markdown-preview-view table p::before,
+.novelview-novel-mode .markdown-preview-view blockquote p::before,
+.novelview-novel-mode .markdown-preview-view p:has(> .image-embed, > .internal-embed)::before {
+  content: none;
 }
 
 .novelview-novel-mode .markdown-preview-view ul,
@@ -228,7 +187,6 @@
 .novelview-novel-mode .markdown-preview-view .callout p,
 .novelview-novel-mode .markdown-preview-view .callout-title {
   line-height: var(--line-height-normal, 1.5) !important;
-  text-indent: 0 !important;
 }
 
 .novelview-novel-mode .markdown-preview-view li > p,
@@ -381,7 +339,6 @@
   min-width: 0;
   padding: 6px 8px;
   color: var(--text-normal);
-  text-decoration: none !important;
   border: 1px solid transparent;
   border-radius: var(--radius-s, 4px);
 }
@@ -1788,9 +1745,8 @@
 /* Setting/named keyword links */
 .novelview-keyword-link {
   color: var(--text-accent) !important;
-  text-decoration: underline !important;
-  text-decoration-style: dotted !important;
-  text-underline-offset: 2px;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
   cursor: pointer;
 }
 
@@ -2633,4 +2589,8 @@
 .novelview-novel-mode .markdown-preview-view li > ol {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
+}
+
+.novelview-hidden-file-input {
+  display: none !important;
 }

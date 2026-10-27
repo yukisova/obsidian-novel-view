@@ -42,7 +42,7 @@ export function linkKeywordsInElement(
       continue;
     }
 
-    const fragment = document.createDocumentFragment();
+    const fragment = createFragment();
     let cursor = 0;
     for (const match of matches) {
       if (match.start > cursor) {
@@ -50,11 +50,12 @@ export function linkKeywordsInElement(
           document.createTextNode(value.slice(cursor, match.start)),
         );
       }
-      const link = document.createElement("a");
-      link.className = [
-        "novelview-keyword-link",
-        `novelview-keyword-${match.entry.category ?? "setting"}`,
-      ].join(" ");
+      const link = createEl("a", {
+        cls: [
+          "novelview-keyword-link",
+          `novelview-keyword-${match.entry.category ?? "setting"}`,
+        ].join(" "),
+      });
       link.setAttribute("href", "#");
       link.setAttribute("data-novelview-path", match.entry.path);
       link.setAttribute("data-novelview-line", String(match.entry.line ?? 1));

@@ -614,10 +614,11 @@ export class NovelArticleListView extends ItemView {
 
     this.inlineRenameActive = true;
     const original = nameEl.textContent ?? target.title;
-    const input = document.createElement("input");
-    input.className = "novelview-inline-rename";
+    const input = createEl("input", {
+      cls: "novelview-inline-rename",
+      attr: { "aria-label": "重命名" },
+    });
     input.value = original;
-    input.setAttribute("aria-label", "重命名");
     nameEl.replaceWith(input);
     input.focus();
     input.select();

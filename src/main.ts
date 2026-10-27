@@ -3155,10 +3155,10 @@ export default class NovelViewPlugin extends Plugin {
 
   private chooseLocalImage(): Promise<File | null> {
     return new Promise((resolve) => {
-      const input = document.createElement("input");
+      const input = createEl("input");
       input.type = "file";
       input.accept = "image/*";
-      input.style.display = "none";
+      input.addClass("novelview-hidden-file-input");
       document.body.appendChild(input);
 
       let settled = false;

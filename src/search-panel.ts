@@ -118,8 +118,7 @@ export class AdvancedSearchPanel {
       return;
     }
 
-    const root = document.createElement("div");
-    root.className = "novelview-search-panel";
+    const root = createEl("div", { cls: "novelview-search-panel" });
     root.setAttr("role", "dialog");
     root.setAttr("aria-label", "高级查找与替换");
     root.addEventListener("keydown", (event) => {
