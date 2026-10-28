@@ -1,23 +1,18 @@
 import {
-  findKeywordMatches,
-  type KeywordEntry,
-} from "./core/keywords";
+  findLinkKeywordMatches,
+  type LinkKeywordEntry,
+} from "./core/link-library";
 
-/** Wrap setting/character keywords in an already rendered Markdown block. */
 export function linkKeywordsInElement(
   element: HTMLElement,
-  entries: KeywordEntry[],
+  entries: LinkKeywordEntry[],
 ): number {
   if (entries.length === 0) {
     return 0;
   }
 
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT,
-  );
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
-
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const parent = node.parentElement;
@@ -26,7 +21,7 @@ export function linkKeywordsInElement(
       || !node.nodeValue
       || !node.nodeValue.trim()
       || parent.closest(
-        "a, code, pre, script, style, mark, .metadata-container, .frontmatter, .novelview-keyword-link",
+        "a, code, pre, script, style, mark, .metadata-container, .frontmatter, .novelview-link-keyword",
       )
     ) {
       continue;
@@ -37,7 +32,7 @@ export function linkKeywordsInElement(
   let count = 0;
   for (const node of textNodes) {
     const value = node.nodeValue ?? "";
-    const matches = findKeywordMatches(value, entries);
+    const matches = findLinkKeywordMatches(value, entries);
     if (matches.length === 0) {
       continue;
     }
@@ -50,17 +45,16 @@ export function linkKeywordsInElement(
           document.createTextNode(value.slice(cursor, match.start)),
         );
       }
-      const link = createEl("a", {
-        cls: [
-          "novelview-keyword-link",
-          `novelview-keyword-${match.entry.category ?? "setting"}`,
-        ].join(" "),
+      const link = createEl("span", {
+        cls: "novelview-link-keyword",
+        attr: {
+          role: "link",
+          tabindex: "0",
+          "data-novelview-link-path": match.entry.path,
+          title: `打开 ${match.entry.basename}`,
+        },
       });
-      link.setAttribute("href", "#");
-      link.setAttribute("data-novelview-path", match.entry.path);
-      link.setAttribute("data-novelview-line", String(match.entry.line ?? 1));
-      link.setAttribute("data-novelview-category", match.entry.category ?? "setting");
-      link.setAttribute("title", `打开 ${match.entry.heading ?? match.entry.basename}`);
+      link.setAttr("style", `color: ${match.entry.color};`);
       link.textContent = value.slice(match.start, match.end);
       fragment.appendChild(link);
       count += 1;

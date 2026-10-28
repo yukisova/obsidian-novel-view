@@ -1,7 +1,3 @@
-import {
-  parseNovelState,
-  type NovelState,
-} from "./status";
 
 export const NOVEL_SETTING_BASENAME = "NovelSetting";
 export const NOVEL_SETTING_FILENAME = "NovelSetting.md";
@@ -12,7 +8,6 @@ export interface NovelSettingData {
   name: string;
   description: string;
   cover: string;
-  state: NovelState;
 }
 
 export interface NovelSettingFileLike {
@@ -62,15 +57,11 @@ export function parseNovelSetting(
     "cover",
     "小说封面",
   ]));
-  const state = parseNovelState(readStringProperty(frontmatter, ["novelstate", "状态"]))
-    ?? "writing";
-
   return {
     folderPath,
     name: name.trim() || folderName,
     description: description.trim(),
     cover,
-    state,
   };
 }
 
@@ -81,7 +72,6 @@ export function createNovelSettingContent(name: string): string {
     `novel-name: ${JSON.stringify(name)}`,
     'novel-description: ""',
     'novel-cover: ""',
-    "novelstate: 写作",
     "---",
     "",
   ].join("\n");

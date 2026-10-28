@@ -3,11 +3,6 @@ import {
   Modal,
 } from "obsidian";
 import type { NovelSettingData } from "./core/novel-setting";
-import {
-  NOVEL_STATES,
-  NOVEL_STATE_LABELS,
-  type NovelState,
-} from "./core/status";
 
 export interface NovelSettingModalOptions {
   initial: NovelSettingData;
@@ -16,7 +11,6 @@ export interface NovelSettingModalOptions {
   onSave: (data: {
     description: string;
     cover: string;
-    state: NovelState;
   }) => Promise<void>;
 }
 
@@ -24,7 +18,6 @@ export class NovelSettingModal extends Modal {
   private readonly options: NovelSettingModalOptions;
   private descriptionInput: HTMLTextAreaElement | null = null;
   private coverInput: HTMLInputElement | null = null;
-  private stateSelect: HTMLSelectElement | null = null;
   private coverPreview: HTMLElement | null = null;
   private errorEl: HTMLElement | null = null;
   private saving = false;
@@ -49,20 +42,6 @@ export class NovelSettingModal extends Modal {
       },
     });
     this.descriptionInput.value = this.options.initial.description;
-
-    const stateField = this.createField("小说状态");
-    this.stateSelect = stateField.createEl("select", {
-      cls: "novelview-setting-select",
-      attr: { "aria-label": "小说状态" },
-    });
-    for (const state of NOVEL_STATES) {
-      const option = this.stateSelect.createEl("option", {
-        text: NOVEL_STATE_LABELS[state],
-        attr: { value: state },
-      });
-      option.value = state;
-    }
-    this.stateSelect.value = this.options.initial.state;
 
     const coverField = this.createField("小说封面");
     const coverRow = coverField.createDiv({
@@ -194,7 +173,6 @@ export class NovelSettingModal extends Modal {
       await this.options.onSave({
         description: this.descriptionInput?.value.trim() ?? "",
         cover: this.coverInput?.value.trim() ?? "",
-        state: (this.stateSelect?.value as NovelState | undefined) ?? "writing",
       });
       this.close();
     } catch (error) {

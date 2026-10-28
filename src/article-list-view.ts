@@ -5,6 +5,7 @@ import {
   type ViewStateResult,
   type WorkspaceLeaf,
 } from "obsidian";
+import { CHAPTER_STATUS_LABELS } from "./core/chapter-status";
 import type { NovelSettingData } from "./core/novel-setting";
 import type NovelViewPlugin from "./main";
 
@@ -55,6 +56,18 @@ export class NovelArticleListView extends ItemView {
   private focusedKey: string | null = null;
   private focusedTarget: ArticleListTarget | null = null;
   private inlineRenameActive = false;
+  private readonly selectedKeys = new Set<string>();
+  private selectionAnchorKey: string | null = null;
+  private suppressBlankClick = false;
+  private readonly selectionTargets = new Map<string, ArticleListTarget>();
+  private marquee: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    box: HTMLElement;
+    additive: boolean;
+    moved: boolean;
+  } | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -91,12 +104,18 @@ export class NovelArticleListView extends ItemView {
       this.plugin.setWorkbenchGroup(this.folderPath);
       this.focusedFolderPath = this.folderPath;
     }
+    this.selectedKeys.clear();
+    this.selectionAnchorKey = null;
+    this.selectionTargets.clear();
     this.scheduleRefresh();
   }
 
   protected override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-article-list-view");
+    this.addAction("arrow-left", "返回", () => {
+      void this.plugin.restoreFileExplorer(this.leaf);
+    });
 
     this.registerEvent(this.app.vault.on("create", () => this.scheduleRefresh()));
     this.registerEvent(this.app.vault.on("delete", () => this.scheduleRefresh()));
@@ -104,18 +123,25 @@ export class NovelArticleListView extends ItemView {
     this.registerEvent(this.app.vault.on("modify", () => this.scheduleRefresh()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.scheduleRefresh()));
-    this.addAction("refresh-cw", "刷新文章列表", () => this.render());
 
     if (!this.folderPath) {
       this.folderPath = this.plugin.getWorkbenchFolderPath() ?? "";
     }
+    this.selectedKeys.clear();
+    this.selectionAnchorKey = null;
+    this.selectionTargets.clear();
     if (this.folderPath) {
       this.plugin.setWorkbenchGroup(this.folderPath);
       this.focusedFolderPath = this.folderPath;
     }
 
     this.contentEl.addEventListener("keydown", (event) => {
-      if (event.key === "F2" && this.focusedTarget && !this.inlineRenameActive) {
+      if (
+        event.key === "F2"
+        && this.focusedTarget
+        && !this.inlineRenameActive
+        && this.selectedKeys.size <= 1
+      ) {
         event.preventDefault();
         this.startInlineRename(this.focusedTarget);
       }
@@ -166,6 +192,20 @@ export class NovelArticleListView extends ItemView {
       cls: "novelview-article-toolbar",
     });
 
+    const back = this.createToolbarButton(
+      toolbar,
+      "arrow-left",
+      "返回",
+      () => {
+        void this.plugin.restoreFileExplorer(this.leaf);
+      },
+    );
+    back.addClass("novelview-article-toolbar-back");
+    back.createSpan({
+      cls: "novelview-article-toolbar-back-label",
+      text: "返回",
+    });
+
     this.createToolbarButton(
       toolbar,
       "layout-dashboard",
@@ -177,19 +217,19 @@ export class NovelArticleListView extends ItemView {
 
     this.createToolbarButton(
       toolbar,
-      "image",
-      "链接：查看 src 素材",
+      "link",
+      "联动库",
       () => {
-        void this.plugin.openNovelSrcGallery(model.folderPath);
+        void this.plugin.openLinkLibrary(model.folderPath);
       },
     );
 
     this.createToolbarButton(
       toolbar,
-      "arrow-left",
-      "回到文件列表",
+      "image",
+      "素材库",
       () => {
-        void this.plugin.restoreFileExplorer(this.leaf);
+        void this.plugin.openNovelSrcGallery(model.folderPath);
       },
     );
 
@@ -208,7 +248,7 @@ export class NovelArticleListView extends ItemView {
     icon: string,
     label: string,
     onClick: () => void,
-  ): void {
+  ): HTMLButtonElement {
     const button = parent.createEl("button", {
       cls: "novelview-article-toolbar-button",
       attr: {
@@ -219,6 +259,7 @@ export class NovelArticleListView extends ItemView {
     });
     setIcon(button, icon);
     button.addEventListener("click", onClick);
+    return button;
   }
 
   private renderHeader(model: ArticleListModel): void {
@@ -229,21 +270,12 @@ export class NovelArticleListView extends ItemView {
       cls: "novelview-article-title-block",
     });
     titleBlock.createDiv({
-      cls: "novelview-article-kicker",
-      text: "小说文章",
-    });
-    titleBlock.createDiv({
       cls: "novelview-article-title",
       text: model.novel.name,
     });
-
-    const breadcrumb = this.contentEl.createDiv({
-      cls: "novelview-article-breadcrumb",
-    });
-    breadcrumb.createSpan({ text: model.novel.name });
     const count = model.articles.length
       + model.volumes.reduce((sum, volume) => sum + volume.articles.length, 0);
-    breadcrumb.createSpan({
+    titleBlock.createDiv({
       cls: "novelview-article-total",
       text: `${count} 篇正文`,
     });
@@ -256,67 +288,81 @@ export class NovelArticleListView extends ItemView {
     list.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       const target = event.target as HTMLElement | null;
-      const articlePath = target?.closest<HTMLElement>("[data-article-path]")
-        ?.dataset.articlePath;
       const scattered = target?.closest<HTMLElement>("[data-scattered]");
-      if (scattered && !articlePath) {
-        event.preventDefault();
+      const row = target?.closest<HTMLElement>("[data-select-key]");
+      if (scattered && !row) {
         return;
       }
 
-      const volumePath = target?.closest<HTMLElement>("[data-volume-path]")
-        ?.dataset.volumePath;
-      const articleFolder = target?.closest<HTMLElement>("[data-article-folder]")
-        ?.dataset.articleFolder;
-      const volumeName = target?.closest<HTMLElement>("[data-volume-path]")
-        ?.dataset.volumeName;
-      const articleName = target?.closest<HTMLElement>("[data-article-path]")
-        ?.dataset.articleName;
-      const contextPath = volumePath
-        ?? articleFolder
-        ?? this.focusedFolderPath
-        ?? model.folderPath;
-      const contentTarget: ArticleListTarget | undefined = articlePath
-        ? {
-          kind: "article",
-          path: articlePath,
-          title: articleName ?? "无标题",
-          level: "chapter",
-        }
-        : volumePath
-          ? {
-            kind: "volume",
-            path: volumePath,
-            title: volumeName ?? "未命名卷",
-            level: "volume",
-          }
-          : undefined;
+      if (!row) {
+        this.selectedKeys.clear();
+        this.selectionAnchorKey = null;
+        this.updateSelectionClasses();
+        this.plugin.showArticleListContextMenu(
+          event,
+          model.folderPath,
+          this.focusedFolderPath || model.folderPath,
+          () => this.scheduleRefresh(),
+        );
+        return;
+      }
+
+      const key = row.dataset.selectKey;
+      if (!key) {
+        return;
+      }
+      if (!this.selectedKeys.has(key)) {
+        this.selectedKeys.clear();
+        this.selectedKeys.add(key);
+        this.selectionAnchorKey = key;
+        this.updateSelectionClasses();
+      }
+
+      const targets = this.collectSelectedTargets();
+      if (targets.length === 0) {
+        return;
+      }
       this.plugin.showArticleListContextMenu(
         event,
         model.folderPath,
-        contextPath,
+        this.focusedFolderPath || model.folderPath,
         () => this.scheduleRefresh(),
-        contentTarget,
-        contentTarget
-          ? () => this.startInlineRename(contentTarget)
+        targets,
+        targets.length === 1
+          ? () => this.startInlineRename(targets[0])
           : undefined,
       );
     });
 
-    list.addEventListener("click", (event) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target?.closest(
-          "[data-article-path], [data-volume-path], [data-scattered], input",
-        )
-      ) {
+    list.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
         return;
       }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-select-key], input, button, [data-scattered]")) {
+        return;
+      }
+      this.startMarquee(event, list);
+    });
+
+    list.addEventListener("click", (event) => {
+      if (this.suppressBlankClick) {
+        this.suppressBlankClick = false;
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-select-key], input, [data-scattered]")) {
+        return;
+      }
+      this.selectedKeys.clear();
+      this.selectionAnchorKey = null;
+      this.updateSelectionClasses();
       this.focusedFolderPath = model.folderPath;
       this.focusedKey = null;
       this.focusedTarget = null;
       this.scheduleRefresh();
     });
+
     list.addEventListener("dragover", (event) => {
       if (this.dragPayload?.kind !== "article") {
         return;
@@ -334,7 +380,7 @@ export class NovelArticleListView extends ItemView {
       void this.plugin.moveArticleToFolder(
         this.dragPayload.path,
         model.folderPath,
-      ).then((moved) => {
+      ).then((moved: boolean) => {
         this.dragPayload = null;
         if (moved) {
           this.scheduleRefresh();
@@ -349,6 +395,8 @@ export class NovelArticleListView extends ItemView {
     for (const volume of model.volumes) {
       this.renderVolumeRow(list, model, volume);
     }
+
+    this.pruneSelection();
 
     if (model.volumes.length === 0 && model.articles.length === 0) {
       this.renderMessage("暂无正文。右键可新建文章或卷。");
@@ -385,6 +433,9 @@ export class NovelArticleListView extends ItemView {
       this.focusedFolderPath = model.folderPath;
       this.focusedKey = "scattered";
       this.focusedTarget = null;
+      this.selectedKeys.clear();
+      this.selectionAnchorKey = null;
+      this.updateSelectionClasses();
       this.scheduleRefresh();
     });
     row.addEventListener("dragover", (event) => {
@@ -410,7 +461,7 @@ export class NovelArticleListView extends ItemView {
       void this.plugin.moveArticleToFolder(
         payload.path,
         model.folderPath,
-      ).then((moved) => {
+      ).then((moved: boolean) => {
         if (moved) {
           this.scatteredExpanded = true;
         }
@@ -440,6 +491,7 @@ export class NovelArticleListView extends ItemView {
       attr: {
         "data-volume-path": volume.path,
         "data-volume-name": volume.name,
+        "data-select-key": `volume:${volume.path}`,
         "aria-expanded": String(expanded),
         title: volume.path,
       },
@@ -457,21 +509,28 @@ export class NovelArticleListView extends ItemView {
       text: String(volume.articles.length),
     });
 
-    row.toggleClass("is-focused", this.focusedKey === `volume:${volume.path}`);
-    row.addEventListener("click", () => {
+    const volumeKey = `volume:${volume.path}`;
+    const volumeTarget: ArticleListTarget = {
+      kind: "volume",
+      path: volume.path,
+      title: volume.name,
+      level: "volume",
+    };
+    this.selectionTargets.set(volumeKey, volumeTarget);
+    row.toggleClass("is-focused", this.focusedKey === volumeKey);
+    row.toggleClass("is-selected", this.selectedKeys.has(volumeKey));
+    row.addEventListener("click", (event) => {
+      if (this.handleSelectionClick(event, volumeKey, volumeTarget)) {
+        return;
+      }
       if (expanded) {
         this.expandedVolumes.delete(volume.path);
       } else {
         this.expandedVolumes.add(volume.path);
       }
       this.focusedFolderPath = volume.path;
-      this.focusedKey = `volume:${volume.path}`;
-      this.focusedTarget = {
-        kind: "volume",
-        path: volume.path,
-        title: volume.name,
-        level: "volume",
-      };
+      this.focusedKey = volumeKey;
+      this.focusedTarget = volumeTarget;
       this.scheduleRefresh();
     });
 
@@ -514,7 +573,7 @@ export class NovelArticleListView extends ItemView {
 
       if (payload.kind === "article") {
         void this.plugin.moveArticleToFolder(payload.path, volume.path)
-          .then((moved) => {
+          .then((moved: boolean) => {
             if (moved) {
               this.expandedVolumes.add(volume.path);
             }
@@ -557,6 +616,7 @@ export class NovelArticleListView extends ItemView {
         "data-article-path": article.path,
         "data-article-name": article.basename,
         "data-article-folder": folderPath,
+        "data-select-key": `article:${article.path}`,
         title: article.path,
       },
     });
@@ -568,17 +628,41 @@ export class NovelArticleListView extends ItemView {
       cls: "novelview-article-row-name",
       text: article.basename,
     });
+    const meta = row.createSpan({
+      cls: "novelview-article-row-meta",
+    });
+    void this.plugin.getChapterMeta(article.path).then((chapter) => {
+      if (!meta.isConnected) {
+        return;
+      }
+      meta.empty();
+      meta.createSpan({
+        cls: "novelview-article-row-words",
+        text: `${new Intl.NumberFormat("zh-CN").format(chapter.wordCount)} 字`,
+      });
+      meta.createSpan({
+        cls: "novelview-article-row-state",
+        text: CHAPTER_STATUS_LABELS[chapter.status],
+      });
+    });
 
-    row.toggleClass("is-focused", this.focusedKey === `article:${article.path}`);
-    row.addEventListener("click", () => {
+    const articleKey = `article:${article.path}`;
+    const articleTarget: ArticleListTarget = {
+      kind: "article",
+      path: article.path,
+      title: article.basename,
+      level: "chapter",
+    };
+    this.selectionTargets.set(articleKey, articleTarget);
+    row.toggleClass("is-focused", this.focusedKey === articleKey);
+    row.toggleClass("is-selected", this.selectedKeys.has(articleKey));
+    row.addEventListener("click", (event) => {
+      if (this.handleSelectionClick(event, articleKey, articleTarget)) {
+        return;
+      }
       this.focusedFolderPath = folderPath;
-      this.focusedKey = `article:${article.path}`;
-      this.focusedTarget = {
-        kind: "article",
-        path: article.path,
-        title: article.basename,
-        level: "chapter",
-      };
+      this.focusedKey = articleKey;
+      this.focusedTarget = articleTarget;
       this.plugin.openArticleFromList(article.path, folderPath);
       this.scheduleRefresh();
     });
@@ -639,7 +723,7 @@ export class NovelArticleListView extends ItemView {
       const request = target.kind === "article"
         ? this.plugin.renameArticlePath(target.path, value)
         : this.plugin.renameVolumePath(target.path, value);
-      void request.then((error) => {
+      void request.then((error: string | null) => {
         if (error) {
           new Notice(`NovelView：${error}`);
           this.inlineRenameActive = false;
@@ -665,6 +749,191 @@ export class NovelArticleListView extends ItemView {
     input.addEventListener("blur", () => finish(true));
     input.addEventListener("click", (event) => event.stopPropagation());
     input.addEventListener("dblclick", (event) => event.stopPropagation());
+  }
+
+  private handleSelectionClick(
+    event: MouseEvent,
+    key: string,
+    target: ArticleListTarget,
+  ): boolean {
+    if (event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.selectRange(key);
+      return true;
+    }
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.selectedKeys.has(key)) {
+        this.selectedKeys.delete(key);
+      } else {
+        this.selectedKeys.add(key);
+      }
+      this.selectionAnchorKey = key;
+      this.updateSelectionClasses();
+      return true;
+    }
+
+    this.selectedKeys.clear();
+    this.selectedKeys.add(key);
+    this.selectionAnchorKey = key;
+    this.updateSelectionClasses();
+    this.focusedTarget = target;
+    return false;
+  }
+
+  private selectRange(key: string): void {
+    const keys = this.visibleSelectionKeys();
+    if (keys.length === 0) {
+      return;
+    }
+    const anchorIndex = this.selectionAnchorKey
+      ? keys.indexOf(this.selectionAnchorKey)
+      : -1;
+    const targetIndex = keys.indexOf(key);
+    if (anchorIndex === -1 || targetIndex === -1) {
+      this.selectedKeys.clear();
+      this.selectedKeys.add(key);
+      this.selectionAnchorKey = key;
+      this.updateSelectionClasses();
+      return;
+    }
+    const from = Math.min(anchorIndex, targetIndex);
+    const to = Math.max(anchorIndex, targetIndex);
+    this.selectedKeys.clear();
+    for (let index = from; index <= to; index += 1) {
+      this.selectedKeys.add(keys[index]);
+    }
+    this.updateSelectionClasses();
+  }
+
+  private visibleSelectionKeys(): string[] {
+    return [...this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")]
+      .map((row) => row.dataset.selectKey)
+      .filter((key): key is string => !!key);
+  }
+
+  private updateSelectionClasses(): void {
+    for (const row of this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")) {
+      const key = row.dataset.selectKey;
+      row.toggleClass("is-selected", !!key && this.selectedKeys.has(key));
+    }
+  }
+
+  private collectSelectedTargets(): ArticleListTarget[] {
+    const targets: ArticleListTarget[] = [];
+    for (const key of this.selectedKeys) {
+      const target = this.selectionTargets.get(key);
+      if (target) {
+        targets.push(target);
+      }
+    }
+    return targets;
+  }
+
+  private pruneSelection(): void {
+    const visible = new Set(this.visibleSelectionKeys());
+    for (const key of [...this.selectedKeys]) {
+      if (!visible.has(key) || !this.selectionTargets.has(key)) {
+        this.selectedKeys.delete(key);
+      }
+    }
+    if (
+      this.selectionAnchorKey
+      && !this.selectedKeys.has(this.selectionAnchorKey)
+    ) {
+      this.selectionAnchorKey = null;
+    }
+  }
+
+  private startMarquee(event: PointerEvent, list: HTMLElement): void {
+    if (this.marquee) {
+      return;
+    }
+    const box = createEl("div", { cls: "novelview-selection-box" });
+    document.body.appendChild(box);
+    const additive = event.metaKey || event.ctrlKey;
+    if (!additive) {
+      this.selectedKeys.clear();
+      this.updateSelectionClasses();
+    }
+    this.marquee = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      box,
+      additive,
+      moved: false,
+    };
+    list.setPointerCapture(event.pointerId);
+    event.preventDefault();
+
+    const move = (moveEvent: PointerEvent): void => {
+      const state = this.marquee;
+      if (!state || state.pointerId !== moveEvent.pointerId) {
+        return;
+      }
+      const left = Math.min(state.startX, moveEvent.clientX);
+      const top = Math.min(state.startY, moveEvent.clientY);
+      const width = Math.abs(moveEvent.clientX - state.startX);
+      const height = Math.abs(moveEvent.clientY - state.startY);
+      if (width > 3 || height > 3) {
+        state.moved = true;
+      }
+      state.box.style.left = `${left}px`;
+      state.box.style.top = `${top}px`;
+      state.box.style.width = `${width}px`;
+      state.box.style.height = `${height}px`;
+      state.box.toggleClass("is-visible", state.moved);
+      const selectionRect = {
+        left,
+        top,
+        right: left + width,
+        bottom: top + height,
+      };
+      for (const row of this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")) {
+        const rect = row.getBoundingClientRect();
+        const intersects = rect.left < selectionRect.right
+          && rect.right > selectionRect.left
+          && rect.top < selectionRect.bottom
+          && rect.bottom > selectionRect.top;
+        if (intersects) {
+          const key = row.dataset.selectKey;
+          if (key) {
+            this.selectedKeys.add(key);
+          }
+        }
+      }
+      this.updateSelectionClasses();
+    };
+
+    const up = (upEvent: PointerEvent): void => {
+      if (!this.marquee || this.marquee.pointerId !== upEvent.pointerId) {
+        return;
+      }
+      const state = this.marquee;
+      this.marquee = null;
+      state.box.remove();
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      if (list.hasPointerCapture(upEvent.pointerId)) {
+        list.releasePointerCapture(upEvent.pointerId);
+      }
+      if (state.moved) {
+        this.selectionAnchorKey = null;
+        this.suppressBlankClick = true;
+        window.setTimeout(() => {
+          this.updateSelectionClasses();
+          this.suppressBlankClick = false;
+        }, 50);
+      }
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
 
   private renderMessage(text: string): void {

@@ -3,134 +3,116 @@
 **为 Obsidian 打造的小说写作工作流。**  
 **A novel-writing workflow for Obsidian.**
 
-![version](https://img.shields.io/badge/version-0.3.6-9a5a2d)
+![version](https://img.shields.io/badge/version-0.6.0-9a5a2d)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
 
-NovelView 不接管 `.md` 文件，而是在原生 Obsidian Markdown 之上提供小说组、自动小说模式、文章/卷树、专用资料页面、大纲幻灯片、灵感卡片和查找替换。
+NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章节状态、素材库、联动库和联动关键词高亮。
 
 <p align="center">
-  <img src="docs/novelview-workbench.png" alt="NovelView 工作台" width="100%" />
+  <img src="docs/novelview-article-list.png" alt="NovelView 文章列表" width="100%" />
 </p>
 
-> 界面预览使用插件真实 CSS 与组件渲染，并非 Obsidian 实拍截图。  
-> Interface previews are rendered with the plugin's real CSS and components, not Obsidian screenshots.
+> 界面预览使用插件真实 CSS 与组件渲染，并非 Obsidian 实拍截图。
 
-<p align="center">
-  <a href="#english">English</a> ·
-  <a href="#中文文档">中文</a>
-</p>
+<p align="center"><a href="#english">English</a> · <a href="#中文文档">中文</a></p>
 
 ---
 
 ## English
 
-**NovelView** is a Markdown-first novel-writing workflow for Obsidian. It does not take over `.md` files or replace the native editor. Instead, it adds novel-aware presentation, article/volume management, outline slides, special content pages, inspiration notes, and find/replace on top of Obsidian.
+**NovelView** is a Markdown-first novel workflow for Obsidian: novel groups, multi-select article tree, chapter statuses, materials/link libraries, and link-library keyword highlighting.
 
 ### Highlights
 
-- **Novel groups** — any non-root folder can become a novel group.
-- **Automatic novel mode** — normal Markdown inside a group is styled automatically; there is no manual mode button or command.
-- **Article tree** — volumes expand/collapse, articles are draggable, and the list supports focus, inline rename, and a virtual “Scattered Volume” for root-level articles.
-- **Focused writing workspace** — the workbench follows the novel group selected in the article list, not the last edited article.
-- **Special pages** — outline, settings, characters, foreshadowing, inspiration, and timeline files open as dedicated pages instead of raw Markdown.
-- **Outline slides** — volume/chapter synopses are presented as slides; use `---` in the body to separate slides.
-- **Inspiration cards** — up to 8 floating notes, unique titles, automatic save on close, card grid in the special page, and click-to-resume editing.
-- **Novel typography** — first-line indent, line height, paragraph spacing, native lists/quotes/callouts, and centered tables/images.
+- **Novel groups** with article list in the left file-explorer leaf, plus a **返回** toolbar button.
+- **Chapter rows** show word count and status: 待写 / 草稿 / 大纲 / 修改中 / 已完稿, stored in `novelview-state`.
+- **Novel mode status card** in the upper-right; click to change chapter status.
+- **No novel-level status** and no description feature.
+- **No special pages**: settings/characters/timeline/foreshadowing/outline special views and legacy properties are removed.
+- **Link library**: toolbar (new group, import, multi-select), inline rename, expandable groups, context edit/delete, floating import/edit panels, JSON at the novel-group root.
+- **Link keywords**: filename + aliases, group colors, `~/` paths, current-volume/link fallbacks.
+- **Materials library**: empty-state watermark, double-click import, inline rename button, open/delete.
+- **Workbench**: overview only; clicking a group updates focus without jumping if a workbench already exists.
+- **Title-bar icons**: article list, materials, and link library each expose their own title icon.
 
 ### Installation
 
-1. Download [novel-view-0.3.6.zip](dist/novel-view-0.3.6.zip).
-2. Extract it to:
-
-```text
-<Vault>/.obsidian/plugins/novel-view/
-```
-
+1. Download [novel-view-0.6.0.zip](dist/novel-view-0.6.0.zip).
+2. Extract to `<Vault>/.obsidian/plugins/novel-view/`.
 3. Enable **NovelView** in **Settings → Community plugins**.
 
-Requires Obsidian **1.7.2** or newer.
-
-### Quick Start
-
-1. Right-click a **non-root** folder → **Create novel group**.
-2. Click the novel group: the article list opens on the left and the workbench opens in the main area.
-3. Write normally — novel mode is applied automatically.
-4. Right-click an article/volume for rename, delete, or **Add to outline**.
-5. Use **Got inspired** in the floating toolbar to create an inspiration note.
+Requires Obsidian **1.7.2+**.
 
 ### Article List
 
-- Volumes expand/collapse; root-level articles live in the virtual **Scattered Volume**.
-- Click an article/volume to focus it. New articles are created inside the focused volume.
-- Right-click → **Rename** starts inline editing; Enter saves, Escape cancels.
-- Drag articles between volumes/root; dragging volumes only reorders them.
-- **New article** creates “Untitled” without a title prompt and without duplicating the title as an H1.
-- **New volume** creates “Unnamed Volume” directly, with automatic numbering on conflict.
-- The Scattered Volume cannot be renamed, deleted, outlined, or dragged.
+- Header: novel name + body count only.
+- Replaces the left file explorer; title bar has a back action and the toolbar has a visible **返回** button.
+- Multi-select: marquee, Shift range, Ctrl/Cmd toggle; blank click clears.
+- Inline rename; multi-select disables rename.
+- New article “无标题”, no duplicate H1; new volume “无名卷” with numbering.
+- Each chapter row displays word count and status.
 
-### Workbench
+Status property:
 
-- Two cards are currently shown: **Outline** and **Inspiration**.
-- Cards are tiled and resizable.
-- Double-click a card border to open the underlying file/special page.
-- **Edit novel info** only edits description, cover, and status; the novel name follows the folder name.
-- Character/setting cards are temporarily hidden; timeline/foreshadowing workbench UI has been removed for a later version.
+```yaml
+---
+novelview-state: 草稿
+---
+```
 
-### Special Pages
+### Chapter Status
 
-| File | Page |
-| --- | --- |
-| `大纲.md` | Outline slides |
-| `设定.md` | Settings cards |
-| `人物.md` | Character cards |
-| `伏笔.md` | Foreshadowing cards |
-| `悬浮标签.md` | Inspiration cards |
-| `时间线.md` | Timeline cards |
+- Statuses: 待写、草稿、大纲、修改中、已完稿.
+- Article rows show word count and status.
+- Novel-mode status card in the upper-right opens a dropdown to change status.
+- Novel-level status is removed from `NovelSetting.md` and from “Edit novel info”.
 
-From the file explorer, workbench, keyword links, or card double-click, these files open as their dedicated pages.
+### Descriptions Removed
+
+Chapter and volume description features, floating panels, context entry, and stored `描述` data are removed. Legacy `描述` properties are cleaned on load.
+
+### Link Library
+
+- Toolbar: **新增联动组**, **导入联动文件**, **多选** (plus batch delete).
+- Title/list spacing and divider match the materials library.
+- JSON lives at `<novel-group>/links.json`; the old `link/` folder is no longer used.
+- Any vault file type can be imported, not only Markdown.
+- Import opens a floating tree window; aliases can be set and confirmed with Enter.
+- Groups can expand/collapse; files drag into groups; groups can be reordered.
+- Right-click group/file: **编辑**, **重命名**, **删除**.
+- Rename is inline; edit opens a modeless color/alias panel, not a dialog.
+- Missing imported files are pruned automatically when loading/refreshing.
+
+```json
+{
+  "group": { "联动组1": "#aa3311" },
+  "link": [
+    { "未命名.md": { "belong": "联动组1", "alias": ["你好"] } },
+    { "~/仓库内引用.md": { "alias": ["你好hk"] } }
+  ]
+}
+```
+
+Keywords use filename + alias; group color is the highlight color. `~/` resolves from the vault root; bare paths fall back through the current volume, group root, and legacy link paths.
+
+### Materials Library
+
+- Empty state shows a semi-transparent watermark: double-click blank area to import images.
+- Each card has an **重命名** button; no right-click menu.
+- Title bar has a single image icon.
 
 ### Novel Mode
 
-- Automatic for normal Markdown inside a novel group; never for special files.
-- No manual toggle.
-- Multi-level lists and continuation lines receive no first-line indent or extra line spacing.
-- Tables and images are centered in both editing and reading views.
-- Lists, quotes, and callouts keep their native appearance.
-- The floating toolbar has exactly three actions: **Auto format**, **Add image**, and **Got inspired**.
-
-> Auto format removes **all blank lines**, including blank lines inside fenced code blocks. Use undo if that is not desired.
+- Automatic inside novel groups; no manual toggle.
+- Lists/quotes native; tables/images centered.
+- Toolbar: auto format, insert image → from file / from materials; larger picker with names.
+- Auto format removes all blank lines, including fenced code.
 
 ### Settings
 
-The settings tab only contains controls:
-
-- First-line indent
-- Line height
-- Paragraph spacing
-- Paragraph mode
-- Hide Markdown markers
-- Hide line numbers
-- Restore defaults
-
-### Development
-
-```bash
-npm install
-npm run dev     # esbuild watch
-npm run check   # TypeScript strict
-npm test        # core tests
-npm run build   # production build
-```
-
-### Known Limitations
-
-- Special pages replace the Markdown view; switching back to the source file in the same leaf is not supported.
-- Unsaved inspiration notes are not persisted and are limited to 8 open notes.
-- The workbench currently exposes only Outline and Inspiration.
-- Outline parsing/writing may normalize hand-edited formatting.
-- Old folder-based reference notes are not migrated automatically.
+Controls only: first-line indent, line height, paragraph spacing, paragraph mode, hide markers, hide line numbers, restore defaults.
 
 ### Author
 
@@ -140,267 +122,77 @@ npm run build   # production build
 
 ## 中文文档
 
-## 目录
+### 简介
 
-- [为什么用 NovelView](#为什么用-novelview)
-- [核心功能](#核心功能)
-- [界面预览](#界面预览)
-- [安装](#安装)
-- [快速开始](#快速开始)
-- [文章列表](#文章列表)
-- [工作台](#工作台)
-- [特殊页面](#特殊页面)
-- [灵感与大纲](#灵感与大纲)
-- [小说模式](#小说模式)
-- [设置](#设置)
-- [开发](#开发)
-- [已知限制](#已知限制)
-- [作者与许可](#作者与许可)
+NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.0 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
 
-## 核心功能
+### 安装
 
-| 模块   | 能力                           |
-| ---- | ---------------------------- |
-| 小说组  | 文件夹即小说组；根目录文章自动归入“分散卷”       |
-| 文章列表 | 卷展开/收起、拖拽、聚焦、行内重命名、新建“无标题”文章 |
-| 小说模式 | 小说组普通 Markdown 自动开启，无需按钮或命令  |
-| 工作台  | 大纲/灵感卡片，平铺可调大小，关联文章列表当前组     |
-| 特殊页面 | 大纲、设定、人物、伏笔、灵感以专用页面展示        |
-| 关键词  | 设定/人物等条目标题在正文中分类着色，点击跳转      |
-| 灵感   | 最多 8 个浮动便签，标题唯一，保存为卡片并可恢复编辑  |
-| 大纲   | 卷纲/章纲，幻灯片分页，支持 `---` 分隔      |
-| 查找替换 | 当前目录、正则/全词/大小写、右侧结果面板        |
+下载文件，放到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
 
-## 界面预览
+### 文章列表
 
-| 文章列表 | 特殊页面 |
-| --- | --- |
-| <img src="docs/novelview-article-list.png" alt="文章列表" width="100%" /> | <img src="docs/novelview-special-setting.png" alt="设定特殊页面" width="100%" /> |
+- 标题仅显示小说名 + 正文数量；
+- 替换左侧文件列表；标题栏有返回图标，工具栏有可见“返回”按钮；
+- 每条章节显示字数与状态：待写、草稿、大纲、修改中、已完稿；
+- 状态属性：`novelview-state`；
+- 多选：框选、Shift 连续、Ctrl/Cmd 间断，空白取消；
+- 多选禁止重命名；右键不再有“编辑描述”。
 
-| 灵感便签 | 关键词着色 |
-| --- | --- |
-| <img src="docs/novelview-inspiration.png" alt="灵感便签" width="100%" /> | <img src="docs/novelview-keywords.png" alt="关键词" width="100%" /> |
+### 章节状态
 
-## 安装
+- 小说模式下右上角状态卡显示字数与状态，点击弹出下拉菜单修改；
+- 小说状态属性与“编辑小说信息”中的状态 UI 已删除；
+- 新文章默认“待写”。
 
-### 手动安装
+### 描述删除
 
-1. 下载 [novel-view-0.3.6.zip](dist/novel-view-0.3.6.zip)。
-2. 解压到：
+章描述、卷描述、浮动描述面板、右键入口及 `描述` 数据全部移除；加载时清理遗留 `描述` 属性。
 
-```text
-<Vault>/.obsidian/plugins/novel-view/
+### 联动库
+
+- 顶部工具栏：新增联动组、导入联动文件、多选/批量删除；
+- 标题与列表间有分隔线，样式与素材库一致；
+- JSON 位于小说组根目录 `links.json`，不再使用 `link/` 文件夹；
+- 导入支持仓库内任意文件类型；
+- 导入窗口为悬浮树，支持别名并回车依次确认；
+- 联动组可展开/折叠；组与文件支持拖拽、聚焦；
+- 右键组/文件：编辑、重命名、删除；
+- 重命名为行内编辑；编辑只改颜色/别名，使用无遮罩浮动面板，不弹对话框；
+- 加载/刷新时自动删除已丢失文件的联动记录。
+
+JSON：
+
+```json
+{
+  "group": { "联动组1": "#aa3311" },
+  "link": [
+    { "未命名.md": { "belong": "联动组1", "alias": ["你好"] } },
+    { "~/仓库内引用.md": { "alias": ["你好hk"] } }
+  ]
+}
 ```
 
-3. 在 Obsidian 的 **设置 → 第三方插件** 中启用 **NovelView**。
+关键词 = 文件名 + 别名，颜色来自联动组；`~/` 从仓库根解析，裸路径依次回退当前卷、组根目录和旧 link 路径。
 
-最低支持 Obsidian **1.7.2**。
+### 素材库
 
-### 从源码构建
+- 空状态中央显示半透明水印：双击空白区域可导入图片；
+- 双击后选择图片并写入 `src/`；
+- 每张素材卡提供“重命名”按钮，进入行内编辑；移除卡片右键菜单；
+- 标题栏只保留一个素材库图标。
 
-```bash
-# 在项目目录
-npm install
-npm run build
-```
+### 小说模式
 
-将 `manifest.json`、`main.js`、`styles.css` 放入插件目录。
+- 自动模式；
+- 多级列表原生；表格/图片居中；
+- 工具栏：自动排版、插入图片（从文件/从素材库）；选择窗口更大并显示名称；
+- 自动排版删除所有空行（含代码块）。
 
-## 快速开始
+### 设置
 
-1. 在文件列表中右键一个**非根目录**文件夹，选择 **构建小说组**。
-2. 点击小说组：左侧打开文章列表，主区域打开工作台。
-3. 小说组内的普通 Markdown 自动启用小说模式。
-4. 在文章列表右键空白：新建“无标题”文章或“无名卷”；右键文章/卷：重命名、删除、加入大纲。
-5. 在小说模式工具栏点击 **有了灵感**，记录内容；关闭后进入工作台“灵感”卡片。
+仅保留首行缩进、行距、段距、段落划分、隐藏 Markdown 标记、隐藏行号、恢复默认。
 
-> Vault 根目录不能设置为小说组。
+### 作者与许可
 
-## 文章列表
-
-- **卷**可展开/收起，文章折叠在卷内。
-- 根目录文章自动进入虚拟卷 **“分散卷”**。
-- **聚焦**：点击文章/卷后高亮；新建文章默认进入聚焦卷。
-- **行内重命名**：右键文章/卷 → 重命名，直接在行内输入，Enter 保存，Escape 取消。
-- **拖拽**：文章可拖入卷或拖回根目录；卷拖到卷上只调整顺序，不嵌套。
-- **新建**：
-  - 新建文章直接命名为“无标题”，文件内不重复写 H1；
-  - 新建卷直接创建“无名卷”，重名时自动编号。
-- **右键菜单**：
-  - 空白：新建文章、新建卷；
-  - 文章/实际卷：重命名、删除、加入大纲；
-  - 分散卷不可重命名、删除、设置卷纲或拖动。
-
-## 工作台
-
-工作台只有两个入口：
-
-1. 点击文件列表中的小说组；
-2. 点击文章列表工具栏的 **NovelView 工作台**。
-
-对应小说组由**文章列表当前选中的组**决定，不跟随最近编辑的文章。
-
-### 当前卡片
-
-| 卡片 | 新增 | 内容 |
-| --- | --- | --- |
-| 大纲 | 否 | 卷纲/章纲，点击条目跳转 |
-| 灵感 | 否 | 由“有了灵感”保存的条目 |
-
-- 卡片平铺，可拖动右下角调整占位大小；
-- 双击卡片边框直接打开对应文件/特殊页面；
-- 人物/设定卡片暂时隐藏，时间线/伏笔工作台 UI 已移除，相关数据文件保留。
-
-### 编辑小说信息
-
-- 只能编辑简介、封面、状态；
-- 小说名称始终等于小说组文件夹名；
-- 不再提供名称输入或配置文件夹名称。
-
-## 特殊页面
-
-以下 Markdown 文件打开时使用专用页面，而不是普通编辑器：
-
-| 文件 | 页面 |
-| --- | --- |
-| `大纲.md` | 大纲幻灯片 |
-| `设定.md` | 设定卡片 |
-| `人物.md` | 人物卡片 |
-| `伏笔.md` | 伏笔卡片 |
-| `悬浮标签.md` | 灵感卡片 |
-| `时间线.md` | 时间线卡片 |
-
-- 设定/人物/伏笔/时间线页面可新增；
-- 大纲/灵感不提供新增；
-- 条目右键可修改/删除；
-- 从文件列表、工作台、关键词或卡片双击打开都会进入特殊页面。
-
-## 灵感与大纲
-
-### 有了灵感
-
-- 小说模式工具栏按钮，最多同时打开 **8 个**便签；
-- 默认标题为 `YYYY-MM-DD HH:mm:ss`；
-- 右键标题重命名；
-- 关闭时保存到小说组的 `悬浮标签.md`；
-- 标题必须唯一，重复标题会拒绝保存并保持便签打开；
-- 灵感特殊页面以平铺卡片展示；
-- 点击卡片恢复该便签的编辑记录，关闭时更新原条目。
-
-### 大纲
-
-`大纲.md`：
-
-```markdown
----
-novelview-type: outline
----
-
-# 卷纲
-
-## 第一卷
-
-卷纲内容。
-
-# 章纲
-
-## 第一章
-
-章纲内容。
-```
-
-- 文章列表右键实际卷/章节 → 加入大纲；
-- 在悬浮卡片中填写梗概；
-- 大纲特殊页面使用幻灯片布局，上一页/下一页；
-- 正文中的 `---` 分隔线会把同一大纲拆成多张幻灯片；
-- 大纲/灵感在工作台无新增按钮。
-
-## 小说模式
-
-小说组内的普通 Markdown **自动启用**小说模式：
-
-- 无“进入小说模式”按钮或命令；
-- 小说组外不启用；
-- NovelSetting、资料文件、大纲等特殊 Markdown 不启用；
-- 编辑/阅读视图均支持；
-- 首行缩进、行距、段距、隐藏标记/行号；
-- 多级列表及续行不应用首行缩进和额外行距；
-- 表格与图片居中显示；
-- 列表/引用/Callout 保留原生排版；
-- 标题处显示字数与 `novelstate` 状态。
-
-### 浮动工具栏
-
-固定 3 项：
-
-| 操作 | 说明 |
-| --- | --- |
-| 自动排版 | 删除所有空行（含代码块内空行）、清理行尾空格，保留 frontmatter，可撤销 |
-| 加入图片 | 小说组内保存到 `src/`，其他位置使用附件设置 |
-| 有了灵感 | 新建浮动灵感便签 |
-
-## 设置
-
-设置页只保留设置项：
-
-- 首行缩进（字符）
-- 行距（倍）
-- 段距（em）
-- 段落划分
-- 隐藏 Markdown 格式标记
-- 隐藏行号
-- 恢复默认设置
-
-## 高级查找 / 替换
-
-- Markdown 标签页工具栏放大镜；
-- 工作台工具栏放大镜；
-- 命令 **NovelView: 打开高级查找/替换**。
-
-支持区分大小写、全词、正则；结果在右侧面板；替换写入前确认，单次最多 2000 处。
-
-## 开发
-
-需要 Node.js 20+。
-
-```bash
-npm install
-npm run dev     # esbuild watch
-npm run check   # TypeScript strict
-npm test        # core tests
-npm run build   # production bundle
-```
-
-### 项目结构
-
-```text
-src/
-├── main.ts                  # 插件生命周期、模式、文章列表、工作台、搜索
-├── article-list-view.ts     # 文章/卷树、聚焦、行内重命名、拖拽
-├── workbench-view.ts        # 大纲/灵感卡片工作台
-├── special-page-view.ts     # 特殊页面（含大纲幻灯片、灵感卡片）
-├── inspiration-note.ts      # 浮动灵感便签
-├── outline-card-modal.ts    # 大纲悬浮编辑卡片
-├── src-gallery-view.ts      # src 素材视图
-├── editor/                  # CodeMirror 装饰与浮动工具栏
-└── core/                    # 段落、格式、关键词、大纲、搜索等
-```
-
-更完整的设计说明见 [docs/DESIGN.md](docs/DESIGN.md)。
-
-## 已知限制
-
-- 特殊页面替换 MarkdownView，同标签页内不能直接切回源文件。
-- 未关闭的灵感便签只存在内存中，退出 Obsidian 会丢失；最多 8 个。
-- 工作台当前只保留大纲/灵感卡片；其他资料模块留待后续版本。
-- 工作台卡片大小只保存在当前视图会话。
-- 大纲解析/写入可能规范化手工格式。
-- “分散卷”是虚拟卷，不能直接转换为真实卷。
-- 表格/图片居中依赖 CSS，第三方主题可能覆盖。
-- 旧版本按文件夹存放的资料不会自动迁移。
-
-## 作者与许可
-
-作者：**yukisova**
-
-基于 [MIT License](LICENSE) 发布。第三方归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+作者：**yukisova**，基于 [MIT License](LICENSE) 发布。

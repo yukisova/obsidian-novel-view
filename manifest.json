@@ -1,9 +1,9 @@
 {
   "id": "novel-view",
   "name": "NovelView",
-  "version": "0.3.6",
+  "version": "0.6.0",
   "minAppVersion": "1.7.2",
-  "description": "Novel writing mode with auto mode, inline article rename, outline slides, inspiration cards, special pages, and find/replace.",
+  "description": "Novel writing workflow for Obsidian: chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "author": "yukisova",
   "authorUrl": "",
   "isDesktopOnly": false

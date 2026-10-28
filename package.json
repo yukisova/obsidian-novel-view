@@ -1,7 +1,7 @@
 {
   "name": "novelview",
-  "version": "0.3.6",
-  "description": "Obsidian novel workflow: auto mode, inline article rename, outline slides, inspiration cards, special pages, and find/replace.",
+  "version": "0.6.0",
+  "description": "Novel writing workflow for Obsidian: chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",

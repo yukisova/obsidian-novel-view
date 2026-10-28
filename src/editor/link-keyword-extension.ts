@@ -7,29 +7,29 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import {
-  findKeywordMatches,
-  type KeywordEntry,
-} from "../core/keywords";
+  findLinkKeywordMatches,
+  type LinkKeywordEntry,
+} from "../core/link-library";
 import { findFrontmatterEnd } from "../core/paragraphs";
 
-let currentEntries: KeywordEntry[] = [];
+let currentEntries: LinkKeywordEntry[] = [];
 const activeViews = new Set<EditorView>();
 
-export function setNovelKeywords(entries: KeywordEntry[]): void {
+export function setLinkKeywords(entries: LinkKeywordEntry[]): void {
   currentEntries = entries;
 }
 
-export function refreshNovelKeywords(): void {
+export function refreshLinkKeywords(): void {
   for (const view of activeViews) {
     try {
       view.dispatch({});
     } catch (error) {
-      console.debug("NovelView: keyword refresh skipped", error);
+      console.debug("NovelView: link keyword refresh skipped", error);
     }
   }
 }
 
-class KeywordPlugin {
+class LinkKeywordPlugin {
   private readonly view: EditorView;
   decorations: DecorationSet;
 
@@ -48,8 +48,8 @@ class KeywordPlugin {
   }
 }
 
-export const novelKeywordExtension = ViewPlugin.fromClass(
-  KeywordPlugin,
+export const linkKeywordExtension = ViewPlugin.fromClass(
+  LinkKeywordPlugin,
   {
     decorations: (plugin) => plugin.decorations,
   },
@@ -79,20 +79,16 @@ function buildDecorations(view: EditorView): DecorationSet {
         lastLineNumber = line.number;
 
         if (line.number > frontmatterEnd && line.text.length > 0) {
-          for (const match of findKeywordMatches(line.text, currentEntries)) {
+          for (const match of findLinkKeywordMatches(line.text, currentEntries)) {
             builder.add(
               line.from + match.start,
               line.from + match.end,
               Decoration.mark({
-                class: [
-                  "novelview-keyword-link",
-                  `novelview-keyword-${match.entry.category ?? "setting"}`,
-                ].join(" "),
+                class: "novelview-link-keyword",
                 attributes: {
-                  "data-novelview-path": match.entry.path,
-                  "data-novelview-line": String(match.entry.line ?? 1),
-                  "data-novelview-category": match.entry.category ?? "setting",
-                  title: `打开 ${match.entry.heading ?? match.entry.basename}`,
+                  style: `color: ${match.entry.color};`,
+                  "data-novelview-link-path": match.entry.path,
+                  title: `打开 ${match.entry.basename}`,
                 },
               }),
             );
@@ -109,4 +105,3 @@ function buildDecorations(view: EditorView): DecorationSet {
 
   return builder.finish();
 }
-

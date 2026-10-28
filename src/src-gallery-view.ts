@@ -37,7 +37,7 @@ export class NovelSrcGalleryView extends ItemView {
   }
 
   override getDisplayText(): string {
-    return "小说链接";
+    return "素材库";
   }
 
   override getIcon(): string {
@@ -66,7 +66,14 @@ export class NovelSrcGalleryView extends ItemView {
     this.registerEvent(this.app.vault.on("create", () => this.render()));
     this.registerEvent(this.app.vault.on("delete", () => this.render()));
     this.registerEvent(this.app.vault.on("rename", () => this.render()));
-    this.addAction("refresh-cw", "刷新 src 素材", () => this.render());
+    this.registerDomEvent(this.contentEl, "dblclick", (event) => {
+      if ((event.target as HTMLElement | null)?.closest(
+        ".novelview-src-card, .novelview-src-header, button, input",
+      )) {
+        return;
+      }
+      this.chooseMaterialImage();
+    });
 
     if (!this.folderPath) {
       this.folderPath = this.plugin.getWorkbenchFolderPath() ?? "";
@@ -81,36 +88,25 @@ export class NovelSrcGalleryView extends ItemView {
   private render(): void {
     this.contentEl.empty();
 
-    const novel = this.folderPath
-      ? this.plugin.getNovelGroupInfo(this.folderPath)
-      : null;
     const header = this.contentEl.createDiv({
       cls: "novelview-src-header",
     });
-    header.createDiv({
-      cls: "novelview-src-kicker",
-      text: "小说链接",
-    });
-    header.createDiv({
+    header.createEl("h2", {
       cls: "novelview-src-title",
-      text: novel?.name ?? "src 素材",
-    });
-    const srcPath = this.folderPath === "/"
-      ? "src"
-      : `${this.folderPath}/src`;
-    header.createDiv({
-      cls: "novelview-src-path",
-      text: this.folderPath ? srcPath : "尚未选择小说组",
+      text: "素材库",
     });
 
     if (!this.folderPath) {
-      this.renderMessage("请从文章列表进入。");
+      this.renderMessage("请从文章列表打开素材库。");
       return;
     }
 
+    const srcPath = this.folderPath === "/"
+      ? "src"
+      : `${this.folderPath}/src`;
     const folder = this.app.vault.getAbstractFileByPath(srcPath);
     if (!(folder instanceof TFolder)) {
-      this.renderMessage("src 文件夹尚不存在。在小说模式中使用“加入图片”后，图片会统一放在这里。");
+      this.renderEmpty();
       return;
     }
 
@@ -123,7 +119,7 @@ export class NovelSrcGalleryView extends ItemView {
       ));
 
     if (files.length === 0) {
-      this.renderMessage("src 文件夹为空。");
+      this.renderEmpty();
       return;
     }
 
@@ -160,9 +156,14 @@ export class NovelSrcGalleryView extends ItemView {
       setIcon(icon, "file");
     }
 
-    card.createDiv({
+    const nameEl = card.createDiv({
       cls: "novelview-src-name",
       text: file.name,
+      attr: { title: "双击重命名" },
+    });
+    nameEl.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      this.startInlineRename(nameEl, file);
     });
 
     const actions = card.createDiv({
@@ -182,20 +183,122 @@ export class NovelSrcGalleryView extends ItemView {
       );
     });
 
-    if (isImage) {
-      const copy = actions.createEl("button", {
-        cls: "novelview-src-button",
-        text: "复制链接",
-        attr: { type: "button" },
-      });
-      copy.addEventListener("click", () => {
-        void navigator.clipboard.writeText(`![[${file.path}]]`).then(() => {
-          new Notice("NovelView：已复制图片嵌入链接。");
-        }).catch(() => {
-          new Notice("NovelView：复制失败。");
-        });
-      });
+    const rename = actions.createEl("button", {
+      cls: "novelview-src-button",
+      text: "重命名",
+      attr: { type: "button" },
+    });
+    rename.addEventListener("click", () => {
+      this.startInlineRename(nameEl, file);
+    });
+
+    const remove = actions.createEl("button", {
+      cls: "novelview-src-button is-danger",
+      text: "删除",
+      attr: { type: "button" },
+    });
+    remove.addEventListener("click", () => this.deleteFile(file));
+
+  }
+
+  private renderEmpty(): void {
+    const empty = this.contentEl.createDiv({
+      cls: "novelview-src-empty",
+    });
+    empty.createDiv({
+      cls: "novelview-src-empty-watermark",
+      text: "双击空白区域可导入图片",
+    });
+  }
+
+  private chooseMaterialImage(): void {
+    if (!this.folderPath) {
+      new Notice("NovelView：请先打开小说组素材库。");
+      return;
     }
+    const input = createEl("input", {
+      cls: "novelview-hidden-file-input",
+      attr: { type: "file", accept: "image/*" },
+    });
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (file) {
+        void this.plugin.importMaterialImage(this.folderPath, file).then(() => {
+          this.render();
+        });
+      }
+      input.remove();
+    });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  private deleteFile(file: TFile): void {
+    void this.app.fileManager.promptForDeletion(file).then((confirmed) => {
+      if (confirmed) {
+        void this.app.vault.delete(file).then(() => this.render());
+      }
+    });
+  }
+
+  private startInlineRename(
+    nameEl: HTMLElement,
+    file: TFile,
+  ): void {
+    nameEl.empty();
+    const input = createEl("input", {
+      cls: "novelview-src-rename-input",
+      attr: {
+        type: "text",
+        "aria-label": "重命名素材",
+      },
+    });
+    const dot = file.name.lastIndexOf(".");
+    input.value = dot > 0 ? file.name.slice(0, dot) : file.name;
+    nameEl.appendChild(input);
+    let settled = false;
+    const finish = (save: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      const value = input.value.trim();
+      if (!save || !value) {
+        this.render();
+        return;
+      }
+      const extension = dot > 0 ? file.name.slice(dot) : "";
+      const base = value.replace(/[\\/:*?"<>|#^[\]]/gu, "-").trim();
+      if (!base || base === file.basename) {
+        this.render();
+        return;
+      }
+      const parent = file.parent?.path ?? "";
+      const target = parent ? `${parent}/${base}${extension}` : `${base}${extension}`;
+      if (this.app.vault.getAbstractFileByPath(target)) {
+        new Notice("NovelView：同名素材已存在。");
+        this.render();
+        return;
+      }
+      void this.app.fileManager.renameFile(file, target).then(() => {
+        this.render();
+      });
+    };
+    input.addEventListener("click", (event) => event.stopPropagation());
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
   }
 
   private renderMessage(text: string): void {

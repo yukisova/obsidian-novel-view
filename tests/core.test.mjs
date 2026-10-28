@@ -8,12 +8,14 @@ import {
   isProseLine,
   isSpecialBlockLine,
 } from "../.test-build/paragraphs.mjs";
+import { compareFilesNaturally } from "../.test-build/format-utils.mjs";
 import {
-  compareFilesNaturally,
-  getReferenceCategories,
-  hasReferenceProperty,
-  parseReferenceCategories,
-} from "../.test-build/cards.mjs";
+  DEFAULT_LINK_GROUP,
+  findLinkKeywordMatches,
+  getLinkKeywordEntries,
+  parseLinkLibrary,
+  serializeLinkLibrary,
+} from "../.test-build/link-library.mjs";
 import {
   compileSearchExpression,
   findSearchMatches,
@@ -27,31 +29,8 @@ import {
   normalizeCoverPath,
   parseNovelSetting,
 } from "../.test-build/novel-setting.mjs";
-import {
-  countNovelCharacters,
-  parseNovelState,
-} from "../.test-build/status.mjs";
-import {
-  buildKeywordEntries,
-  findKeywordMatches,
-  parseNovelKeywords,
-} from "../.test-build/keywords.mjs";
-import {
-  createOutlineFileContent,
-  deleteOutlineEntry,
-  isOutlineFileName,
-  parseOutline,
-  upsertOutlineEntry,
-} from "../.test-build/outline.mjs";
-import {
-  appendCategorySection,
-  createCategoryFileContent,
-  deleteCategorySection,
-  getCategoryFilePath,
-  isCategoryFileName,
-  parseCategorySections,
-  renameCategorySection,
-} from "../.test-build/category-file.mjs";
+import { countNovelCharacters } from "../.test-build/status.mjs";
+import { parseChapterStatus } from "../.test-build/chapter-status.mjs";
 import {
   DEFAULT_SETTINGS,
   normalizeSettings,
@@ -190,51 +169,6 @@ test("detects Properties/frontmatter blocks in raw Markdown", () => {
   assert.equal(hasFrontmatterBlock("正文\n---\n不是属性"), false);
   assert.equal(hasFrontmatterBlock("---\n未闭合的属性"), false);
   assert.equal(hasFrontmatterBlock(""), false);
-});
-
-test("parses card categories from text, lists, and Chinese aliases", () => {
-  assert.deepEqual(parseReferenceCategories("setting"), ["setting"]);
-  assert.deepEqual(parseReferenceCategories("时间线"), ["timeline"]);
-  assert.deepEqual(parseReferenceCategories(["setting", "伏笔"]), [
-    "setting",
-    "foreshadowing",
-  ]);
-  assert.deepEqual(parseReferenceCategories("setting, timeline"), [
-    "setting",
-    "timeline",
-  ]);
-  assert.deepEqual(parseReferenceCategories("unknown"), []);
-});
-
-test("recognizes character and inspiration reference categories", () => {
-  assert.deepEqual(
-    getReferenceCategories({ "novelview-type": "character" }),
-    ["character"],
-  );
-  assert.deepEqual(
-    getReferenceCategories({ "novelview-type": ["人物", "灵感便签"] }),
-    ["character", "inspiration"],
-  );
-  assert.deepEqual(
-    getReferenceCategories({ "novelview-type": "角色" }),
-    ["character"],
-  );
-});
-
-test("finds novelview-type case-insensitively in frontmatter", () => {
-  assert.deepEqual(
-    getReferenceCategories({ "NovelView-Type": "timeline" }),
-    ["timeline"],
-  );
-  assert.deepEqual(getReferenceCategories({ tags: ["小说"] }), []);
-  assert.deepEqual(getReferenceCategories(undefined), []);
-});
-
-test("detects the reference property even when its value is not recognized", () => {
-  assert.equal(hasReferenceProperty({ "novelview-type": "draft" }), true);
-  assert.equal(hasReferenceProperty({ "NovelView-Type": "" }), true);
-  assert.equal(hasReferenceProperty({ tags: ["小说"] }), false);
-  assert.equal(hasReferenceProperty(undefined), false);
 });
 
 test("sorts chapter-like names naturally", () => {
@@ -444,7 +378,6 @@ test("parses and creates novel group settings", () => {
   assert.equal(data.name, "长夜将尽");
   assert.equal(data.description, "一场从旧城开始的漫长告别。");
   assert.equal(data.cover, "附件/cover.jpg");
-  assert.equal(data.state, "writing");
 
   const fallback = parseNovelSetting(undefined, "小说/无名", "无名");
   assert.equal(fallback.name, "无名");
@@ -464,44 +397,17 @@ test("parses and creates novel group settings", () => {
 
 
 test("parses novel states and counts body characters", () => {
-  assert.equal(parseNovelState("写作"), "writing");
-  assert.equal(parseNovelState("修改"), "revising");
-  assert.equal(parseNovelState("完稿"), "finished");
-  assert.equal(parseNovelState("editing"), "revising");
-  assert.equal(parseNovelState("未知"), null);
-  assert.equal(parseNovelState(42), null);
+  assert.equal(parseChapterStatus("待写"), "todo");
+  assert.equal(parseChapterStatus("草稿"), "draft");
+  assert.equal(parseChapterStatus("大纲"), "outline");
+  assert.equal(parseChapterStatus("修改中"), "revising");
+  assert.equal(parseChapterStatus("已完稿"), "done");
+  assert.equal(parseChapterStatus("unknown"), "todo");
 
   assert.equal(
     countNovelCharacters("---\nnovelstate: 写作\n---\n\n第一段 文字\n\n第二段"),
     8,
   );
-});
-
-
-test("parses keyword properties and finds longest keyword matches", () => {
-  assert.deepEqual(
-    parseNovelKeywords({
-      "novel-keywords": ["沈砚", "怀表"],
-      "关键词": "旧城、银色怀表",
-    }),
-    ["沈砚", "怀表", "旧城", "银色怀表"],
-  );
-
-  const entries = buildKeywordEntries([
-    {
-      path: "人物/沈砚.md",
-      basename: "沈砚",
-      keywords: ["沈砚", "怀表"],
-    },
-    {
-      path: "设定/怀表.md",
-      basename: "怀表",
-      keywords: ["银色怀表"],
-    },
-  ]);
-  const matches = findKeywordMatches("沈砚把银色怀表放在桌上。", entries);
-  assert.deepEqual(matches.map((match) => match.entry.basename), ["沈砚", "怀表"]);
-  assert.equal(matches[1].entry.path, "设定/怀表.md");
 });
 
 
@@ -515,102 +421,3 @@ test("identifies list, quote, and callout lines as native blocks", () => {
 });
 
 
-test("parses h1 sections from one category file", () => {
-  const content = [
-    "---",
-    "novelview-type: setting",
-    "---",
-    "",
-    "# 旧城地图",
-    "关键词：旧城、地图",
-    "旧城位于河流北岸。",
-    "",
-    "## 子标题",
-    "正文。",
-    "",
-    "# 银色怀表",
-    "关键词：怀表",
-    "停在 03:17。",
-  ].join("\n");
-
-  const sections = parseCategorySections(content);
-  assert.equal(sections.length, 2);
-  assert.equal(sections[0].heading, "旧城地图");
-  assert.deepEqual(sections[0].keywords, ["旧城", "地图"]);
-  assert.equal(sections[1].heading, "银色怀表");
-  assert.deepEqual(sections[1].keywords, ["怀表"]);
-  assert.equal(getCategoryFilePath("长夜将尽", "character"), "长夜将尽/人物.md");
-  assert.equal(isCategoryFileName("悬浮标签.md"), true);
-  assert.equal(isCategoryFileName("设定"), true);
-  assert.equal(isCategoryFileName("人物小传.md"), false);
-});
-
-test("keeps category and line metadata on keyword entries", () => {
-  const entries = buildKeywordEntries([{
-    path: "长夜将尽/设定.md",
-    basename: "设定",
-    keywords: ["旧城"],
-    category: "setting",
-    line: 5,
-    heading: "旧城地图",
-  }]);
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].category, "setting");
-  assert.equal(entries[0].line, 5);
-  assert.equal(entries[0].heading, "旧城地图");
-});
-
-test("appends, renames, and deletes category sections", () => {
-  const initial = createCategoryFileContent("character");
-  const withOne = appendCategorySection(initial, "character", "沈砚", ["小沈"], "人物小传。");
-  const withTwo = appendCategorySection(withOne, "character", "林晚", ["晚晚"]);
-
-  let sections = parseCategorySections(withTwo);
-  assert.equal(sections.length, 2);
-  assert.equal(sections[0].heading, "沈砚");
-
-  const renamed = renameCategorySection(withTwo, sections[1], "林晚（女主）");
-  sections = parseCategorySections(renamed);
-  assert.equal(sections[1].heading, "林晚（女主）");
-
-  const deleted = deleteCategorySection(renamed, sections[0]);
-  sections = parseCategorySections(deleted);
-  assert.equal(sections.length, 1);
-  assert.equal(sections[0].heading, "林晚（女主）");
-});
-
-
-test("parses and updates two-level outlines", () => {
-  const initial = createOutlineFileContent();
-  const withEntries = upsertOutlineEntry(
-    initial,
-    "volume",
-    "第一卷",
-    "卷纲内容。",
-  );
-  const withChapter = upsertOutlineEntry(
-    withEntries,
-    "chapter",
-    "第一章",
-    "章纲内容。",
-  );
-  const data = parseOutline(withChapter);
-  assert.deepEqual(data.volume.map((entry) => entry.title), ["第一卷"]);
-  assert.deepEqual(data.chapter.map((entry) => entry.title), ["第一章"]);
-  assert.equal(data.volume[0].body, "卷纲内容。");
-  assert.equal(data.chapter[0].body, "章纲内容。");
-  assert.equal(isOutlineFileName("大纲.md"), true);
-
-  const updated = upsertOutlineEntry(
-    withChapter,
-    "chapter",
-    "第一章",
-    "新的章纲。",
-  );
-  const updatedData = parseOutline(updated);
-  assert.equal(updatedData.chapter.length, 1);
-  assert.equal(updatedData.chapter[0].body, "新的章纲。");
-
-  const deleted = deleteOutlineEntry(updated, updatedData.chapter[0]);
-  assert.equal(parseOutline(deleted).chapter.length, 0);
-});
