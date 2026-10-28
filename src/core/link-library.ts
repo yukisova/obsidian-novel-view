@@ -2,14 +2,30 @@ export const LINK_LIBRARY_JSON = "links.json";
 export const DEFAULT_LINK_GROUP = "默认联动组";
 export const DEFAULT_LINK_COLOR = "#9a5a2d";
 
+export type LinkHighlightStyle = "normal" | "bold" | "italic" | "bolditalic" | "underline";
+
+export const LINK_STYLE_LABELS: Record<LinkHighlightStyle, string> = {
+  normal: "正常",
+  bold: "粗体",
+  italic: "斜体",
+  bolditalic: "粗斜体",
+  underline: "下划线",
+};
+
+export interface LinkGroupConfig {
+  style: LinkHighlightStyle;
+}
+
 export interface LinkFileEntry {
   path: string;
   belong: string;
+  tag: string;
   aliases: string[];
 }
 
 export interface LinkLibraryData {
-  group: Record<string, string>;
+  group: Record<string, LinkGroupConfig>;
+  tags: Record<string, Record<string, string>>;
   links: LinkFileEntry[];
 }
 
@@ -18,17 +34,39 @@ export interface LinkKeywordEntry {
   path: string;
   group: string;
   color: string;
+  style: LinkHighlightStyle;
   basename: string;
 }
 
 export function parseLinkLibrary(value: unknown): LinkLibraryData {
   const root = isRecord(value) ? value : {};
-  const groups: Record<string, string> = {};
+  const group: Record<string, LinkGroupConfig> = {};
   if (isRecord(root.group)) {
-    for (const [name, color] of Object.entries(root.group)) {
-      if (typeof name === "string" && name.trim()) {
-        groups[name.trim()] = normalizeColor(color);
+    for (const [name, raw] of Object.entries(root.group)) {
+      if (!name.trim()) {
+        continue;
       }
+      group[name.trim()] = {
+        style: isRecord(raw)
+          ? parseStyle(raw.style)
+          : "normal",
+      };
+    }
+  }
+
+  const tags: Record<string, Record<string, string>> = {};
+  if (isRecord(root.tag)) {
+    for (const [groupName, rawTags] of Object.entries(root.tag)) {
+      if (!isRecord(rawTags)) {
+        continue;
+      }
+      const map: Record<string, string> = {};
+      for (const [tag, color] of Object.entries(rawTags)) {
+        if (tag.trim()) {
+          map[tag.trim()] = normalizeColor(color);
+        }
+      }
+      tags[groupName] = map;
     }
   }
 
@@ -48,7 +86,7 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
           && config.belong.trim()
           ? config.belong.trim()
           : DEFAULT_LINK_GROUP;
-        const belong = rawGroup === DEFAULT_LINK_GROUP || groups[rawGroup]
+        const belong = rawGroup === DEFAULT_LINK_GROUP || group[rawGroup]
           ? rawGroup
           : DEFAULT_LINK_GROUP;
         const aliases = Array.isArray(config.alias)
@@ -57,23 +95,40 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
             .map((alias) => alias.trim())
             .filter(Boolean)
           : [];
+        const tag = typeof config.tag === "string" ? config.tag.trim() : "";
         links.push({
           path,
           belong,
+          tag,
           aliases: [...new Set(aliases)],
         });
       }
     }
   }
 
-  return { group: groups, links };
+  return { group, tags, links };
 }
 
 export function serializeLinkLibrary(data: LinkLibraryData): string {
-  const group: Record<string, string> = {};
-  for (const [name, color] of Object.entries(data.group)) {
+  const group: Record<string, LinkGroupConfig> = {};
+  for (const [name, config] of Object.entries(data.group)) {
     if (name.trim()) {
-      group[name] = normalizeColor(color);
+      group[name] = { style: config.style };
+    }
+  }
+  const tags: Record<string, Record<string, string>> = {};
+  for (const [groupName, map] of Object.entries(data.tags)) {
+    if (!data.group[groupName] && groupName !== DEFAULT_LINK_GROUP) {
+      continue;
+    }
+    const cleaned: Record<string, string> = {};
+    for (const [tag, color] of Object.entries(map)) {
+      if (tag.trim()) {
+        cleaned[tag.trim()] = normalizeColor(color);
+      }
+    }
+    if (Object.keys(cleaned).length > 0) {
+      tags[groupName] = cleaned;
     }
   }
   const link = data.links.map((entry) => ({
@@ -81,10 +136,11 @@ export function serializeLinkLibrary(data: LinkLibraryData): string {
       ...(entry.belong && entry.belong !== DEFAULT_LINK_GROUP
         ? { belong: entry.belong }
         : {}),
+      ...(entry.tag ? { tag: entry.tag } : {}),
       alias: [...new Set(entry.aliases)],
     },
   }));
-  return `${JSON.stringify({ group, link }, null, 2)}\n`;
+  return `${JSON.stringify({ group, tag: tags, link }, null, 2)}\n`;
 }
 
 export function getLinkGroupNames(data: LinkLibraryData): string[] {
@@ -98,11 +154,32 @@ export function getLinkGroupNames(data: LinkLibraryData): string[] {
   return [...new Set(names)];
 }
 
-export function getLinkGroupColor(
+export function getLinkGroupStyle(
   data: LinkLibraryData,
   group: string,
+): LinkHighlightStyle {
+  return data.group[group]?.style ?? "normal";
+}
+
+export function getLinkTagColor(
+  data: LinkLibraryData,
+  group: string,
+  tag: string,
 ): string {
-  return data.group[group] ?? DEFAULT_LINK_COLOR;
+  return data.tags[group]?.[tag] ?? DEFAULT_LINK_COLOR;
+}
+
+export function getLinkGroupTags(
+  data: LinkLibraryData,
+  group: string,
+): string[] {
+  const names = new Set(Object.keys(data.tags[group] ?? {}));
+  for (const link of data.links) {
+    if (link.belong === group && link.tag) {
+      names.add(link.tag);
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b, "zh-CN"));
 }
 
 export function getLinkFileName(path: string): string {
@@ -124,7 +201,8 @@ export function getLinkKeywordEntries(
         keyword,
         path: link.path,
         group: link.belong,
-        color: getLinkGroupColor(data, link.belong),
+        color: getLinkTagColor(data, link.belong, link.tag),
+        style: getLinkGroupStyle(data, link.belong),
         basename,
       });
     }
@@ -162,17 +240,29 @@ export function findLinkKeywordMatches(
       }
     }
     if (matched) {
-      matches.push({
-        start: index,
-        end: index + matched.keyword.length,
-        entry: matched,
-      });
+      matches.push({ start: index, end: index + matched.keyword.length, entry: matched });
       index += matched.keyword.length;
     } else {
       index += 1;
     }
   }
   return matches;
+}
+
+export function parseStyle(value: unknown): LinkHighlightStyle {
+  if (typeof value !== "string") {
+    return "normal";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "bold"
+    || normalized === "italic"
+    || normalized === "bolditalic"
+    || normalized === "underline"
+  ) {
+    return normalized;
+  }
+  return "normal";
 }
 
 function normalizeColor(value: unknown): string {

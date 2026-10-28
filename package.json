@@ -1,7 +1,7 @@
 {
   "name": "novelview",
-  "version": "0.6.0",
-  "description": "Novel writing workflow for Obsidian: chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
+  "version": "0.6.11",
+  "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",

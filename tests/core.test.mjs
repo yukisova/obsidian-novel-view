@@ -12,6 +12,7 @@ import { compareFilesNaturally } from "../.test-build/format-utils.mjs";
 import {
   DEFAULT_LINK_GROUP,
   findLinkKeywordMatches,
+  getLinkGroupTags,
   getLinkKeywordEntries,
   parseLinkLibrary,
   serializeLinkLibrary,
@@ -354,6 +355,46 @@ test("formats prose while preserving frontmatter and fenced code", () => {
   assert.match(codeResult.text, /```\n结束\n$/u);
 });
 
+test("adds blank lines around separators, lists, quotes, and tables", () => {
+  const input = [
+    "第一段",
+    "",
+    "---",
+    "",
+    "第二段",
+    "",
+    "- 一",
+    "- 二",
+    "",
+    "> 引用",
+    "",
+    "| A | B |",
+    "| --- | --- |",
+    "| 1 | 2 |",
+    "",
+    "第三段",
+  ].join("\n");
+  const expected = [
+    "第一段",
+    "",
+    "---",
+    "",
+    "第二段",
+    "",
+    "- 一",
+    "- 二",
+    "",
+    "> 引用",
+    "",
+    "| A | B |",
+    "| --- | --- |",
+    "| 1 | 2 |",
+    "",
+    "第三段",
+  ].join("\n");
+  assert.equal(formatNovelMarkdown(input).text, expected);
+});
+
 test("short-circuits already formatted text and preserves BOM", () => {
   const already = "第一段\n第二段\n";
   assert.equal(formatNovelMarkdown(already).changed, false);
@@ -421,3 +462,18 @@ test("identifies list, quote, and callout lines as native blocks", () => {
 });
 
 
+
+
+test("keeps tags for the default link group", () => {
+  const data = parseLinkLibrary({
+    group: {},
+    tag: {},
+    link: [
+      { "未命名.md": { tag: "标签A", alias: ["别名"] } },
+    ],
+  });
+  data.tags[DEFAULT_LINK_GROUP] = { "标签A": "#e5484d" };
+  const roundtrip = parseLinkLibrary(JSON.parse(serializeLinkLibrary(data)));
+  assert.equal(roundtrip.links[0].tag, "标签A");
+  assert.deepEqual(getLinkGroupTags(roundtrip, DEFAULT_LINK_GROUP), ["标签A"]);
+});

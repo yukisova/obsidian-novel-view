@@ -54,14 +54,6 @@ export class NovelWorkbenchView extends ItemView {
       this.app.metadataCache.on("changed", () => this.scheduleRefresh()),
     );
 
-    this.addAction(
-      "search",
-      "NovelView：高级查找/替换",
-      () => {
-        void this.plugin.openAdvancedSearch();
-      },
-    );
-
     await this.render();
   }
 

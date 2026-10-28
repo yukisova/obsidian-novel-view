@@ -84,7 +84,7 @@ function buildDecorations(view: EditorView): DecorationSet {
               line.from + match.start,
               line.from + match.end,
               Decoration.mark({
-                class: "novelview-link-keyword",
+                class: `novelview-link-keyword novelview-link-keyword-${match.entry.style}`,
                 attributes: {
                   style: `color: ${match.entry.color};`,
                   "data-novelview-link-path": match.entry.path,

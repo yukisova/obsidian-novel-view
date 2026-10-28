@@ -46,7 +46,7 @@ export function linkKeywordsInElement(
         );
       }
       const link = createEl("span", {
-        cls: "novelview-link-keyword",
+        cls: `novelview-link-keyword novelview-link-keyword-${match.entry.style}`,
         attr: {
           role: "link",
           tabindex: "0",

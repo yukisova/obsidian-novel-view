@@ -1,9 +1,9 @@
 {
   "id": "novel-view",
   "name": "NovelView",
-  "version": "0.6.0",
+  "version": "0.6.11",
   "minAppVersion": "1.7.2",
-  "description": "Novel writing workflow for Obsidian: chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
+  "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "author": "yukisova",
   "authorUrl": "",
   "isDesktopOnly": false

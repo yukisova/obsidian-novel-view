@@ -6,6 +6,8 @@ export interface NovelFloatingToolbarActions {
   formatDocument: () => void;
   addImage: () => void;
   addImageFromLibrary: () => void;
+  openSearch: () => void;
+  openModeSettings: () => void;
 }
 
 interface ToolbarButton {
@@ -17,6 +19,8 @@ interface ToolbarButton {
 const BUTTONS: ToolbarButton[] = [
   { icon: "wand-2", label: "自动排版", action: "formatDocument" },
   { icon: "image-plus", label: "插入图片", action: "addImage" },
+  { icon: "search", label: "查找替换", action: "openSearch" },
+  { icon: "settings-2", label: "格式设置", action: "openModeSettings" },
 ];
 
 /**

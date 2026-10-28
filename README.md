@@ -3,7 +3,7 @@
 **为 Obsidian 打造的小说写作工作流。**  
 **A novel-writing workflow for Obsidian.**
 
-![version](https://img.shields.io/badge/version-0.6.0-9a5a2d)
+![version](https://img.shields.io/badge/version-0.6.11-9a5a2d)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
@@ -39,7 +39,7 @@ NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章�
 
 ### Installation
 
-1. Download [novel-view-0.6.0.zip](dist/novel-view-0.6.0.zip).
+1. Download [novel-view-0.6.11.zip](dist/novel-view-0.6.11.zip).
 2. Extract to `<Vault>/.obsidian/plugins/novel-view/`.
 3. Enable **NovelView** in **Settings → Community plugins**.
 
@@ -53,6 +53,12 @@ Requires Obsidian **1.7.2+**.
 - Inline rename; multi-select disables rename.
 - New article “无标题”, no duplicate H1; new volume “无名卷” with numbering.
 - Each chapter row displays word count and status.
+- Export:
+  - The article-list **Export merged manuscript** button exports every article in the novel group as one TXT via the system folder picker;
+  - Multi-selected chapters merge into one TXT (volumes are ignored);
+  - Single chapter exports as TXT;
+  - Single volume exports all chapters as one TXT;
+  - A system folder picker chooses the destination.
 
 Status property:
 
@@ -75,27 +81,33 @@ Chapter and volume description features, floating panels, context entry, and sto
 
 ### Link Library
 
-- Toolbar: **新增联动组**, **导入联动文件**, **多选** (plus batch delete).
-- Title/list spacing and divider match the materials library.
-- JSON lives at `<novel-group>/links.json`; the old `link/` folder is no longer used.
-- Any vault file type can be imported, not only Markdown.
+- No top toolbar. Right-click blank space → **新增联动组** / **导入联动文件**; selection is always available (marquee/Ctrl/Shift).
+- JSON lives at `<novel-group>/links.json`; `link/` is no longer used.
+- Any vault file type can be imported.
 - Import opens a floating tree window; aliases can be set and confirmed with Enter.
-- Groups can expand/collapse; files drag into groups; groups can be reordered.
-- Right-click group/file: **编辑**, **重命名**, **删除**.
-- Rename is inline; edit opens a modeless color/alias panel, not a dialog.
+- Groups have a highlight font style: normal / bold / italic / bold-italic / underline (no group color).
+- Each linked file can optionally have one tag. Tags appear as collapsible branches under the group; the tag color is shown as a colored dot on the right.
+- Groups show a small style preview; unbound tags are removed automatically.
+- Only linked files participate in multi-selection; groups/tags are never selected.
+- Tag editing uses six preset colors (red/orange/yellow/green/blue/purple) plus a custom color.
+- Batch add tag / batch delete are available from the right-click menu on a multi-selection.
+- Right-click group: **编辑字体样式 / 重命名 / 删除**.
+- Right-click file: **编辑标签与别名 / 重命名 / 删除**.
+- Rename is inline; edit opens a modeless panel (no dialog, no rename field).
 - Missing imported files are pruned automatically when loading/refreshing.
 
 ```json
 {
-  "group": { "联动组1": "#aa3311" },
+  "group": { "人物": { "style": "bold" } },
+  "tag": { "人物": { "湖南大学": "#e5484d" } },
   "link": [
-    { "未命名.md": { "belong": "联动组1", "alias": ["你好"] } },
+    { "未命名.md": { "belong": "人物", "tag": "湖南大学", "alias": ["你好"] } },
     { "~/仓库内引用.md": { "alias": ["你好hk"] } }
   ]
 }
 ```
 
-Keywords use filename + alias; group color is the highlight color. `~/` resolves from the vault root; bare paths fall back through the current volume, group root, and legacy link paths.
+Keywords use filename + alias; tag color is the highlight color; group style is the font style. `~/` resolves from the vault root; bare paths fall back through the current volume/group/legacy link paths.
 
 ### Materials Library
 
@@ -108,11 +120,29 @@ Keywords use filename + alias; group color is the highlight color. `~/` resolves
 - Automatic inside novel groups; no manual toggle.
 - Lists/quotes native; tables/images centered.
 - Toolbar: auto format, insert image → from file / from materials; larger picker with names.
-- Auto format removes all blank lines, including fenced code.
+- Auto format removes blank lines except one blank line before/after separators, tables, lists, and blockquotes; all other blank lines (including fenced code) are removed.
+- Heading markers H1-H6 are hidden automatically.
+- Horizontal rules split the article into sections; a floating TOC in the upper-left provides quick navigation.
+
+### Search
+
+- Entry moved to the novel-mode floating toolbar; the old header/workbench buttons and command are removed.
+- Scopes: current chapter, current volume, whole book, link-library files.
+- Results are grouped by file; click a file card to expand its match cards.
+- Results are displayed as scrollable/ellipsized cards.
+- Search runs live while typing; there is no separate Find button.
+- The panel is bound to the current article view and closes when the main area switches away.
+- Result title shows: 查找结果 · range type · novel group.
+
+### Format Settings
+
+- New “格式设置” button in the floating toolbar.
+- Modeless window with live controls for font size, line height, paragraph spacing, and first-line indent.
+- Values apply immediately and persist.
 
 ### Settings
 
-Controls only: first-line indent, line height, paragraph spacing, paragraph mode, hide markers, hide line numbers, restore defaults.
+The plugin settings tab still contains the remaining controls; the four typography sliders above are available directly in the novel-mode window.
 
 ### Author
 
@@ -124,17 +154,23 @@ Controls only: first-line indent, line height, paragraph spacing, paragraph mode
 
 ### 简介
 
-NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.0 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
+NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.11 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
 
 ### 安装
 
-下载文件，放到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
+下载 [novel-view-0.6.11.zip](dist/novel-view-0.6.11.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
 
 ### 文章列表
 
 - 标题仅显示小说名 + 正文数量；
 - 替换左侧文件列表；标题栏有返回图标，工具栏有可见“返回”按钮；
 - 每条章节显示字数与状态：待写、草稿、大纲、修改中、已完稿；
+- 导出：
+  - 文章列表“导出合并稿”按钮将小说组全部文章合并为一个 TXT，并由系统文件夹选择器指定保存位置；
+  - 多选章节合并为 TXT（卷自动忽略）；
+  - 单章导出 TXT；
+  - 单卷合并导出 TXT；
+  - 通过系统文件夹选择器指定保存位置；
 - 状态属性：`novelview-state`；
 - 多选：框选、Shift 连续、Ctrl/Cmd 间断，空白取消；
 - 多选禁止重命名；右键不再有“编辑描述”。
@@ -151,29 +187,33 @@ NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑�
 
 ### 联动库
 
-- 顶部工具栏：新增联动组、导入联动文件、多选/批量删除；
-- 标题与列表间有分隔线，样式与素材库一致；
-- JSON 位于小说组根目录 `links.json`，不再使用 `link/` 文件夹；
-- 导入支持仓库内任意文件类型；
-- 导入窗口为悬浮树，支持别名并回车依次确认；
-- 联动组可展开/折叠；组与文件支持拖拽、聚焦；
-- 右键组/文件：编辑、重命名、删除；
-- 重命名为行内编辑；编辑只改颜色/别名，使用无遮罩浮动面板，不弹对话框；
-- 加载/刷新时自动删除已丢失文件的联动记录。
+- 无顶部工具栏；右键空白处选择“新增联动组”或“导入联动文件”；
+- 多选逻辑始终可用：框选、Ctrl/Cmd 间断、Shift 连续；空白取消；
+- 多选后右键可批量添加标签、批量删除；
+- JSON 位于小说组根目录 `links.json`，不再使用 `link/`；
+- 支持导入仓库内任意文件类型；
+- 联动组编辑只设置高亮字体样式：正常、粗体、斜体、粗斜体、下划线，不再设置组颜色；
+- 每个联动文件可有一个可选标签；标签作为组下的树节点；
+- 标签颜色即关键词高亮色，提供红、橙、黄、绿、蓝、紫六个预设和自定义颜色；
+- 右键联动组：编辑字体样式、重命名、删除；
+- 右键联动文件：编辑标签与别名、重命名、删除；
+- 重命名原位行内完成；编辑使用无遮罩浮动面板，不含重命名、不弹对话框；
+- 加载/刷新时自动清理丢失文件的联动记录。
 
-JSON：
+JSON 结构：
 
 ```json
 {
-  "group": { "联动组1": "#aa3311" },
+  "group": { "人物": { "style": "bold" } },
+  "tag": { "人物": { "湖南大学": "#e5484d" } },
   "link": [
-    { "未命名.md": { "belong": "联动组1", "alias": ["你好"] } },
+    { "未命名.md": { "belong": "人物", "tag": "湖南大学", "alias": ["你好"] } },
     { "~/仓库内引用.md": { "alias": ["你好hk"] } }
   ]
 }
 ```
 
-关键词 = 文件名 + 别名，颜色来自联动组；`~/` 从仓库根解析，裸路径依次回退当前卷、组根目录和旧 link 路径。
+关键词 = 文件名 + 别名；标签颜色作为高亮色，组样式作为字体样式。`~/` 从仓库根解析，裸路径依次回退当前卷、组根目录和旧 link 路径。
 
 ### 素材库
 
@@ -187,11 +227,30 @@ JSON：
 - 自动模式；
 - 多级列表原生；表格/图片居中；
 - 工具栏：自动排版、插入图片（从文件/从素材库）；选择窗口更大并显示名称；
-- 自动排版删除所有空行（含代码块）。
+- 自动排版会在分隔线、表格、列表、引用块前后各保留一行空行；其余空行（含代码块内）删除。
+- 自动隐藏 H1-H6 标题标记；
+- 分隔线划分文章部分，左上角浮动目录提供跳转。
+
+### 高级查找替换
+
+- 入口移至小说模式左侧浮动工具栏；移除原标题栏按钮、工作台按钮和命令；
+- 查找范围：全章、本卷、全书、联动库文件；
+- 支持正则、大小写、全词；
+- 查找框内容变化后实时查找，无独立“查找”按钮；
+- 多文件结果先按文件展示，点击文件卡片展开该文件内的匹配；
+- 结果以可滚动卡片展示，超出卡片宽度的文字省略；
+- 界面绑定当前文章视图，主区域切换后自动消失；
+- 标题显示：查找结果 · 范围类型 · 小说组。
+
+### 格式设置
+
+- 浮动工具栏新增“格式设置”按钮；
+- 弹出无遮罩小窗口，实时调整字体大小、行距、段距、首行缩进；
+- 修改立即应用并保存。
 
 ### 设置
 
-仅保留首行缩进、行距、段距、段落划分、隐藏 Markdown 标记、隐藏行号、恢复默认。
+插件设置页保留其余设置项；上述四项排版参数可直接在小说模式窗口中调整。
 
 ### 作者与许可
 
