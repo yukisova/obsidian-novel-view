@@ -292,7 +292,7 @@ export class NovelArticleListView extends ItemView {
     this.createToolbarButton(
       toolbar,
       "layout-dashboard",
-      "NovelView 工作台",
+      "Novel View 工作台",
       () => {
         void this.plugin.openWorkbenchForGroup(model.folderPath);
       },
@@ -882,7 +882,7 @@ export class NovelArticleListView extends ItemView {
         : this.plugin.renameVolumePath(target.path, value);
       void request.then((error: string | null) => {
         if (error) {
-          new Notice(`NovelView：${error}`);
+          new Notice(`Novel View：${error}`);
           this.inlineRenameActive = false;
           this.scheduleRefresh();
           return;

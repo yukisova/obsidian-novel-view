@@ -1,7 +1,7 @@
 /**
  * Plain-text paragraph detection for Markdown prose.
  *
- * NovelView deliberately does not reimplement Markdown. It only needs to know
+ * Novel View deliberately does not reimplement Markdown. It only needs to know
  * which source lines are ordinary prose so it can mark paragraph boundaries for
  * the typography layer. Complex block constructs are treated as "special" and
  * keep Obsidian's native rendering.

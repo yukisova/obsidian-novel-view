@@ -220,7 +220,7 @@ export class NovelSrcGalleryView extends ItemView {
 
   private chooseMaterialImage(): void {
     if (!this.folderPath) {
-      new Notice("NovelView：请先打开小说组素材库。");
+      new Notice("Novel View：请先打开小说组素材库。");
       return;
     }
     const input = createEl("input", {
@@ -283,7 +283,7 @@ export class NovelSrcGalleryView extends ItemView {
       const parent = file.parent?.path ?? "";
       const target = parent ? `${parent}/${base}${extension}` : `${base}${extension}`;
       if (this.app.vault.getAbstractFileByPath(target)) {
-        new Notice("NovelView：同名素材已存在。");
+        new Notice("Novel View：同名素材已存在。");
         this.render();
         return;
       }

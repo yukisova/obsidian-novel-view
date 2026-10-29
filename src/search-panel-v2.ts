@@ -287,7 +287,7 @@ export class SearchPanelV2 {
         // Skip unreadable/binary files.
       }
     }
-    new Notice(`NovelView：已替换 ${count} 处。`);
+    new Notice(`Novel View：已替换 ${count} 处。`);
     await this.search();
   }
 }

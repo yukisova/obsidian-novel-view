@@ -427,7 +427,7 @@ export class LinkLibraryView extends ItemView {
   async undoLast(): Promise<void> {
     const action = this.undoStack.pop();
     if (!action) {
-      new Notice("NovelView：没有可撤销的联动库操作。");
+      new Notice("Novel View：没有可撤销的联动库操作。");
       return;
     }
     await action();
@@ -740,7 +740,7 @@ export class LinkLibraryView extends ItemView {
 
   private renameGroup(oldName: string, newName: string): void {
     if (newName === DEFAULT_LINK_GROUP || this.data.group[newName]) {
-      new Notice("NovelView：联动组已存在。");
+      new Notice("Novel View：联动组已存在。");
       void this.render();
       return;
     }
@@ -794,7 +794,7 @@ export class LinkLibraryView extends ItemView {
       const nextPath = target.parent ? `${target.parent.path}/${newName}` : newName;
       if (nextPath !== target.path) {
         if (this.app.vault.getAbstractFileByPath(nextPath)) {
-          new Notice("NovelView：同名联动文件已存在。");
+          new Notice("Novel View：同名联动文件已存在。");
           void this.render();
           return;
         }
@@ -881,7 +881,7 @@ export class LinkLibraryView extends ItemView {
         this.pushDataUndo();
         const tag = value.tag?.trim() ?? "";
         if (!tag) {
-          new Notice("NovelView：请输入联动标签。");
+          new Notice("Novel View：请输入联动标签。");
           return;
         }
         for (const file of files) {
@@ -973,7 +973,7 @@ export class LinkLibraryView extends ItemView {
   private openLink(path: string): void {
     const file = this.plugin.getLinkTargetFile(this.groupPath, path);
     if (!file) {
-      new Notice(`NovelView：未找到联动文件“${path}”。`);
+      new Notice(`Novel View：未找到联动文件“${path}”。`);
       return;
     }
     void this.app.workspace.openLinkText(file.path, this.groupPath, true, { active: true });

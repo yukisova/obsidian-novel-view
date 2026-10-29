@@ -284,7 +284,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       .map((target) => this.app.vault.getAbstractFileByPath(target.path))
       .filter((file): file is TFile => file instanceof TFile);
     if (articles.length === 0) {
-      new Notice("NovelView：没有可导出的章节。");
+      new Notice("Novel View：没有可导出的章节。");
       return;
     }
     const info = this.getNovelGroupInfo(folderPath);
@@ -300,7 +300,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   ): Promise<void> {
     const folder = this.getFolder(target.path);
     if (!folder) {
-      new Notice("NovelView：卷不存在。");
+      new Notice("Novel View：卷不存在。");
       return;
     }
     const files: TFile[] = [];
@@ -319,7 +319,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     };
     collect(folder);
     if (files.length === 0) {
-      new Notice("NovelView：本卷没有可导出的章节。");
+      new Notice("Novel View：本卷没有可导出的章节。");
       return;
     }
     await this.exportTxtFiles(files, target.title);
@@ -328,7 +328,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private async exportTxtFiles(files: TFile[], suggestedName: string): Promise<void> {
     const dialog = this.getElectronDialog();
     if (!dialog) {
-      new Notice("NovelView：当前环境不支持系统文件夹选择器。");
+      new Notice("Novel View：当前环境不支持系统文件夹选择器。");
       return;
     }
     const result = await dialog.showOpenDialog({
@@ -351,7 +351,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       index += 1;
     }
     fs.writeFileSync(target, parts.join("\n\n"), "utf8");
-    new Notice(`NovelView：已导出到 ${target}`);
+    new Notice(`Novel View：已导出到 ${target}`);
   }
 
   private getElectronDialog(): any {
@@ -386,7 +386,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const editor = view.editor;
     const result = formatNovelMarkdown(editor.getValue());
     if (!result.changed) {
-      new Notice("NovelView：文档已经是整洁格式，无需调整。");
+      new Notice("Novel View：文档已经是整洁格式，无需调整。");
       return;
     }
     editor.setValue(result.text);
@@ -397,7 +397,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (result.removedBlankLines > 0) {
       parts.push(`删除 ${result.removedBlankLines} 个空行`);
     }
-    new Notice(`NovelView：自动排版完成${parts.length ? `，${parts.join("，")}` : ""}。`);
+    new Notice(`Novel View：自动排版完成${parts.length ? `，${parts.join("，")}` : ""}。`);
   }
 
   async getChapterMeta(path: string): Promise<ChapterMeta> {
@@ -417,7 +417,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       this.chapterMetaCache.set(path, meta);
       return meta;
     } catch (error) {
-      console.debug("NovelView: chapter meta read skipped", error);
+      console.debug("Novel View: chapter meta read skipped", error);
       return this.chapterMetaCache.get(path) ?? { wordCount: 0, status: "todo" };
     }
   }
@@ -437,7 +437,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   ): Promise<void> {
     const folder = this.getFolder(currentPath) ?? this.getFolder(folderPath);
     if (!folder) {
-      new Notice("NovelView：当前文章目录不存在。");
+      new Notice("Novel View：当前文章目录不存在。");
       return;
     }
     const base = this.sanitizeFileBase(title, "未命名文章");
@@ -455,8 +455,8 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       await this.app.workspace.getLeaf("tab").openFile(file, { active: true });
       this.refreshOpenViews();
     } catch (error) {
-      console.error("NovelView: failed to create article", error);
-      new Notice("NovelView：文章创建失败。");
+      console.error("Novel View: failed to create article", error);
+      new Notice("Novel View：文章创建失败。");
     }
   }
 
@@ -722,7 +722,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   async importNovelTxt(folderPath: string): Promise<void> {
     const dialog = this.getElectronDialog();
     if (!dialog) {
-      new Notice("NovelView：当前环境不支持系统文件选择器。");
+      new Notice("Novel View：当前环境不支持系统文件选择器。");
       return;
     }
     const result = await dialog.showOpenDialog({
@@ -738,7 +738,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const name = this.sanitizeFileBase(base, "导入章节");
     const target = this.getFolder(folderPath);
     if (!target) {
-      new Notice("NovelView：小说组不存在。");
+      new Notice("Novel View：小说组不存在。");
       return;
     }
     const targetPath = this.getUniqueMarkdownPath(folderPath, name);
@@ -755,24 +755,24 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       await this.renumberFolder(folderPath);
       await this.app.workspace.getLeaf("tab").openFile(file, { active: true });
     } catch (error) {
-      console.error("NovelView: TXT import failed", error);
-      new Notice("NovelView：TXT 导入失败。");
+      console.error("Novel View: TXT import failed", error);
+      new Notice("Novel View：TXT 导入失败。");
     }
   }
 
   async undoLastArticleAction(): Promise<void> {
     const action = this.articleUndoStack.pop();
     if (!action) {
-      new Notice("NovelView：没有可撤销的文章列表操作。");
+      new Notice("Novel View：没有可撤销的文章列表操作。");
       return;
     }
     try {
       await action();
       this.refreshOpenViews();
-      new Notice("NovelView：已撤销。");
+      new Notice("Novel View：已撤销。");
     } catch (error) {
-      console.error("NovelView: undo failed", error);
-      new Notice("NovelView：撤销失败。");
+      console.error("Novel View: undo failed", error);
+      new Notice("Novel View：撤销失败。");
     }
   }
 
@@ -965,7 +965,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const parent = this.normalizeFolderPath(folder.parent?.path ?? "/");
     const nextPath = joinVaultPath(parent, name);
     if (this.app.vault.getAbstractFileByPath(nextPath)) {
-      new Notice("NovelView：同名文件夹已存在。");
+      new Notice("Novel View：同名文件夹已存在。");
       return;
     }
     await this.app.fileManager.renameFile(folder, nextPath);
@@ -994,7 +994,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const group = this.getFolder(folderPath);
     const info = this.getNovelGroupInfo(folderPath);
     if (!group || !info) {
-      new Notice("NovelView：未找到小说组。");
+      new Notice("Novel View：未找到小说组。");
       return;
     }
     const files: TFile[] = [];
@@ -1016,7 +1016,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     };
     collect(group);
     if (files.length === 0) {
-      new Notice("NovelView：小说组中没有可导出的章节。");
+      new Notice("Novel View：小说组中没有可导出的章节。");
       return;
     }
     await this.exportTxtFiles(files, `${info.name}-合并稿`);
@@ -1025,7 +1025,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   async createNovelGroup(folder: TFolder): Promise<void> {
     const folderPath = this.normalizeFolderPath(folder.path);
     if (folderPath === "/") {
-      new Notice("NovelView：仓库根目录不能设置为小说组。");
+      new Notice("Novel View：仓库根目录不能设置为小说组。");
       return;
     }
     const settingPath = getNovelSettingPath(folderPath);
@@ -1038,7 +1038,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       return;
     }
     if (existing) {
-      new Notice("NovelView：无法创建 NovelSetting，同名路径已存在。");
+      new Notice("Novel View：无法创建 NovelSetting，同名路径已存在。");
       return;
     }
     try {
@@ -1047,10 +1047,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       await this.openArticleList(folderPath);
       await this.activateWorkbench();
       this.refreshOpenViews();
-      new Notice(`NovelView：已创建小说组“${folder.name}”。`);
+      new Notice(`Novel View：已创建小说组“${folder.name}”。`);
     } catch (error) {
-      console.error("NovelView: failed to create novel group", error);
-      new Notice("NovelView：小说组创建失败。");
+      console.error("Novel View: failed to create novel group", error);
+      new Notice("Novel View：小说组创建失败。");
     }
   }
 
@@ -1259,7 +1259,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         JSON.parse(await this.app.vault.read(library.json)) as unknown,
       );
     } catch (error) {
-      console.debug("NovelView: link JSON read skipped", error);
+      console.debug("Novel View: link JSON read skipped", error);
     }
     const missing = data.links.filter((link) => (
       !this.getLinkTargetFile(folderPath, link.path)
@@ -1396,7 +1396,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true);
     if (!leaf) {
-      new Notice("NovelView：无法打开素材库。");
+      new Notice("Novel View：无法打开素材库。");
       return;
     }
     await leaf.setViewState({
@@ -1411,8 +1411,8 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     try {
       await this.ensureLinkLibrary(folderPath);
     } catch (error) {
-      console.error("NovelView: failed to create link library", error);
-      new Notice("NovelView：联动库创建失败。");
+      console.error("Novel View: failed to create link library", error);
+      new Notice("Novel View：联动库创建失败。");
       return;
     }
     const existing = this.app.workspace.getLeavesOfType(LINK_LIBRARY_VIEW_TYPE)[0];
@@ -1420,7 +1420,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true);
     if (!leaf) {
-      new Notice("NovelView：无法打开联动库。");
+      new Notice("Novel View：无法打开联动库。");
       return;
     }
     await leaf.setViewState({
@@ -1436,14 +1436,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const srcPath = joinVaultPath(root, "src");
     const folder = await this.ensureFolder(srcPath);
     if (!folder) {
-      new Notice("NovelView：无法创建素材库目录。");
+      new Notice("Novel View：无法创建素材库目录。");
       return;
     }
     const base = file.name.replace(/\.[^.]+$/u, "");
     const extension = file.name.slice(base.length);
     const path = this.getUniqueFilePath(srcPath, `${base}${extension}`);
     await this.app.vault.createBinary(path, await file.arrayBuffer());
-    new Notice(`NovelView：已导入素材“${file.name}”。`);
+    new Notice(`Novel View：已导入素材“${file.name}”。`);
   }
 
   private cleanupDescriptionData(): void {

@@ -24,7 +24,7 @@ export function refreshLinkKeywords(): void {
     try {
       view.dispatch({});
     } catch (error) {
-      console.debug("NovelView: link keyword refresh skipped", error);
+      console.debug("Novel View: link keyword refresh skipped", error);
     }
   }
 }

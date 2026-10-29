@@ -24,7 +24,7 @@ export class NovelWorkbenchView extends ItemView {
   }
 
   override getDisplayText(): string {
-    return "NovelView 工作台";
+    return "Novel View 工作台";
   }
 
   override getIcon(): string {

@@ -1,17 +1,17 @@
-# NovelView
+# Novel View
 
 **为 Obsidian 打造的小说写作工作流。**  
 **A novel-writing workflow for Obsidian.**
 
-![version](https://img.shields.io/badge/version-0.6.21-9a5a2d)
+![version](https://img.shields.io/badge/version-0.6.22-9a5a2d)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
 
-NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章节状态、素材库、联动库和联动关键词高亮。
+Novel View 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章节状态、素材库、联动库和联动关键词高亮。
 
 <p align="center">
-  <img src="docs/novelview-article-list.png" alt="NovelView 文章列表" width="100%" />
+  <img src="docs/novelview-article-list.png" alt="Novel View 文章列表" width="100%" />
 </p>
 
 > 界面预览使用插件真实 CSS 与组件渲染，并非 Obsidian 实拍截图。
@@ -22,7 +22,7 @@ NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章�
 
 ## English
 
-**NovelView** is a Markdown-first novel workflow for Obsidian: novel groups, multi-select article tree, chapter statuses, materials/link libraries, and link-library keyword highlighting.
+**Novel View** is a Markdown-first novel workflow for Obsidian: novel groups, multi-select article tree, chapter statuses, materials/link libraries, and link-library keyword highlighting.
 
 ### Highlights
 
@@ -39,9 +39,9 @@ NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章�
 
 ### Installation
 
-1. Download [novel-view-0.6.21.zip](dist/novel-view-0.6.21.zip).
+1. Download [novel-view-0.6.22.zip](dist/novel-view-0.6.22.zip).
 2. Extract to `<Vault>/.obsidian/plugins/novel-view/`.
-3. Enable **NovelView** in **Settings → Community plugins**.
+3. Enable **Novel View** in **Settings → Community plugins**.
 
 Requires Obsidian **1.7.2+**.
 
@@ -167,11 +167,11 @@ The plugin settings tab still contains the remaining controls; the four typograp
 
 ### 简介
 
-NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.21 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
+Novel View 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.22 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
 
 ### 安装
 
-下载 [novel-view-0.6.21.zip](dist/novel-view-0.6.21.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
+下载 [novel-view-0.6.22.zip](dist/novel-view-0.6.22.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
 
 ### 文章列表
 
@@ -288,7 +288,7 @@ JSON 结构：
 作者：**yukisova**，基于 [MIT License](LICENSE) 发布。
 
 
-### 0.6.21 补充
+### 0.6.22 补充
 
 - 联动库：直接新建组、就地重命名组/标签、标签右键改色、批量拖拽与预览、分散组常驻、Cmd+Z 撤销。
 - 文章列表：聚焦文章/卷后按 Enter 进入重命名。
