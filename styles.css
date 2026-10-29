@@ -1110,12 +1110,11 @@
   flex-direction: column;
   gap: 4px;
   padding: 5px;
-  background: color-mix(in srgb, var(--background-primary) 94%, transparent);
+  background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 8px);
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.14);
   transform: translateY(-50%);
-  backdrop-filter: blur(10px);
 }
 
 .novelview-floating-toolbar-button {
@@ -1234,7 +1233,7 @@
 .novelview-workbench-novel-name {
   margin-top: 2px;
   color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
+  font-family: var(--font-interface);
   font-size: 21px;
   font-weight: 600;
   line-height: 1.3;
@@ -1378,12 +1377,14 @@
 .novelview-article-list-view {
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
   min-height: 0;
   padding: 8px 9px 16px;
   overflow: hidden;
   color: var(--text-normal);
   font-family: var(--font-interface);
+  background-color: var(--background-secondary);
 }
 
 .novelview-article-toolbar {
@@ -1447,7 +1448,7 @@
   margin-top: 3px;
   overflow: hidden;
   color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
+  font-family: var(--font-interface);
   font-size: 17px;
   font-weight: 600;
   line-height: 1.3;
@@ -1581,11 +1582,10 @@
   font-family: var(--font-interface);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+  background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 999px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.10);
-  backdrop-filter: blur(8px);
   cursor: pointer;
 }
 
@@ -2985,7 +2985,7 @@
 .novelview-link-title {
   margin: 2px 4px 9px;
   color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
+  font-family: var(--font-interface);
   font-size: 17px;
   font-weight: 600;
 }
@@ -3191,11 +3191,6 @@
 .novelview-link-import-alias {
   width: 100%;
   margin-top: 8px;
-}
-
-.novelview-link-import-close {
-  align-self: flex-end;
-  margin-top: 7px;
 }
 
 .novelview-link-import-empty {
@@ -3757,11 +3752,10 @@
   max-height: 42vh;
   padding: 6px;
   overflow-y: auto;
-  background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+  background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 5px);
   box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.1));
-  backdrop-filter: blur(8px);
 }
 
 .novelview-section-toc.is-empty {
@@ -3929,4 +3923,167 @@
 .novelview-section-toc:focus-within .novelview-section-toc-item:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
+}
+
+/* Advanced search is a global floating card, independent of MainArea size. */
+.novelview-search-v2 {
+  top: 50%;
+  left: 50%;
+  width: min(680px, calc(100vw - 48px));
+  height: auto;
+  max-height: min(78vh, 700px);
+  transform: translate(-50%, -50%);
+}
+
+.novelview-article-row-number {
+  flex: 0 0 auto;
+  min-width: 17px;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Article drag insertion preview */
+.novelview-article-file.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.novelview-article-file.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+.novelview-article-volume-group.is-drop-volume {
+  background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+  outline-offset: -2px;
+  border-radius: var(--radius-s, 4px);
+}
+
+.novelview-link-caption,
+.novelview-src-caption {
+  margin: 2px 0 6px;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: 10px;
+}
+
+.novelview-link-import-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
+.novelview-link-import-alias:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.novelview-link-group-row.is-scattered {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--background-secondary) 60%, transparent);
+}
+
+.novelview-link-group-row.is-scattered .novelview-link-group-name {
+  font-weight: 500;
+}
+
+.novelview-search-v2-group {
+  margin: -3px 0 7px;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: 10px;
+}
+
+.novelview-search-v2-header {
+  cursor: move;
+}
+
+/* Unified library title styling */
+.novelview-link-title,
+.novelview-src-title {
+  margin: 2px 4px 6px;
+  font-family: var(--font-interface);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* Link drag previews */
+.novelview-link-group-row.is-drop-target,
+.novelview-link-tag-row.is-drop-target {
+  background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+  outline-offset: -2px;
+}
+
+.novelview-link-file-row.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.novelview-link-file-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+/* Status UI before body, after title */
+.novelview-article-status {
+  top: 44px;
+  left: 18px;
+  right: auto;
+}
+
+.novelview-workbench-novel {
+  padding: 22px;
+  min-height: 230px;
+}
+
+.novelview-workbench-cover.is-clickable,
+.novelview-workbench-novel-name.is-editable,
+.novelview-workbench-novel-description.is-editable {
+  cursor: text;
+}
+
+.novelview-workbench-cover.is-clickable {
+  cursor: pointer;
+}
+
+.novelview-workbench-novel-name.is-editable:focus,
+.novelview-workbench-novel-description.is-editable:focus {
+  outline: 1px dashed var(--interactive-accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.novelview-workbench-novel-description.is-editable:empty::before {
+  color: var(--text-faint);
+  content: attr(data-placeholder);
+}
+
+.novelview-workbench-cover {
+  flex-basis: 130px;
+  width: 130px;
+  height: 178px;
+}
+
+@media (min-width: 900px) {
+  .novelview-workbench-novel {
+    min-height: 300px;
+  }
+}
+
+.novelview-link-group-section.is-drop-area,
+.novelview-link-tag-section.is-drop-area {
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+  outline: 1px dashed color-mix(in srgb, var(--interactive-accent) 55%, transparent);
+  outline-offset: -2px;
+  border-radius: var(--radius-s, 4px);
+}
+
+/* Shared library title/header rhythm */
+.novelview-link-header,
+.novelview-src-header {
+  margin: 0 0 10px;
+  padding: 4px 3px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
 }

@@ -37,7 +37,7 @@ import {
   isNovelSettingFile,
   joinVaultPath,
 } from "./core/novel-setting";
-import { NovelSettingModal } from "./novel-setting-modal";
+import { confirmAction } from "./confirm-modal";
 import {
   NovelSrcGalleryView,
   SRC_GALLERY_VIEW_TYPE,
@@ -71,6 +71,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   private readonly chapterMetaCache = new Map<string, ChapterMeta>();
   private readonly sectionTocs = new Map<MarkdownView, SectionToc>();
+  private readonly articleUndoStack: Array<() => Promise<void>> = [];
   private searchPanelV2: SearchPanelV2 | null = null;
   private modeSettingsPanel: ModeSettingsPanel | null = null;
 
@@ -108,14 +109,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerView = originalRegisterView;
     this.settings.fontSize ??= 16;
     this.registerEditorExtension(linkKeywordExtension);
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => {
-      if (
-        this.searchPanelV2
-        && !this.searchPanelV2.isOwner(this.getActiveMarkdownView())
-      ) {
-        this.searchPanelV2.close();
-      }
-    }));
     this.cleanupDescriptionData();
     this.cleanupNovelStateProperties();
   }
@@ -451,12 +444,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     const path = this.getUniqueMarkdownPath(folder.path, base);
     const content = [
       "---",
+      `novelview-id: ${this.getNextArticleId(folder.path)}`,
       `${CHAPTER_STATUS_PROPERTY}: ${CHAPTER_STATUS_LABELS.todo}`,
       "---",
       "",
     ].join("\n");
     try {
       const file = await this.app.vault.create(path, content);
+      await this.renumberFolder(folder.path);
       await this.app.workspace.getLeaf("tab").openFile(file, { active: true });
       this.refreshOpenViews();
     } catch (error) {
@@ -465,40 +460,530 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
-  openNovelGroupSettings(folderPath: string): void {
-    const setting = this.getNovelSettingFile(folderPath);
-    const info = this.getNovelGroupInfo(folderPath);
-    if (!setting || !info) {
-      new Notice("NovelView：未找到 NovelSetting 配置文件。");
-      return;
+  getArticleListModel(folderPath: string): any {
+    const model = (LegacyNovelViewPlugin.prototype as any)
+      .getArticleListModel.call(this, folderPath);
+    if (!model) {
+      return null;
     }
-    new NovelSettingModal(this.app, {
-      initial: info,
-      resolveCoverUrl: (cover: string) => this.getNovelCoverUrl(folderPath, cover),
-      onPickCover: () => this.pickCoverImage(setting.path),
-      onSave: async (data: { description: string; cover: string }) => {
-        await this.saveNovelSetting(folderPath, data);
-        new Notice("NovelView：小说组信息已更新。");
-      },
-    }).open();
+    const order = this.getNovelVolumeOrder(folderPath);
+    const position = (name: string): number => {
+      const index = order.indexOf(name);
+      return index >= 0 ? index : order.length;
+    };
+    model.volumes.sort((left: any, right: any) => (
+      position(left.name) - position(right.name)
+      || left.name.localeCompare(right.name, "zh-CN", { numeric: true })
+    ));
+    model.volumes.forEach((volume: any, index: number) => {
+      volume.volumeNumber = index;
+      volume.articles.sort((a: any, b: any) => this.compareChapterOrder(a, b));
+      volume.articles.forEach((article: any, articleIndex: number) => {
+        article.chapterNumber = articleIndex + 1;
+      });
+    });
+    model.articles.sort((a: any, b: any) => this.compareChapterOrder(a, b));
+    model.articles.forEach((article: any, index: number) => {
+      article.chapterNumber = index + 1;
+    });
+    return model;
   }
 
-  async saveNovelSetting(
+  private compareChapterOrder(left: any, right: any): number {
+    const leftNumber = this.getArticleId(left.path);
+    const rightNumber = this.getArticleId(right.path);
+    return leftNumber - rightNumber;
+  }
+
+  private getArticleId(path: string): number {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    const value = frontmatter?.["novelview-id"] ?? frontmatter?.["novelview-chapter"];
+    const number = Number(value);
+    return Number.isFinite(number) ? number : Number.MAX_SAFE_INTEGER;
+  }
+
+  private getNextArticleId(folderPath: string): number {
+    const folder = this.getFolder(folderPath);
+    if (!folder) {
+      return 1;
+    }
+    let max = 0;
+    for (const child of folder.children) {
+      if (child instanceof TFile && child.extension === "md") {
+        max = Math.max(max, this.getArticleId(child.path) || 0);
+      }
+    }
+    return max + 1;
+  }
+
+  private getNovelVolumeOrder(folderPath: string): string[] {
+    const setting = this.getNovelSettingFile(folderPath);
+    if (!setting) {
+      return [];
+    }
+    const value = this.app.metadataCache.getFileCache(setting)?.frontmatter?.["novelview-volume-order"];
+    if (Array.isArray(value)) {
+      return value.filter((item): item is string => typeof item === "string");
+    }
+    if (typeof value === "string") {
+      return value.split(/[,，]/u).map((item) => item.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  private async saveNovelVolumeOrder(folderPath: string, order: string[]): Promise<void> {
+    const setting = this.getNovelSettingFile(folderPath);
+    if (!setting) {
+      return;
+    }
+    await this.app.fileManager.processFrontMatter(setting, (frontmatter) => {
+      frontmatter["novelview-volume-order"] = order;
+    });
+  }
+
+  private async renumberFolder(folderPath: string): Promise<void> {
+    const folder = this.getFolder(folderPath);
+    if (!folder) {
+      return;
+    }
+    const files = folder.children
+      .filter((child: any): child is TFile => (
+        child instanceof TFile
+        && child.extension === "md"
+        && !this.isSpecialNovelFile(child)
+      ))
+      .sort((a: any, b: any) => this.compareChapterOrder(
+        { path: a.path, basename: a.basename },
+        { path: b.path, basename: b.basename },
+      ));
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        frontmatter["novelview-id"] = index + 1;
+      });
+    }
+  }
+
+  async renameArticlePath(path: string, value: string): Promise<string | null> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      return "文章不存在。";
+    }
+    const base = this.sanitizeFileBase(value, file.basename);
+    if (!base || base === file.basename) {
+      return null;
+    }
+    const parent = this.normalizeFolderPath(file.parent?.path ?? "/");
+    const nextPath = joinVaultPath(parent, `${base}.md`);
+    if (this.app.vault.getAbstractFileByPath(nextPath)) {
+      return "同名文章已存在。";
+    }
+    await this.app.fileManager.renameFile(file, nextPath);
+    this.articleUndoStack.push(async () => {
+      const renamed = this.app.vault.getAbstractFileByPath(nextPath);
+      if (renamed instanceof TFile) {
+        await this.app.fileManager.renameFile(renamed, path);
+      }
+    });
+    return null;
+  }
+
+  async renameVolumePath(path: string, value: string): Promise<string | null> {
+    const folder = this.getFolder(path);
+    if (!folder || folder.path === "/") {
+      return "卷不存在。";
+    }
+    const base = this.sanitizeFileBase(value, folder.name);
+    if (!base || base === folder.name) {
+      return null;
+    }
+    if (this.isReservedNovelFolder(base)) {
+      return "该名称是小说组保留名称。";
+    }
+    const parent = this.normalizeFolderPath(folder.parent?.path ?? "/");
+    const nextPath = joinVaultPath(parent, base);
+    if (this.app.vault.getAbstractFileByPath(nextPath)) {
+      return "同名文件夹已存在。";
+    }
+    const oldName = folder.name;
+    const group = this.findNovelGroupRoot(parent);
+    const order = group ? this.getNovelVolumeOrder(group) : [];
+    await this.app.fileManager.renameFile(folder, nextPath);
+    if (group && order.includes(oldName)) {
+      order[order.indexOf(oldName)] = base;
+      await this.saveNovelVolumeOrder(group, order);
+    }
+    this.articleUndoStack.push(async () => {
+      const renamed = this.getFolder(nextPath);
+      if (renamed) {
+        await this.app.fileManager.renameFile(renamed, path);
+      }
+      if (group && order.includes(base)) {
+        order[order.indexOf(base)] = oldName;
+        await this.saveNovelVolumeOrder(group, order);
+      }
+    });
+    return null;
+  }
+
+  async deleteArticleTargets(
+    targets: ArticleListTarget[],
+    refresh: () => void,
+  ): Promise<void> {
+    if (targets.length === 0) {
+      return;
+    }
+    const confirmed = await confirmAction(
+      this.app,
+      "删除所选内容",
+      `确定删除 ${targets.length} 项内容吗？可使用 Cmd/Ctrl+Z 撤销。`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    const folders = new Set<string>();
+    const files: Array<{ path: string; content: ArrayBuffer; binary: boolean }> = [];
+    const emptyFolders = new Set<string>();
+    for (const target of targets) {
+      const abstract = this.app.vault.getAbstractFileByPath(target.path);
+      if (abstract instanceof TFile) {
+        files.push({
+          path: abstract.path,
+          content: await this.app.vault.readBinary(abstract),
+          binary: abstract.extension !== "md",
+        });
+        folders.add(abstract.parent?.path ?? "");
+        continue;
+      }
+      if (abstract instanceof TFolder) {
+        emptyFolders.add(abstract.path);
+        const walk = async (folder: TFolder): Promise<void> => {
+          emptyFolders.add(folder.path);
+          for (const child of folder.children) {
+            if (child instanceof TFolder) {
+              await walk(child);
+            } else if (child instanceof TFile) {
+              files.push({
+                path: child.path,
+                content: await this.app.vault.readBinary(child),
+                binary: child.extension !== "md",
+              });
+            }
+          }
+        };
+        await walk(abstract);
+        folders.add(this.normalizeFolderPath(abstract.parent?.path ?? "/"));
+      }
+    }
+    for (const target of targets) {
+      const abstract = this.app.vault.getAbstractFileByPath(target.path);
+      if (abstract) {
+        await this.app.vault.delete(abstract, true);
+      }
+    }
+    for (const folderPath of folders) {
+      if (folderPath) {
+        await this.renumberFolder(folderPath);
+      }
+    }
+    this.articleUndoStack.push(async () => {
+      const sortedFolders = [...emptyFolders].sort((a, b) => a.length - b.length);
+      for (const folderPath of sortedFolders) {
+        if (!this.app.vault.getAbstractFileByPath(folderPath)) {
+          await this.app.vault.createFolder(folderPath);
+        }
+      }
+      for (const snapshot of files) {
+        if (this.app.vault.getAbstractFileByPath(snapshot.path)) {
+          continue;
+        }
+        if (snapshot.binary) {
+          await this.app.vault.createBinary(snapshot.path, snapshot.content);
+        } else {
+          await this.app.vault.create(
+            snapshot.path,
+            new TextDecoder().decode(snapshot.content),
+          );
+        }
+      }
+      for (const folderPath of folders) {
+        if (folderPath) {
+          await this.renumberFolder(folderPath);
+        }
+      }
+    });
+    refresh();
+  }
+
+  async importNovelTxt(folderPath: string): Promise<void> {
+    const dialog = this.getElectronDialog();
+    if (!dialog) {
+      new Notice("NovelView：当前环境不支持系统文件选择器。");
+      return;
+    }
+    const result = await dialog.showOpenDialog({
+      properties: ["openFile"],
+      filters: [{ name: "TXT", extensions: ["txt"] }],
+    });
+    const filePath = result?.filePaths?.[0];
+    if (result?.canceled || !filePath) {
+      return;
+    }
+    const text = fs.readFileSync(filePath, "utf8");
+    const base = path.basename(filePath, path.extname(filePath));
+    const name = this.sanitizeFileBase(base, "导入章节");
+    const target = this.getFolder(folderPath);
+    if (!target) {
+      new Notice("NovelView：小说组不存在。");
+      return;
+    }
+    const targetPath = this.getUniqueMarkdownPath(folderPath, name);
+    const content = [
+      "---",
+      `novelview-id: ${this.getNextArticleId(folderPath)}`,
+      `${CHAPTER_STATUS_PROPERTY}: ${CHAPTER_STATUS_LABELS.todo}`,
+      "---",
+      "",
+      text,
+    ].join("\n");
+    try {
+      const file = await this.app.vault.create(targetPath, content);
+      await this.renumberFolder(folderPath);
+      await this.app.workspace.getLeaf("tab").openFile(file, { active: true });
+    } catch (error) {
+      console.error("NovelView: TXT import failed", error);
+      new Notice("NovelView：TXT 导入失败。");
+    }
+  }
+
+  async undoLastArticleAction(): Promise<void> {
+    const action = this.articleUndoStack.pop();
+    if (!action) {
+      new Notice("NovelView：没有可撤销的文章列表操作。");
+      return;
+    }
+    try {
+      await action();
+      this.refreshOpenViews();
+      new Notice("NovelView：已撤销。");
+    } catch (error) {
+      console.error("NovelView: undo failed", error);
+      new Notice("NovelView：撤销失败。");
+    }
+  }
+
+  async moveArticlesToVolume(paths: string[], targetFolder: string): Promise<boolean> {
+    const target = this.getFolder(targetFolder);
+    if (!target) {
+      return false;
+    }
+    const moved: Array<{ oldPath: string; newPath: string; sourceFolder: string }> = [];
+    const folders = new Set<string>([target.path]);
+    for (const sourcePath of paths) {
+      const file = this.app.vault.getAbstractFileByPath(sourcePath);
+      if (!(file instanceof TFile)) {
+        continue;
+      }
+      if (file.parent?.path === target.path) {
+        continue;
+      }
+      const sourceFolder = file.parent?.path ?? "";
+      folders.add(sourceFolder);
+      let nextPath = joinVaultPath(target.path, file.name);
+      let index = 2;
+      while (this.app.vault.getAbstractFileByPath(nextPath)) {
+        nextPath = joinVaultPath(target.path, `${file.basename} ${index}.md`);
+        index += 1;
+      }
+      await this.app.fileManager.renameFile(file, nextPath);
+      moved.push({ oldPath: sourcePath, newPath: nextPath, sourceFolder });
+    }
+    let nextId = this.getNextArticleId(target.path);
+    for (const entry of moved) {
+      const movedFile = this.app.vault.getAbstractFileByPath(entry.newPath);
+      if (movedFile instanceof TFile) {
+        await this.app.fileManager.processFrontMatter(movedFile, (frontmatter) => {
+          frontmatter["novelview-id"] = nextId;
+        });
+        nextId += 1;
+      }
+    }
+    if (moved.length > 0) {
+      this.articleUndoStack.push(async () => {
+        for (const entry of moved) {
+          const file = this.app.vault.getAbstractFileByPath(entry.newPath);
+          if (file instanceof TFile) {
+            await this.app.fileManager.renameFile(file, entry.oldPath);
+          }
+        }
+        for (const folder of folders) {
+          if (folder) {
+            await this.renumberFolder(folder);
+          }
+        }
+      });
+    }
+    return true;
+  }
+
+  async reorderArticlesAt(
+    paths: string[],
+    targetPath: string,
+    after: boolean,
+  ): Promise<boolean> {
+    const target = this.app.vault.getAbstractFileByPath(targetPath);
+    if (!(target instanceof TFile) || !target.parent) {
+      return false;
+    }
+    const targetFolder = target.parent.path;
+    const before = new Map<string, unknown>();
+    const targetFolderObj = this.getFolder(targetFolder);
+    if (targetFolderObj) {
+      for (const child of targetFolderObj.children) {
+        if (child instanceof TFile) {
+          before.set(child.path, this.app.metadataCache.getFileCache(child)?.frontmatter?.["novelview-id"]);
+        }
+      }
+    }
+    await this.moveArticlesToVolume(paths, targetFolder);
+    const folder = this.getFolder(targetFolder);
+    if (!folder) {
+      return false;
+    }
+    const files = folder.children
+      .filter((child: any): child is TFile => child instanceof TFile && child.extension === "md")
+      .sort((a: any, b: any) => this.compareChapterOrder(
+        { path: a.path, basename: a.basename },
+        { path: b.path, basename: b.basename },
+      ));
+    const moving = files.filter((file: any) => paths.includes(file.path));
+    const remaining = files.filter((file: any) => !paths.includes(file.path));
+    const targetFile = remaining.find((file: any) => file.path === targetPath);
+    if (!targetFile) {
+      return false;
+    }
+    const targetIndex = remaining.indexOf(targetFile) + (after ? 1 : 0);
+    remaining.splice(targetIndex, 0, ...moving);
+    for (let index = 0; index < remaining.length; index += 1) {
+      await this.app.fileManager.processFrontMatter(remaining[index], (frontmatter) => {
+        frontmatter["novelview-id"] = index + 1;
+      });
+    }
+    this.articleUndoStack.push(async () => {
+      for (const [filePath, chapter] of before) {
+        const file = this.app.vault.getAbstractFileByPath(filePath);
+        if (file instanceof TFile) {
+          await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            if (chapter === undefined || chapter === null) {
+              delete frontmatter["novelview-id"];
+            } else {
+              frontmatter["novelview-id"] = chapter;
+            }
+          });
+        }
+      }
+    });
+    return true;
+  }
+
+  async reorderVolume(folderPath: string, sourcePath: string, targetPath: string): Promise<void> {
+    const folder = this.getFolder(folderPath);
+    if (!folder) {
+      return;
+    }
+    const names = folder.children
+      .filter((child: any): child is TFolder => child instanceof TFolder)
+      .filter((child: any) => !this.isReservedNovelFolder(child.name))
+      .map((child: any) => child.name);
+    const source = sourcePath.split("/").pop();
+    const target = targetPath.split("/").pop();
+    if (!source || !target || source === target) {
+      return;
+    }
+    const order = this.getNovelVolumeOrder(folderPath).filter((name) => names.includes(name));
+    for (const name of names) {
+      if (!order.includes(name)) {
+        order.push(name);
+      }
+    }
+    const from = order.indexOf(source);
+    const to = order.indexOf(target);
+    if (from < 0 || to < 0) {
+      return;
+    }
+    order.splice(from, 1);
+    order.splice(to, 0, source);
+    await this.saveNovelVolumeOrder(folderPath, order);
+  }
+
+  async updateNovelInfo(
     folderPath: string,
-    data: { description: string; cover: string },
+    patch: { description?: string; cover?: string },
   ): Promise<void> {
     const setting = this.getNovelSettingFile(folderPath);
     if (!setting) {
-      throw new Error("NovelSetting.md not found");
+      return;
     }
     await this.app.fileManager.processFrontMatter(setting, (frontmatter) => {
-      frontmatter["novelview-type"] = "novel-setting";
-      frontmatter["novel-description"] = data.description;
-      frontmatter["novel-cover"] = data.cover;
-      delete frontmatter["novelstate"];
-      delete frontmatter["状态"];
+      if (patch.description !== undefined) {
+        frontmatter["novel-description"] = patch.description;
+      }
+      if (patch.cover !== undefined) {
+        frontmatter["novel-cover"] = patch.cover;
+      }
     });
     this.refreshWorkbenchViews();
+  }
+
+  async editNovelCover(folderPath: string): Promise<void> {
+    const setting = this.getNovelSettingFile(folderPath);
+    if (!setting) {
+      return;
+    }
+    const cover = await this.pickCoverImage(setting.path);
+    if (cover !== null) {
+      await this.updateNovelInfo(folderPath, { cover });
+    }
+  }
+
+  async renameNovelGroupFolder(
+    folderPath: string,
+    value: string,
+  ): Promise<void> {
+    const folder = this.getFolder(folderPath);
+    if (!folder) {
+      return;
+    }
+    const name = this.sanitizeFileBase(value, folder.name);
+    if (!name || name === folder.name) {
+      return;
+    }
+    const parent = this.normalizeFolderPath(folder.parent?.path ?? "/");
+    const nextPath = joinVaultPath(parent, name);
+    if (this.app.vault.getAbstractFileByPath(nextPath)) {
+      new Notice("NovelView：同名文件夹已存在。");
+      return;
+    }
+    await this.app.fileManager.renameFile(folder, nextPath);
+    if (this.workbenchFolderPath === folderPath) {
+      this.workbenchFolderPath = nextPath;
+    }
+    for (const leaf of this.app.workspace.getLeavesOfType(ARTICLE_LIST_VIEW_TYPE)) {
+      const state = leaf.getViewState().state as { folderPath?: unknown };
+      if (state.folderPath === folderPath) {
+        await leaf.setViewState({
+          type: ARTICLE_LIST_VIEW_TYPE,
+          state: { folderPath: nextPath },
+          active: true,
+        });
+      }
+    }
+    this.refreshWorkbenchViews();
+    this.scheduleNovelFolderDecoration();
   }
 
   isReservedNovelFolder(name: string): boolean {
@@ -905,6 +1390,23 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return false;
   }
 
+  async openNovelSrcGallery(folderPath: string): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(SRC_GALLERY_VIEW_TYPE)[0];
+    const leaf = existing
+      ?? this.app.workspace.getRightLeaf(false)
+      ?? this.app.workspace.getRightLeaf(true);
+    if (!leaf) {
+      new Notice("NovelView：无法打开素材库。");
+      return;
+    }
+    await leaf.setViewState({
+      type: SRC_GALLERY_VIEW_TYPE,
+      state: { folderPath: this.normalizeFolderPath(folderPath) },
+      active: true,
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   async openLinkLibrary(folderPath: string): Promise<void> {
     try {
       await this.ensureLinkLibrary(folderPath);
@@ -913,7 +1415,9 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       new Notice("NovelView：联动库创建失败。");
       return;
     }
-    const leaf = this.app.workspace.getRightLeaf(false)
+    const existing = this.app.workspace.getLeavesOfType(LINK_LIBRARY_VIEW_TYPE)[0];
+    const leaf = existing
+      ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true);
     if (!leaf) {
       new Notice("NovelView：无法打开联动库。");

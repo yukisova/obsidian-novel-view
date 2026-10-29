@@ -30,7 +30,8 @@ export class LinkImportPanel {
 
     const header = this.root.createDiv({ cls: "novelview-link-import-header" });
     header.createSpan({ text: "导入联动文件" });
-    const close = header.createEl("button", {
+    const headerActions = header.createDiv({ cls: "novelview-link-import-actions" });
+    const close = headerActions.createEl("button", {
       attr: { type: "button", "aria-label": "关闭" },
       text: "×",
     });
@@ -41,10 +42,11 @@ export class LinkImportPanel {
       cls: "novelview-link-import-alias",
       attr: {
         type: "text",
-        placeholder: "别名，多个用逗号分隔；回车导入",
+        placeholder: "别名（可选）",
         "aria-label": "联动文件别名",
       },
     });
+    this.aliasInput.disabled = true;
     this.aliasInput.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -59,14 +61,6 @@ export class LinkImportPanel {
 
     this.renderTree();
     document.body.appendChild(this.root);
-
-    const closeButton = this.root.createEl("button", {
-      cls: "novelview-link-import-close",
-      attr: { type: "button" },
-      text: "关闭",
-    });
-    closeButton.addEventListener("click", () => this.close());
-    window.setTimeout(() => this.aliasInput.focus(), 0);
   }
 
   close(): void {
@@ -85,6 +79,7 @@ export class LinkImportPanel {
         cls: "novelview-link-import-empty",
         text: "没有可导入的仓库文件。",
       });
+      this.selectedPath = null;
       this.aliasInput.disabled = true;
       return;
     }
@@ -113,13 +108,20 @@ export class LinkImportPanel {
         row.createSpan({ cls: "novelview-link-import-file-path", text: file.label });
         row.dataset.path = file.path;
         row.addEventListener("click", () => this.select(file.path));
+        row.addEventListener("dblclick", (event) => {
+          event.preventDefault();
+          this.select(file.path);
+          this.confirmSelected();
+        });
         if (this.selectedPath === file.path) {
           row.addClass("is-selected");
         }
       }
     }
-    if (!this.selectedPath || !this.candidates.some((file) => file.path === this.selectedPath)) {
-      this.select(this.candidates[0]?.path ?? null);
+    if (this.selectedPath && !this.candidates.some((file) => file.path === this.selectedPath)) {
+      this.select(null);
+    } else {
+      this.select(this.selectedPath);
     }
   }
 
@@ -128,7 +130,9 @@ export class LinkImportPanel {
     for (const row of this.listEl.querySelectorAll<HTMLElement>(".novelview-link-import-file")) {
       row.toggleClass("is-selected", row.dataset.path === path);
     }
-    if (path) {
+    const enabled = !!path;
+    this.aliasInput.disabled = !enabled;
+    if (enabled) {
       this.aliasInput.focus();
     }
   }
@@ -149,6 +153,7 @@ export class LinkImportPanel {
     this.onImport(path, aliases);
     this.selectedPath = null;
     this.aliasInput.value = "";
+    this.aliasInput.disabled = true;
     this.renderTree();
     if (this.candidates.length === 0) {
       this.close();

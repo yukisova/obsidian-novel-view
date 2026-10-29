@@ -110,7 +110,11 @@ export class NovelWorkbenchView extends ItemView {
     root.setAttr("data-folder", novel.folderPath);
 
     const cover = root.createDiv({
-      cls: "novelview-workbench-cover",
+      cls: "novelview-workbench-cover is-clickable",
+    });
+    cover.setAttr("title", "点击更换封面");
+    cover.addEventListener("click", () => {
+      void this.plugin.editNovelCover(novel.folderPath);
     });
     const coverUrl = this.plugin.getNovelCoverUrl(novel.folderPath, novel.cover);
     if (coverUrl) {
@@ -136,24 +140,57 @@ export class NovelWorkbenchView extends ItemView {
     const titleRow = body.createDiv({
       cls: "novelview-workbench-novel-title-row",
     });
-    titleRow.createDiv({
-      cls: "novelview-workbench-novel-name",
+    const title = titleRow.createDiv({
+      cls: "novelview-workbench-novel-name is-editable",
       text: novel.name,
     });
-    body.createDiv({
-      cls: "novelview-workbench-novel-description",
-      text: novel.description || "尚未填写小说简介。",
+    title.setAttr("contenteditable", "true");
+    title.setAttr("role", "textbox");
+    title.setAttr("title", "点击修改小说名称");
+    title.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        title.blur();
+      }
+      if (event.key === "Escape") {
+        title.textContent = novel.name;
+        title.blur();
+      }
+    });
+    title.addEventListener("blur", () => {
+      const value = title.textContent?.trim() ?? "";
+      if (value && value !== novel.name) {
+        void this.plugin.renameNovelGroupFolder(novel.folderPath, value);
+      } else {
+        title.textContent = novel.name;
+      }
     });
 
-    const actions = body.createDiv({
-      cls: "novelview-workbench-novel-actions",
+    const description = body.createDiv({
+      cls: "novelview-workbench-novel-description is-editable",
+      text: novel.description,
     });
-    actions.createEl("button", {
-      cls: "novelview-workbench-button",
-      text: "编辑小说信息",
-      attr: { type: "button" },
-    }).addEventListener("click", () => {
-      this.plugin.openNovelGroupSettings(novel.folderPath);
+    description.setAttr("contenteditable", "true");
+    description.setAttr("role", "textbox");
+    description.setAttr("data-placeholder", "点击填写小说简介");
+    description.setAttr("title", "点击编辑小说简介");
+    description.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        description.blur();
+      }
+      if (event.key === "Escape") {
+        description.textContent = novel.description;
+        description.blur();
+      }
+    });
+    description.addEventListener("blur", () => {
+      const value = description.textContent?.trim() ?? "";
+      if (value !== novel.description) {
+        void this.plugin.updateNovelInfo(novel.folderPath, {
+          description: value,
+        });
+      }
     });
   }
 

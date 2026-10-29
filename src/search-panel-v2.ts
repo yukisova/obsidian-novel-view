@@ -20,6 +20,7 @@ export class SearchPanelV2 {
   private root: HTMLElement | null = null;
   private resultsEl: HTMLElement | null = null;
   private titleEl: HTMLElement | null = null;
+  private groupLabel: HTMLElement | null = null;
   private queryInput: HTMLInputElement | null = null;
   private replaceInput: HTMLInputElement | null = null;
   private scopeSelect: HTMLSelectElement | null = null;
@@ -28,28 +29,52 @@ export class SearchPanelV2 {
   private regexInput: HTMLInputElement | null = null;
   private activeScope: SearchScope = "chapter";
   private ownerView: MarkdownView | null = null;
-  private resizeObserver: ResizeObserver | null = null;
-  private readonly handleResize = (): void => this.layout();
+
 
   constructor(plugin: NovelViewPlugin) {
     this.plugin = plugin;
   }
 
   open(view?: MarkdownView): void {
-    if (this.root && this.ownerView === view) {
+    if (this.root) {
+      this.ownerView = view ?? this.ownerView;
       this.root.addClass("is-open");
       this.queryInput?.focus();
+      void this.search();
       return;
-    }
-    if (this.root) {
-      this.close();
     }
     this.ownerView = view ?? null;
     this.root = createEl("div", { cls: "novelview-search-v2" });
+    this.root.addClass("is-open");
     this.root.setAttr("role", "dialog");
     this.root.setAttr("aria-label", "高级查找替换");
     const header = this.root.createDiv({ cls: "novelview-search-v2-header" });
     header.createSpan({ text: "高级查找替换" });
+    this.groupLabel = this.root.createDiv({ cls: "novelview-search-v2-group" });
+    header.addEventListener("pointerdown", (event) => {
+      if ((event.target as HTMLElement | null)?.closest("button")) {
+        return;
+      }
+      const root = this.root;
+      if (!root) {
+        return;
+      }
+      const rect = root.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left;
+      const offsetY = event.clientY - rect.top;
+      root.style.transform = "none";
+      const move = (moveEvent: PointerEvent): void => {
+        root.style.left = `${Math.round(moveEvent.clientX - offsetX)}px`;
+        root.style.top = `${Math.round(moveEvent.clientY - offsetY)}px`;
+      };
+      const up = (): void => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      event.preventDefault();
+    });
     const close = header.createEl("button", { text: "×", attr: { type: "button" } });
     close.addEventListener("click", () => this.close());
 
@@ -91,45 +116,15 @@ export class SearchPanelV2 {
         this.close();
       }
     });
-    (this.ownerView?.containerEl ?? document.body).appendChild(this.root);
-    window.addEventListener("resize", this.handleResize);
-    if (this.ownerView) {
-      this.resizeObserver = new ResizeObserver(() => this.layout());
-      this.resizeObserver.observe(this.ownerView.containerEl);
-    }
-    window.requestAnimationFrame(() => this.layout());
+    document.body.appendChild(this.root);
     window.setTimeout(() => this.queryInput?.focus(), 0);
   }
 
-  isOwner(view: MarkdownView | null): boolean {
-    return !!this.root && this.ownerView === view;
-  }
-
   close(): void {
-    window.removeEventListener("resize", this.handleResize);
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
     this.root?.remove();
     this.root = null;
     this.resultsEl = null;
     this.ownerView = null;
-  }
-
-  private layout(): void {
-    if (!this.root || !this.ownerView) {
-      return;
-    }
-    const rect = this.ownerView.containerEl.getBoundingClientRect();
-    if (rect.width < 80 || rect.height < 80) {
-      return;
-    }
-    const width = Math.round(Math.min(780, Math.max(420, rect.width * 0.84)));
-    const height = Math.round(Math.min(720, Math.max(300, rect.height * 0.78)));
-    this.root.style.width = `${width}px`;
-    this.root.style.height = `${height}px`;
-    this.root.style.maxHeight = `${height}px`;
-    this.root.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
-    this.root.style.top = `${Math.round(rect.top + (rect.height - height) / 2)}px`;
   }
 
   private option(parent: HTMLElement, label: string): HTMLInputElement {
@@ -204,6 +199,9 @@ export class SearchPanelV2 {
     const groupName = group
       ? this.plugin.getNovelGroupInfo(group)?.name ?? group
       : "未归属小说组";
+    if (this.groupLabel) {
+      this.groupLabel.setText(`小说组：${groupName}`);
+    }
     let total = 0;
     this.titleEl.setText(
       `查找结果 · ${SCOPE_LABELS[this.activeScope]} · ${groupName}`,

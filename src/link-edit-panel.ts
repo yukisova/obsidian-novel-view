@@ -12,7 +12,7 @@ export const LINK_PRESET_COLORS = [
   ["紫", "#8e4ec6"],
 ] as const;
 
-export type LinkEditMode = "group" | "file" | "batch-tag";
+export type LinkEditMode = "group" | "file" | "batch-tag" | "tag-color";
 
 export interface LinkEditValue {
   style?: LinkHighlightStyle;
@@ -62,6 +62,8 @@ export class LinkEditPanel {
 
     if (mode === "group") {
       this.renderGroup();
+    } else if (mode === "tag-color") {
+      this.renderColorField();
     } else {
       this.renderFile(mode === "batch-tag");
     }
@@ -120,6 +122,13 @@ export class LinkEditPanel {
       this.tagValue = this.tagInput?.value.trim() ?? "";
     });
 
+    this.renderColorField();
+    if (withAliases) {
+      // alias field follows
+    }
+  }
+
+  private renderColorField(): void {
     const colorField = this.root.createDiv({ cls: "novelview-link-edit-field" });
     colorField.createEl("label", { text: "高亮颜色" });
     const swatches = colorField.createDiv({ cls: "novelview-link-color-swatches" });
@@ -147,9 +156,6 @@ export class LinkEditPanel {
       this.updateSwatches(swatches);
     });
     this.updateSwatches(swatches);
-    if (withAliases) {
-      // alias field follows
-    }
   }
 
   private updateSwatches(container: HTMLElement): void {

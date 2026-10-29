@@ -3,7 +3,7 @@
 **为 Obsidian 打造的小说写作工作流。**  
 **A novel-writing workflow for Obsidian.**
 
-![version](https://img.shields.io/badge/version-0.6.11-9a5a2d)
+![version](https://img.shields.io/badge/version-0.6.21-9a5a2d)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
@@ -39,7 +39,7 @@ NovelView 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章�
 
 ### Installation
 
-1. Download [novel-view-0.6.11.zip](dist/novel-view-0.6.11.zip).
+1. Download [novel-view-0.6.21.zip](dist/novel-view-0.6.21.zip).
 2. Extract to `<Vault>/.obsidian/plugins/novel-view/`.
 3. Enable **NovelView** in **Settings → Community plugins**.
 
@@ -53,8 +53,20 @@ Requires Obsidian **1.7.2+**.
 - Inline rename; multi-select disables rename.
 - New article “无标题”, no duplicate H1; new volume “无名卷” with numbering.
 - Each chapter row displays word count and status.
-- Export:
-  - The article-list **Export merged manuscript** button exports every article in the novel group as one TXT via the system folder picker;
+- Drag articles to reorder. Ordering is based only on the increasing `novelview-id` property, never on filenames.
+- New articles get the next incremental ID in their folder.
+- Dropping onto a volume name moves articles into that volume and renumbers them in order.
+- Dropping between articles inserts at that position and renumbers the order.
+- IDs are hidden from the tree.
+- Drag preview uses a dashed/highlighted volume area or an insertion line between articles.
+- Article-list refresh during a move is coalesced after ID renumbering to prevent visual jitter.
+- Multi-selected articles can be dragged as a batch; IDs are reassigned by the new order.
+- Cmd/Ctrl+Z undoes move, delete, and rename actions.
+- Cmd/Ctrl+N creates a new chapter in the current novel group.
+- The Scattered Volume is always shown, even when empty.
+- **Import & Export** menu:
+  - Import a TXT via the system file picker;
+  - Export merges all novel-group articles via the system folder picker;
   - Multi-selected chapters merge into one TXT (volumes are ignored);
   - Single chapter exports as TXT;
   - Single volume exports all chapters as one TXT;
@@ -121,6 +133,7 @@ Keywords use filename + alias; tag color is the highlight color; group style is 
 - Lists/quotes native; tables/images centered.
 - Toolbar: auto format, insert image → from file / from materials; larger picker with names.
 - Auto format removes blank lines except one blank line before/after separators, tables, lists, and blockquotes; all other blank lines (including fenced code) are removed.
+- It also trims leading/trailing spaces and tabs from paragraph lines.
 - Heading markers H1-H6 are hidden automatically.
 - Horizontal rules split the article into sections; a floating TOC in the upper-left provides quick navigation.
 
@@ -131,7 +144,7 @@ Keywords use filename + alias; tag color is the highlight color; group style is 
 - Results are grouped by file; click a file card to expand its match cards.
 - Results are displayed as scrollable/ellipsized cards.
 - Search runs live while typing; there is no separate Find button.
-- The panel is bound to the current article view and closes when the main area switches away.
+- The panel is a global floating card (not constrained to MainArea); reopening in another chapter reuses the same window and updates the range.
 - Result title shows: 查找结果 · range type · novel group.
 
 ### Format Settings
@@ -154,19 +167,31 @@ The plugin settings tab still contains the remaining controls; the four typograp
 
 ### 简介
 
-NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.11 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
+NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.21 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
 
 ### 安装
 
-下载 [novel-view-0.6.11.zip](dist/novel-view-0.6.11.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
+下载 [novel-view-0.6.21.zip](dist/novel-view-0.6.21.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
 
 ### 文章列表
 
 - 标题仅显示小说名 + 正文数量；
 - 替换左侧文件列表；标题栏有返回图标，工具栏有可见“返回”按钮；
 - 每条章节显示字数与状态：待写、草稿、大纲、修改中、已完稿；
-- 导出：
-  - 文章列表“导出合并稿”按钮将小说组全部文章合并为一个 TXT，并由系统文件夹选择器指定保存位置；
+- 拖拽文章可调整顺序；排序仅依据递增的 `novelview-id` 属性，与文件名无关；
+- 新建文章分配当前序列的下一个递增 ID；
+- 拖到卷名上视为移入该卷并按顺序重排 ID；
+- 拖到文章之间视为插入，并按插入位置重排 ID；
+- ID 不在树状列表中显示；
+- 拖拽预览：卷内容区虚线高亮；文章之间显示插入线；
+- 移动期间合并刷新，ID 重排完成后一次更新，避免列表抖动；
+- 多选文章可批量拖拽到其他卷；
+- Cmd/Ctrl+Z 可撤销移动、删除、重命名；
+- Cmd/Ctrl+N 在当前小说组新建章节；
+- 分散卷始终显示，即使为空；
+- “导入与导出”菜单：
+  - 通过系统文件选择器导入 TXT；
+  - 导出合并稿将小说组全部文章合并到系统文件夹指定的 TXT；
   - 多选章节合并为 TXT（卷自动忽略）；
   - 单章导出 TXT；
   - 单卷合并导出 TXT；
@@ -188,6 +213,11 @@ NovelView 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑�
 ### 联动库
 
 - 无顶部工具栏；右键空白处选择“新增联动组”或“导入联动文件”；
+- 标题下显示当前小说组；导入窗口双击文件或回车导入；
+- 新建联动组直接创建；“默认联动组”更名为“分散组”，始终置顶；
+- 组/标签支持就地重命名，标签可右键改色；
+- 多选文件可拖拽到组、标签或文件之间，显示虚线/高亮/插入线预览；
+- 支持 Cmd/Ctrl+Z 撤销移动、删除、重命名；
 - 多选逻辑始终可用：框选、Ctrl/Cmd 间断、Shift 连续；空白取消；
 - 多选后右键可批量添加标签、批量删除；
 - JSON 位于小说组根目录 `links.json`，不再使用 `link/`；
@@ -227,7 +257,8 @@ JSON 结构：
 - 自动模式；
 - 多级列表原生；表格/图片居中；
 - 工具栏：自动排版、插入图片（从文件/从素材库）；选择窗口更大并显示名称；
-- 自动排版会在分隔线、表格、列表、引用块前后各保留一行空行；其余空行（含代码块内）删除。
+- 自动排版会在分隔线、表格、列表、引用块前后各保留一行空行；其余空行（含代码块内）删除；
+- 自动清理段首、段尾的空格和 Tab。
 - 自动隐藏 H1-H6 标题标记；
 - 分隔线划分文章部分，左上角浮动目录提供跳转。
 
@@ -239,7 +270,7 @@ JSON 结构：
 - 查找框内容变化后实时查找，无独立“查找”按钮；
 - 多文件结果先按文件展示，点击文件卡片展开该文件内的匹配；
 - 结果以可滚动卡片展示，超出卡片宽度的文字省略；
-- 界面绑定当前文章视图，主区域切换后自动消失；
+- 浮动窗口为全局单例，不受 MainArea 限制；在其他章节再次打开时复用并更新范围；
 - 标题显示：查找结果 · 范围类型 · 小说组。
 
 ### 格式设置
@@ -255,3 +286,12 @@ JSON 结构：
 ### 作者与许可
 
 作者：**yukisova**，基于 [MIT License](LICENSE) 发布。
+
+
+### 0.6.21 补充
+
+- 联动库：直接新建组、就地重命名组/标签、标签右键改色、批量拖拽与预览、分散组常驻、Cmd+Z 撤销。
+- 文章列表：聚焦文章/卷后按 Enter 进入重命名。
+- 高级查找：窗口可拖动，标题下显示当前小说组；修复按钮无法打开窗口。
+- 小说模式：字数/状态 UI 移到正文前、标题下固定显示。
+- 工作台：详情卡扩大，移除“编辑小说信息”按钮；点击标题、简介、封面直接编辑。

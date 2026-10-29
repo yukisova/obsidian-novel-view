@@ -1,5 +1,6 @@
 import {
   ItemView,
+  Menu,
   Notice,
   setIcon,
   type ViewStateResult,
@@ -22,12 +23,14 @@ export const ARTICLE_LIST_VIEW_TYPE = "novelview-article-list";
 export interface ArticleEntry {
   path: string;
   basename: string;
+  chapterNumber?: number;
 }
 
 export interface VolumeEntry {
   path: string;
   name: string;
   articles: ArticleEntry[];
+  volumeNumber?: number;
 }
 
 export interface ArticleListModel {
@@ -40,6 +43,7 @@ export interface ArticleListModel {
 interface DragPayload {
   kind: "article" | "volume";
   path: string;
+  paths?: string[];
 }
 
 const ARTICLE_MIME = "application/x-novelview-article";
@@ -59,6 +63,9 @@ export class NovelArticleListView extends ItemView {
   private readonly selectedKeys = new Set<string>();
   private selectionAnchorKey: string | null = null;
   private suppressBlankClick = false;
+  private mutationDepth = 0;
+  private renderCooldownUntil = 0;
+  private refreshTimer: number | null = null;
   private readonly selectionTargets = new Map<string, ArticleListTarget>();
   private marquee: {
     pointerId: number;
@@ -117,6 +124,42 @@ export class NovelArticleListView extends ItemView {
       void this.plugin.restoreFileExplorer(this.leaf);
     });
 
+    this.registerDomEvent(document, "keydown", (event) => {
+      if (this.app.workspace.activeLeaf !== this.leaf) {
+        return;
+      }
+      if (
+        event.key === "Enter"
+        && !event.metaKey
+        && !event.ctrlKey
+        && !this.inlineRenameActive
+        && this.focusedTarget
+        && !(event.target as HTMLElement | null)?.closest("input, textarea, button, [contenteditable='true']")
+      ) {
+        event.preventDefault();
+        this.startInlineRename(this.focusedTarget);
+        return;
+      }
+      const mod = event.metaKey || event.ctrlKey;
+      if (!mod) {
+        return;
+      }
+      if ((event.target as HTMLElement | null)?.closest("input, textarea, [contenteditable='true']")) {
+        return;
+      }
+      if (event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        void this.plugin.createArticleInFolder(
+          this.folderPath,
+          this.focusedFolderPath || this.folderPath,
+          "无标题",
+        ).then(() => this.scheduleRefresh());
+      } else if (event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        void this.plugin.undoLastArticleAction?.().then(() => this.scheduleRefresh());
+      }
+    });
+
     this.registerEvent(this.app.vault.on("create", () => this.scheduleRefresh()));
     this.registerEvent(this.app.vault.on("delete", () => this.scheduleRefresh()));
     this.registerEvent(this.app.vault.on("rename", () => this.scheduleRefresh()));
@@ -154,10 +197,28 @@ export class NovelArticleListView extends ItemView {
       window.cancelAnimationFrame(this.refreshFrame);
       this.refreshFrame = null;
     }
+    if (this.refreshTimer !== null) {
+      window.clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
     this.contentEl.empty();
+    this.contentEl.removeClass("novelview-article-list-view");
   }
 
   scheduleRefresh(): void {
+    if (
+      this.mutationDepth > 0
+      || Date.now() < this.renderCooldownUntil
+    ) {
+      if (this.refreshTimer === null) {
+        const delay = Math.max(80, this.renderCooldownUntil - Date.now());
+        this.refreshTimer = window.setTimeout(() => {
+          this.refreshTimer = null;
+          this.scheduleRefresh();
+        }, delay);
+      }
+      return;
+    }
     if (this.refreshFrame !== null) {
       return;
     }
@@ -166,6 +227,28 @@ export class NovelArticleListView extends ItemView {
       this.refreshFrame = null;
       this.render();
     });
+  }
+
+  private beginMutation(): void {
+    this.mutationDepth += 1;
+    this.renderCooldownUntil = Math.max(this.renderCooldownUntil, Date.now() + 300);
+    if (this.refreshFrame !== null) {
+      window.cancelAnimationFrame(this.refreshFrame);
+      this.refreshFrame = null;
+    }
+    if (this.refreshTimer !== null) {
+      window.clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+
+  private endMutation(): void {
+    this.mutationDepth = Math.max(0, this.mutationDepth - 1);
+    if (this.mutationDepth > 0) {
+      return;
+    }
+    this.renderCooldownUntil = Math.max(this.renderCooldownUntil, Date.now() + 250);
+    this.scheduleRefresh();
   }
 
   private render(): void {
@@ -233,14 +316,27 @@ export class NovelArticleListView extends ItemView {
       },
     );
 
-    this.createToolbarButton(
+    const io = this.createToolbarButton(
       toolbar,
-      "download",
-      "导出合并稿",
-      () => {
-        void this.plugin.exportNovelGroup(model.folderPath);
-      },
+      "arrow-down-up",
+      "导入与导出",
+      () => {},
     );
+    io.addEventListener("click", (event) => {
+      event.preventDefault();
+      const menu = new Menu();
+      menu.addItem((item) => {
+        item.setTitle("导入 TXT").setIcon("upload").onClick(() => {
+          void this.plugin.importNovelTxt(model.folderPath);
+        });
+      });
+      menu.addItem((item) => {
+        item.setTitle("导出合并稿").setIcon("download").onClick(() => {
+          void this.plugin.exportNovelGroup(model.folderPath);
+        });
+      });
+      menu.showAtMouseEvent(event);
+    });
   }
 
   private createToolbarButton(
@@ -377,30 +473,27 @@ export class NovelArticleListView extends ItemView {
         return;
       }
       event.preventDefault();
-      void this.plugin.moveArticleToFolder(
-        this.dragPayload.path,
+      const payload = this.dragPayload;
+      this.dragPayload = null;
+      if (!payload) {
+        return;
+      }
+      this.beginMutation();
+      void this.plugin.moveArticlesToVolume(
+        payload.paths ?? [payload.path],
         model.folderPath,
-      ).then((moved: boolean) => {
-        this.dragPayload = null;
-        if (moved) {
-          this.scheduleRefresh();
-        }
+      ).finally(() => {
+        this.endMutation();
       });
     });
 
-    if (model.articles.length > 0) {
-      this.renderScatteredVolume(list, model);
-    }
+    this.renderScatteredVolume(list, model);
 
     for (const volume of model.volumes) {
       this.renderVolumeRow(list, model, volume);
     }
 
     this.pruneSelection();
-
-    if (model.volumes.length === 0 && model.articles.length === 0) {
-      this.renderMessage("暂无正文。右键可新建文章或卷。");
-    }
   }
 
   private renderScatteredVolume(
@@ -445,27 +538,32 @@ export class NovelArticleListView extends ItemView {
       event.preventDefault();
       event.stopPropagation();
       row.addClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.add("is-drop-volume");
     });
     row.addEventListener("dragleave", () => {
       row.removeClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.remove("is-drop-volume");
     });
     row.addEventListener("drop", (event) => {
       event.preventDefault();
       event.stopPropagation();
       row.removeClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.remove("is-drop-volume");
       const payload = this.dragPayload;
       this.dragPayload = null;
       if (payload?.kind !== "article") {
         return;
       }
-      void this.plugin.moveArticleToFolder(
-        payload.path,
+      this.beginMutation();
+      void this.plugin.moveArticlesToVolume(
+        payload.paths ?? [payload.path],
         model.folderPath,
       ).then((moved: boolean) => {
         if (moved) {
           this.scatteredExpanded = true;
         }
-        this.scheduleRefresh();
+      }).finally(() => {
+        this.endMutation();
       });
     });
 
@@ -473,8 +571,15 @@ export class NovelArticleListView extends ItemView {
       const children = group.createDiv({
         cls: "novelview-article-volume-children",
       });
-      for (const article of model.articles) {
-        this.renderArticleRow(children, article, model.folderPath);
+      if (model.articles.length === 0) {
+        children.createDiv({
+          cls: "novelview-article-volume-empty",
+          text: "暂无分散文章。",
+        });
+      } else {
+        for (const article of model.articles) {
+          this.renderArticleRow(children, article, model.folderPath);
+        }
       }
     }
   }
@@ -545,6 +650,9 @@ export class NovelArticleListView extends ItemView {
     row.addEventListener("dragend", () => {
       this.dragPayload = null;
       row.removeClass("is-dragging");
+      for (const target of this.contentEl.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-volume")) {
+        target.classList.remove("is-drop-before", "is-drop-after", "is-drop-volume");
+      }
     });
 
     row.addEventListener("dragover", (event) => {
@@ -557,14 +665,17 @@ export class NovelArticleListView extends ItemView {
         event.dataTransfer.dropEffect = "move";
       }
       row.addClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.add("is-drop-volume");
     });
     row.addEventListener("dragleave", () => {
       row.removeClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.remove("is-drop-volume");
     });
     row.addEventListener("drop", (event) => {
       event.preventDefault();
       event.stopPropagation();
       row.removeClass("is-drop-target");
+      row.closest(".novelview-article-volume-group")?.classList.remove("is-drop-volume");
       const payload = this.dragPayload;
       this.dragPayload = null;
       if (!payload) {
@@ -572,19 +683,25 @@ export class NovelArticleListView extends ItemView {
       }
 
       if (payload.kind === "article") {
-        void this.plugin.moveArticleToFolder(payload.path, volume.path)
+        this.beginMutation();
+        void this.plugin.moveArticlesToVolume(payload.paths ?? [payload.path], volume.path)
           .then((moved: boolean) => {
             if (moved) {
               this.expandedVolumes.add(volume.path);
             }
-            this.scheduleRefresh();
+          }).finally(() => {
+            this.endMutation();
           });
         return;
       }
 
       if (payload.kind === "volume" && payload.path !== volume.path) {
-        this.plugin.reorderVolume(model.folderPath, payload.path, volume.path);
-        this.scheduleRefresh();
+        this.beginMutation();
+        void Promise.resolve(
+          this.plugin.reorderVolume(model.folderPath, payload.path, volume.path),
+        ).finally(() => {
+          this.endMutation();
+        });
       }
     });
 
@@ -667,16 +784,56 @@ export class NovelArticleListView extends ItemView {
       this.scheduleRefresh();
     });
     row.addEventListener("dragstart", (event) => {
-      this.dragPayload = { kind: "article", path: article.path };
+      const selectedPaths = [...this.selectedKeys]
+        .filter((key) => key.startsWith("article:"))
+        .map((key) => key.slice("article:".length));
+      const paths = selectedPaths.includes(article.path)
+        ? selectedPaths
+        : [article.path];
+      this.dragPayload = { kind: "article", path: article.path, paths };
       event.dataTransfer?.setData(ARTICLE_MIME, article.path);
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
       }
       row.addClass("is-dragging");
     });
+    row.addEventListener("dragover", (event) => {
+      if (this.dragPayload?.kind === "article") {
+        event.preventDefault();
+        event.stopPropagation();
+        const rect = row.getBoundingClientRect();
+        const after = event.clientY > rect.top + rect.height / 2;
+        row.removeClass("is-drop-before", "is-drop-after");
+        row.addClass(after ? "is-drop-after" : "is-drop-before");
+      }
+    });
+    row.addEventListener("dragleave", () => {
+      row.removeClass("is-drop-before", "is-drop-after");
+    });
+    row.addEventListener("drop", (event) => {
+      const payload = this.dragPayload;
+      if (payload?.kind !== "article") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.dragPayload = null;
+      const rect = row.getBoundingClientRect();
+      const after = event.clientY > rect.top + rect.height / 2;
+      row.removeClass("is-drop-before", "is-drop-after");
+      const paths = payload.paths ?? [payload.path];
+      this.beginMutation();
+      void this.plugin.reorderArticlesAt(paths, article.path, after)
+        .finally(() => {
+          this.endMutation();
+        });
+    });
     row.addEventListener("dragend", () => {
       this.dragPayload = null;
       row.removeClass("is-dragging");
+      for (const target of this.contentEl.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-volume")) {
+        target.classList.remove("is-drop-before", "is-drop-after", "is-drop-volume");
+      }
     });
   }
 
@@ -943,3 +1100,5 @@ export class NovelArticleListView extends ItemView {
     });
   }
 }
+
+

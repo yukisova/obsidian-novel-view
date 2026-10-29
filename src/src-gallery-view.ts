@@ -95,6 +95,13 @@ export class NovelSrcGalleryView extends ItemView {
       cls: "novelview-src-title",
       text: "素材库",
     });
+    if (this.folderPath) {
+      const groupInfo = this.plugin.getNovelGroupInfo(this.folderPath);
+      header.createDiv({
+        cls: "novelview-src-caption",
+        text: groupInfo?.name ?? this.folderPath,
+      });
+    }
 
     if (!this.folderPath) {
       this.renderMessage("请从文章列表打开素材库。");

@@ -1,5 +1,5 @@
 export const LINK_LIBRARY_JSON = "links.json";
-export const DEFAULT_LINK_GROUP = "默认联动组";
+export const DEFAULT_LINK_GROUP = "分散组";
 export const DEFAULT_LINK_COLOR = "#9a5a2d";
 
 export type LinkHighlightStyle = "normal" | "bold" | "italic" | "bolditalic" | "underline";
@@ -21,6 +21,7 @@ export interface LinkFileEntry {
   belong: string;
   tag: string;
   aliases: string[];
+  order: number;
 }
 
 export interface LinkLibraryData {
@@ -96,11 +97,13 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
             .filter(Boolean)
           : [];
         const tag = typeof config.tag === "string" ? config.tag.trim() : "";
+        const order = Number(config.order);
         links.push({
           path,
           belong,
           tag,
           aliases: [...new Set(aliases)],
+          order: Number.isFinite(order) ? order : links.length,
         });
       }
     }
@@ -137,6 +140,7 @@ export function serializeLinkLibrary(data: LinkLibraryData): string {
         ? { belong: entry.belong }
         : {}),
       ...(entry.tag ? { tag: entry.tag } : {}),
+      order: entry.order,
       alias: [...new Set(entry.aliases)],
     },
   }));
@@ -145,12 +149,7 @@ export function serializeLinkLibrary(data: LinkLibraryData): string {
 
 export function getLinkGroupNames(data: LinkLibraryData): string[] {
   const names = Object.keys(data.group);
-  if (
-    data.links.some((entry) => entry.belong === DEFAULT_LINK_GROUP)
-    || !names.includes(DEFAULT_LINK_GROUP)
-  ) {
-    names.push(DEFAULT_LINK_GROUP);
-  }
+  names.unshift(DEFAULT_LINK_GROUP);
   return [...new Set(names)];
 }
 

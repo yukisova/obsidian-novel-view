@@ -65,6 +65,15 @@ export function formatNovelMarkdown(content: string): NovelFormatResult {
     }
 
     const kind = classifyBlockLine(withoutTrailingWhitespace, previousKind);
+    const cleanedLine = kind === "other"
+      ? withoutTrailingWhitespace.replace(/^[ \t]+/u, "")
+      : withoutTrailingWhitespace;
+    if (
+      cleanedLine !== withoutTrailingWhitespace
+      || withoutTrailingWhitespace !== line
+    ) {
+      trimmedLines += 1;
+    }
     const needsBlockBreak = (
       kind === "hr"
       || previousKind === "hr"
@@ -77,10 +86,7 @@ export function formatNovelMarkdown(content: string): NovelFormatResult {
         output.push({ text: "", kind: "other" });
       }
     }
-    if (withoutTrailingWhitespace !== line) {
-      trimmedLines += 1;
-    }
-    output.push({ text: withoutTrailingWhitespace, kind });
+    output.push({ text: cleanedLine, kind });
     previousKind = kind;
   }
 
