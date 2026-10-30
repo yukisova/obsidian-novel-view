@@ -1,8 +1,3 @@
-import {
-  LINK_STYLE_LABELS,
-  type LinkHighlightStyle,
-} from "./core/link-library";
-
 export const LINK_PRESET_COLORS = [
   ["红", "#e5484d"],
   ["橙", "#f76b15"],
@@ -12,10 +7,9 @@ export const LINK_PRESET_COLORS = [
   ["紫", "#8e4ec6"],
 ] as const;
 
-export type LinkEditMode = "group" | "file" | "batch-tag" | "tag-color";
+export type LinkEditMode = "file" | "batch-tag" | "tag-color" | "tag";
 
 export interface LinkEditValue {
-  style?: LinkHighlightStyle;
   tag?: string;
   color?: string;
   aliases?: string[];
@@ -26,7 +20,6 @@ export class LinkEditPanel {
   private readonly onSave: (value: LinkEditValue) => void;
   private readonly onClose: () => void;
   private readonly mode: LinkEditMode;
-  private styleValue: LinkHighlightStyle;
   private colorValue: string;
   private tagValue: string;
   private aliasesValue: string;
@@ -44,7 +37,6 @@ export class LinkEditPanel {
     this.mode = mode;
     this.onSave = onSave;
     this.onClose = onClose;
-    this.styleValue = initial.style ?? "normal";
     this.colorValue = initial.color ?? "#9a5a2d";
     this.tagValue = initial.tag ?? "";
     this.aliasesValue = (initial.aliases ?? []).join("\n");
@@ -60,10 +52,18 @@ export class LinkEditPanel {
     });
     close.addEventListener("click", () => this.close());
 
-    if (mode === "group") {
-      this.renderGroup();
-    } else if (mode === "tag-color") {
+    if (mode === "tag-color") {
       this.renderColorField();
+    } else if (mode === "tag") {
+      this.renderTagFields(false);
+      this.tagInput?.focus();
+      this.tagInput?.select();
+      this.tagInput?.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          this.submit();
+        }
+      });
     } else {
       this.renderFile(mode === "batch-tag");
     }
@@ -78,27 +78,17 @@ export class LinkEditPanel {
     }).addEventListener("click", () => this.submit());
 
     document.body.appendChild(this.root);
+    if (mode === "tag") {
+      window.setTimeout(() => {
+        this.tagInput?.focus();
+        this.tagInput?.select();
+      }, 0);
+    }
   }
 
   close(): void {
     this.root.remove();
     this.onClose();
-  }
-
-  private renderGroup(): void {
-    const field = this.root.createDiv({ cls: "novelview-link-edit-field" });
-    field.createEl("label", { text: "高亮字体样式" });
-    const select = field.createEl("select");
-    for (const style of Object.keys(LINK_STYLE_LABELS) as LinkHighlightStyle[]) {
-      select.createEl("option", {
-        text: LINK_STYLE_LABELS[style],
-        attr: { value: style },
-      });
-    }
-    select.value = this.styleValue;
-    select.addEventListener("change", () => {
-      this.styleValue = select.value as LinkHighlightStyle;
-    });
   }
 
   private renderFile(batchTag: boolean): void {
@@ -174,7 +164,6 @@ export class LinkEditPanel {
       .map((alias) => alias.trim())
       .filter(Boolean);
     this.onSave({
-      style: this.styleValue,
       tag: (this.tagInput?.value ?? this.tagValue).trim(),
       color: this.colorValue,
       aliases,

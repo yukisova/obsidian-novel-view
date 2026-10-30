@@ -30,6 +30,7 @@ export function linkKeywordsInElement(
   }
 
   let count = 0;
+  const seen = new Set<string>();
   for (const node of textNodes) {
     const value = node.nodeValue ?? "";
     const matches = findLinkKeywordMatches(value, entries);
@@ -40,18 +41,25 @@ export function linkKeywordsInElement(
     const fragment = createFragment();
     let cursor = 0;
     for (const match of matches) {
+      const normalized = match.entry.keyword.toLocaleLowerCase();
+      if (seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
       if (match.start > cursor) {
         fragment.appendChild(
           document.createTextNode(value.slice(cursor, match.start)),
         );
       }
       const link = createEl("span", {
-        cls: `novelview-link-keyword novelview-link-keyword-${match.entry.style}`,
+        cls: "novelview-link-keyword",
         attr: {
           role: "link",
           tabindex: "0",
           "data-novelview-link-path": match.entry.path,
-          title: `打开 ${match.entry.basename}`,
+          "data-novelview-link-name": match.entry.basename,
+          "data-novelview-link-tag": match.entry.tag,
+          "data-novelview-link-group": match.entry.group,
         },
       });
       link.setAttr("style", `color: ${match.entry.color};`);

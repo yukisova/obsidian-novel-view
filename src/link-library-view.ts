@@ -12,10 +12,8 @@ import {
   DEFAULT_LINK_GROUP,
   getLinkFileName,
   getLinkGroupNames,
-  getLinkGroupStyle,
   getLinkGroupTags,
   getLinkTagColor,
-  LINK_STYLE_LABELS,
   type LinkFileEntry,
   type LinkLibraryData,
 } from "./core/link-library";
@@ -206,10 +204,6 @@ export class LinkLibraryView extends ItemView {
     const icon = row.createSpan({ cls: "novelview-link-group-icon" });
     setIcon(icon, "folder");
     row.createSpan({ cls: "novelview-link-group-name", text: group });
-    row.createSpan({
-      cls: "novelview-link-group-style",
-      text: LINK_STYLE_LABELS[getLinkGroupStyle(this.data, group)],
-    });
     row.createSpan({
       cls: "novelview-link-group-count",
       text: String(this.data.links.filter((entry) => entry.belong === group).length),
@@ -609,9 +603,6 @@ export class LinkLibraryView extends ItemView {
 
   private showGroupMenu(event: MouseEvent, group: string): void {
     const menu = new Menu();
-    menu.addItem((item) => {
-      item.setTitle("编辑字体样式").setIcon("type").onClick(() => this.editGroup(group));
-    });
     if (group !== DEFAULT_LINK_GROUP) {
       menu.addItem((item) => {
         item.setTitle("重命名").setIcon("text-cursor-input").onClick(() => {
@@ -630,7 +621,14 @@ export class LinkLibraryView extends ItemView {
   private showFileMenu(event: MouseEvent, link: LinkFileEntry): void {
     const menu = new Menu();
     menu.addItem((item) => {
-      item.setTitle("编辑标签/别名").setIcon("pencil").onClick(() => this.editFile(link));
+      item.setTitle("编辑别名").setIcon("pencil").onClick(() => {
+        this.startInlineAliasEdit(link);
+      });
+    });
+    menu.addItem((item) => {
+      item.setTitle("归入标签").setIcon("tag").onClick(() => {
+        this.editFileTag(link);
+      });
     });
     menu.addItem((item) => {
       item.setTitle("重命名").setIcon("text-cursor-input").onClick(() => {
@@ -773,11 +771,11 @@ export class LinkLibraryView extends ItemView {
       return;
     }
     this.pushDataUndo();
-    const groups: Record<string, { style: import("./core/link-library").LinkHighlightStyle }> = {};
+    const groups: Record<string, Record<string, never>> = {};
     for (const [name, config] of Object.entries(this.data.group)) {
       groups[name === oldName ? newName : name] = config;
     }
-    groups[newName] ??= { style: "normal" };
+    groups[newName] ??= {};
     this.data.group = groups;
     for (const link of this.data.links) {
       if (link.belong === oldName) {
@@ -886,6 +884,101 @@ export class LinkLibraryView extends ItemView {
     return true;
   }
 
+  private startInlineAliasEdit(link: LinkFileEntry): void {
+    const row = this.contentEl.querySelector<HTMLElement>(
+      `[data-link-key="${CSS.escape(`file:${link.path}`)}"]`,
+    );
+    const text = row?.querySelector<HTMLElement>(".novelview-link-file-text");
+    if (!row || !text) {
+      return;
+    }
+    const existing = text.querySelector<HTMLElement>(".novelview-link-file-alias");
+    const input = createEl("input", {
+      cls: "novelview-link-inline-alias",
+      attr: {
+        type: "text",
+        placeholder: "别名，多个用逗号分隔",
+        "aria-label": "编辑别名",
+      },
+    });
+    input.value = link.aliases.join(", ");
+    if (existing) {
+      existing.replaceWith(input);
+    } else {
+      text.appendChild(input);
+    }
+    let settled = false;
+    const finish = (commit: boolean): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (!commit) {
+        void this.render();
+        return;
+      }
+      const aliases = [...new Set(
+        input.value
+          .split(/[,，;；\n]/u)
+          .map((alias) => alias.trim())
+          .filter(Boolean),
+      )];
+      const apply = (finalAliases: string[]): void => {
+        this.pushDataUndo();
+        link.aliases = finalAliases;
+        void this.persist();
+      };
+      const conflict = this.keywordCollision(link.path, aliases);
+      if (conflict) {
+        void this.promptUniqueLinkAlias(
+          link.path,
+          `“${conflict}”已被其他联动文件使用。请输入唯一别名；取消则不保存本次别名修改。`,
+        ).then((alias) => {
+          if (alias) {
+            apply([alias]);
+          } else {
+            void this.render();
+          }
+        });
+        return;
+      }
+      apply(aliases);
+    };
+    input.addEventListener("keydown", (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", () => finish(true));
+    window.setTimeout(() => input.select(), 0);
+  }
+
+  private editFileTag(link: LinkFileEntry): void {
+    this.editPanel?.close();
+    this.editPanel = new LinkEditPanel(
+      "tag",
+      "归入标签",
+      {
+        tag: link.tag,
+        color: getLinkTagColor(this.data, link.belong, link.tag),
+      },
+      (value) => {
+        const tag = value.tag?.trim() || "标签";
+        this.pushDataUndo();
+        link.tag = tag;
+        this.data.tags[link.belong] ??= {};
+        this.data.tags[link.belong][tag] = value.color ?? "#9a5a2d";
+        void this.persist();
+      },
+      () => { this.editPanel = null; },
+    );
+  }
+
   private createGroup(): void {
     let index = 1;
     let name = `联动组 ${index}`;
@@ -894,23 +987,8 @@ export class LinkLibraryView extends ItemView {
       name = `联动组 ${index}`;
     }
     this.pushDataUndo();
-    this.data.group[name] = { style: "normal" };
+    this.data.group[name] = {};
     void this.persist();
-  }
-
-  private editGroup(group: string): void {
-    this.editPanel?.close();
-    this.editPanel = new LinkEditPanel(
-      "group",
-      "编辑联动组",
-      { style: getLinkGroupStyle(this.data, group) },
-      (value) => {
-        this.pushDataUndo();
-        this.data.group[group] = { style: value.style ?? "normal" };
-        void this.persist();
-      },
-      () => { this.editPanel = null; },
-    );
   }
 
   private effectiveKeywords(
@@ -975,48 +1053,6 @@ export class LinkLibraryView extends ItemView {
         resolve,
       ).open();
     });
-  }
-
-  private editFile(link: LinkFileEntry): void {
-    this.editPanel?.close();
-    this.editPanel = new LinkEditPanel(
-      "file",
-      "编辑联动文件",
-      {
-        tag: link.tag,
-        color: getLinkTagColor(this.data, link.belong, link.tag),
-        aliases: link.aliases,
-      },
-      (value) => {
-        const aliases = [...new Set(
-          (value.aliases ?? []).map((alias) => alias.trim()).filter(Boolean),
-        )];
-        const apply = (finalAliases: string[]): void => {
-          this.pushDataUndo();
-          link.tag = value.tag ?? "";
-          if (link.tag) {
-            this.data.tags[link.belong] ??= {};
-            this.data.tags[link.belong][link.tag] = value.color ?? "#9a5a2d";
-          }
-          link.aliases = finalAliases;
-          void this.persist();
-        };
-        const conflict = this.keywordCollision(link.path, aliases);
-        if (conflict) {
-          void this.promptUniqueLinkAlias(
-            link.path,
-            `“${conflict}”已被其他联动文件作为关键词使用。为了让关键词唯一指向本文件，请为该文件输入一个新别名；取消则不保存本次修改。`,
-          ).then((alias) => {
-            if (alias) {
-              apply([alias]);
-            }
-          });
-          return;
-        }
-        apply(aliases);
-      },
-      () => { this.editPanel = null; },
-    );
   }
 
   private batchAddTag(files: LinkFileEntry[]): void {
@@ -1159,7 +1195,10 @@ export class LinkLibraryView extends ItemView {
     const active = document.activeElement;
     if (
       active instanceof HTMLInputElement
-      && active.classList.contains("novelview-link-inline-rename")
+      && (
+        active.classList.contains("novelview-link-inline-rename")
+        || active.classList.contains("novelview-link-inline-alias")
+      )
     ) {
       active.blur();
       return;

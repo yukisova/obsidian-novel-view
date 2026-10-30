@@ -80,6 +80,7 @@ export class NovelArticleListView extends ItemView {
     box: HTMLElement;
     additive: boolean;
     moved: boolean;
+    baseSelection: Set<string>;
   } | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
@@ -234,6 +235,7 @@ export class NovelArticleListView extends ItemView {
     }
     this.hideGroupTooltip();
     this.hideVolumeTooltip();
+    this.plugin.clearArticleDrag();
     this.contentEl.empty();
     this.contentEl.removeClass("novelview-article-list-view");
   }
@@ -714,6 +716,7 @@ export class NovelArticleListView extends ItemView {
     });
 
     row.addEventListener("dragstart", (event) => {
+      this.plugin.clearArticleDrag();
       this.dragPayload = { kind: "volume", path: volume.path };
       event.dataTransfer?.setData(VOLUME_MIME, volume.path);
       if (event.dataTransfer) {
@@ -1078,6 +1081,7 @@ export class NovelArticleListView extends ItemView {
         ? selectedPaths
         : [article.path];
       this.dragPayload = { kind: "article", path: article.path, paths };
+      this.plugin.setArticleDrag(paths);
       event.dataTransfer?.setData(ARTICLE_MIME, article.path);
       event.dataTransfer?.setData(ARTICLES_MIME, JSON.stringify(paths));
       if (event.dataTransfer) {
@@ -1125,6 +1129,7 @@ export class NovelArticleListView extends ItemView {
     });
     row.addEventListener("dragend", () => {
       this.dragPayload = null;
+      window.setTimeout(() => this.plugin.clearArticleDrag(), 250);
       row.removeClass("is-dragging");
       for (const target of this.contentEl.querySelectorAll(".is-drop-before, .is-drop-after, .is-drop-volume")) {
         target.classList.remove("is-drop-before", "is-drop-after", "is-drop-volume");
@@ -1306,15 +1311,19 @@ export class NovelArticleListView extends ItemView {
     const box = createEl("div", { cls: "novelview-selection-box" });
     document.body.appendChild(box);
     const additive = event.metaKey || event.ctrlKey;
+    const baseSelection = additive
+      ? new Set(this.selectedKeys)
+      : new Set<string>();
     this.focusedKey = null;
     this.focusedTarget = null;
     for (const focused of this.contentEl.querySelectorAll(".is-focused")) {
       focused.classList.remove("is-focused");
     }
-    if (!additive) {
-      this.selectedKeys.clear();
-      this.updateSelectionClasses();
+    this.selectedKeys.clear();
+    for (const key of baseSelection) {
+      this.selectedKeys.add(key);
     }
+    this.updateSelectionClasses();
     this.marquee = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -1322,6 +1331,7 @@ export class NovelArticleListView extends ItemView {
       box,
       additive,
       moved: false,
+      baseSelection,
     };
     list.setPointerCapture(event.pointerId);
     event.preventDefault();
@@ -1349,6 +1359,10 @@ export class NovelArticleListView extends ItemView {
         right: left + width,
         bottom: top + height,
       };
+      this.selectedKeys.clear();
+      for (const key of state.baseSelection) {
+        this.selectedKeys.add(key);
+      }
       for (const row of this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")) {
         const rect = row.getBoundingClientRect();
         const intersects = rect.left < selectionRect.right

@@ -11,6 +11,7 @@ import {
 import LegacyNovelViewPlugin from "./legacy-main.cjs";
 import {
   ARTICLE_LIST_VIEW_TYPE,
+  ARTICLE_MIME,
   ARTICLES_MIME,
   NovelArticleListView,
   type ArticleListTarget,
@@ -84,6 +85,13 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private readonly novelConfigs = new Map<string, NovelConfig>();
   private searchPanelV2: SearchPanelV2 | null = null;
   private readonly readingPositions = new Map<string, number>();
+  private keywordTooltip: HTMLElement | null = null;
+  private articleDragPaths: string[] = [];
+  private articleDragCancelled = false;
+  private articleDragPreview: HTMLElement | null = null;
+  private articleDropMode: "split" | "tabs" | "replace" | null = null;
+  private articleDropHeader: HTMLElement | null = null;
+  private articleDropHandled = false;
   private modeSettingsPanel: ModeSettingsPanel | null = null;
 
   async onload(): Promise<void> {
@@ -122,37 +130,165 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerEditorExtension(linkKeywordExtension);
     await this.migrateNovelConfigs();
     await this.loadNovelConfigs();
-    this.registerDomEvent(document, "dragover", (event) => {
-      if (
-        event.dataTransfer?.types.includes(ARTICLES_MIME)
-        && (event.target as HTMLElement | null)?.closest(".workspace-split.mod-root")
-      ) {
-        event.preventDefault();
+    this.registerEvent(this.app.vault.on("rename", (_file, oldPath) => {
+      void this.handleArticlePathChange(oldPath, _file.path);
+    }));
+    this.registerEvent(this.app.vault.on("delete", (file) => {
+      void this.handleArticlePathDeleted(file.path);
+    }));
+    this.registerDomEvent(document, "mouseover", (event) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+        ".novelview-link-keyword",
+      );
+      if (target) {
+        this.showKeywordTooltip(target);
       }
     });
-    this.registerDomEvent(document, "drop", (event) => {
-      const target = event.target as HTMLElement | null;
-      if (!target?.closest(".workspace-split.mod-root")) {
+    this.registerDomEvent(document, "mouseout", (event) => {
+      const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+        ".novelview-link-keyword",
+      );
+      if (!target) {
         return;
       }
-      const raw = event.dataTransfer?.getData(ARTICLES_MIME);
-      if (!raw) {
+      const related = event.relatedTarget as Node | null;
+      if (!related || !target.contains(related)) {
+        this.hideKeywordTooltip();
+      }
+    });
+    this.registerDomEvent(document, "scroll", () => this.hideKeywordTooltip(), true);
+    this.registerDomEvent(document, "dragstart", (event) => {
+      if (!(event.target as HTMLElement | null)?.closest(".novelview-article-list-view")) {
+        this.clearArticleDrag();
+      }
+    }, true);
+    this.registerDomEvent(window, "dragover", (event) => {
+      if (!this.isArticleDragEvent(event)) {
+        return;
+      }
+      if ((event.target as HTMLElement | null)?.closest(".novelview-article-list-view")) {
+        this.hideArticleDragPreview();
+        return;
+      }
+      if (this.articleDragCancelled) {
+        this.articleDropMode = null;
+        this.articleDropHeader = null;
+        this.hideArticleDragPreview();
+        return;
+      }
+      const context = this.getArticleDropContext(event.target);
+      if (!context) {
+        this.articleDropMode = null;
+        this.articleDropHeader = null;
+        this.hideArticleDragPreview();
         return;
       }
       event.preventDefault();
-      try {
-        const paths = JSON.parse(raw);
-        const path = Array.isArray(paths) && typeof paths[0] === "string"
-          ? paths[0]
-          : "";
-        const file = this.app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) {
-          this.openArticleFromList(file.path, file.parent?.path ?? "/");
-        }
-      } catch {
-        // Ignore malformed external drags.
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = "copy";
       }
+      this.articleDropMode = context.mode;
+      this.articleDropHeader = context.header;
+      this.showArticleDragPreview(event, context.mode);
+    }, true);
+    this.registerDomEvent(window, "drop", (event) => {
+      if (!this.isArticleDragEvent(event)) {
+        return;
+      }
+      if ((event.target as HTMLElement | null)?.closest(".novelview-article-list-view")) {
+        return;
+      }
+      const live = this.getArticleDropContext(event.target);
+      const mode = live?.mode ?? this.articleDropMode;
+      const header = live?.header ?? this.articleDropHeader;
+      if (!mode || this.articleDragCancelled) {
+        this.clearArticleDrag();
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      this.articleDropHandled = true;
+      let paths = [...this.articleDragPaths];
+      if (paths.length === 0) {
+        try {
+          const raw = event.dataTransfer?.getData(ARTICLES_MIME);
+          const parsed = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(parsed)) {
+            paths = parsed.filter((path): path is string => typeof path === "string");
+          }
+        } catch {
+          paths = [];
+        }
+      }
+      this.clearArticleDrag();
+      void this.performArticleDrop(mode, header, paths);
+    }, true);
+    this.registerDomEvent(window, "dragend", () => {
+      const mode = this.articleDropMode;
+      const header = this.articleDropHeader;
+      const paths = [...this.articleDragPaths];
+      const cancelled = this.articleDragCancelled;
+      const handled = this.articleDropHandled;
+      window.setTimeout(() => {
+        if (!handled && !cancelled && mode && paths.length > 0) {
+          void this.performArticleDrop(mode, header, paths);
+        }
+        this.clearArticleDrag();
+      }, 150);
+    }, true);
+    this.registerDomEvent(document, "keydown", (event) => {
+      if (event.key === "Escape" && this.articleDragPaths.length) {
+        this.articleDragCancelled = true;
+        this.hideArticleDragPreview();
+      }
+    }, true);
+  }
+
+  private showKeywordTooltip(target: HTMLElement): void {
+    const name = target.dataset.novelviewLinkName;
+    if (!name) {
+      return;
+    }
+    this.hideKeywordTooltip();
+    const tooltip = createDiv({ cls: "novelview-link-keyword-tooltip" });
+    const file = tooltip.createDiv({ cls: "novelview-link-keyword-tooltip-row" });
+    file.createSpan({ text: "文件：" });
+    file.createSpan({
+      cls: "novelview-link-keyword-tooltip-value",
+      text: name,
     });
+    const tag = tooltip.createDiv({ cls: "novelview-link-keyword-tooltip-row" });
+    tag.createSpan({ text: "标签：" });
+    tag.createSpan({
+      cls: "novelview-link-keyword-tooltip-value",
+      text: target.dataset.novelviewLinkTag ?? "",
+    });
+    const group = tooltip.createDiv({ cls: "novelview-link-keyword-tooltip-row" });
+    group.createSpan({ text: "联动组：" });
+    group.createSpan({
+      cls: "novelview-link-keyword-tooltip-value",
+      text: target.dataset.novelviewLinkGroup ?? "",
+    });
+    document.body.appendChild(tooltip);
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    const anchor = target.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, anchor.left),
+      window.innerWidth - width - 8,
+    );
+    const top = Math.min(
+      Math.max(8, anchor.bottom + 5),
+      window.innerHeight - height - 8,
+    );
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+    this.keywordTooltip = tooltip;
+  }
+
+  private hideKeywordTooltip(): void {
+    this.keywordTooltip?.remove();
+    this.keywordTooltip = null;
   }
 
   async refreshLinkKeywordIndex(): Promise<void> {
@@ -197,6 +333,8 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   onunload(): void {
+    this.hideKeywordTooltip();
+    this.clearArticleDrag();
     for (const toc of this.sectionTocs.values()) {
       toc.destroy();
     }
@@ -566,6 +704,155 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     };
   }
 
+  async normalizeArticleGroups(folderPath: string): Promise<void> {
+    const root = this.findNovelGroupRoot(folderPath)
+      ?? this.normalizeFolderPath(folderPath);
+    await this.ensureVolumeOrder(root);
+    const config = await this.readNovelConfig(root);
+    const groups = config["article-groups"];
+    if (groups.length === 0) {
+      return;
+    }
+    const model = this.getArticleListModel(root);
+    if (!model) {
+      return;
+    }
+    const order = new Map<string, { volume: string; index: number }>();
+    model.articles.forEach((article: any, index: number) => {
+      order.set(article.path, { volume: "", index });
+    });
+    model.volumes.forEach((volume: any) => {
+      volume.articles.forEach((article: any, index: number) => {
+        order.set(article.path, { volume: volume.name, index });
+      });
+    });
+    const used = new Set<string>();
+    const normalized: NovelArticleGroup[] = [];
+    for (const group of groups) {
+      const entries = group.paths
+        .map((path) => ({ path, position: order.get(path) }))
+        .filter((entry): entry is { path: string; position: { volume: string; index: number } } => (
+          !!entry.position
+          && entry.position.volume === (group.volume || "")
+        ))
+        .sort((left, right) => left.position.index - right.position.index);
+      const runs: Array<Array<{ path: string; position: { volume: string; index: number } }>> = [];
+      let current: Array<{ path: string; position: { volume: string; index: number } }> = [];
+      for (const entry of entries) {
+        const previous = current[current.length - 1];
+        if (
+          previous
+          && (
+            previous.position.volume !== entry.position.volume
+            || entry.position.index !== previous.position.index + 1
+          )
+        ) {
+          runs.push(current);
+          current = [];
+        }
+        current.push(entry);
+      }
+      if (current.length > 0) {
+        runs.push(current);
+      }
+      let runIndex = 0;
+      for (const run of runs) {
+        const paths = run
+          .map((entry) => entry.path)
+          .filter((path) => !used.has(path));
+        if (paths.length < 2) {
+          continue;
+        }
+        const positions = paths.map((path) => order.get(path)!).sort((a, b) => a.index - b.index);
+        if (
+          positions.some((position, index) => (
+            position.volume !== positions[0].volume
+            || position.index !== positions[0].index + index
+          ))
+        ) {
+          continue;
+        }
+        const volume = positions[0].volume;
+        const suffix = runIndex === 0 ? "" : `（${runIndex + 1}）`;
+        normalized.push({
+          ...group,
+          id: runIndex === 0 ? group.id : `${group.id}-${runIndex + 1}`,
+          name: `${group.name}${suffix}`,
+          volume,
+          paths,
+        });
+        for (const path of paths) {
+          used.add(path);
+        }
+        runIndex += 1;
+      }
+    }
+    if (JSON.stringify(normalized) !== JSON.stringify(groups)) {
+      config["article-groups"] = normalized;
+      await this.writeNovelConfig(root, config);
+    }
+  }
+
+  private async handleArticlePathChange(
+    oldPath: string,
+    newPath: string,
+  ): Promise<void> {
+    if (oldPath === newPath) {
+      return;
+    }
+    const oldParent = oldPath.includes("/")
+      ? oldPath.slice(0, oldPath.lastIndexOf("/"))
+      : "";
+    const newParent = newPath.includes("/")
+      ? newPath.slice(0, newPath.lastIndexOf("/"))
+      : "";
+    const oldRoot = this.findNovelGroupRoot(oldParent);
+    const newRoot = this.findNovelGroupRoot(newParent);
+    if (oldRoot) {
+      const config = await this.readNovelConfig(oldRoot);
+      let changed = false;
+      for (const group of config["article-groups"]) {
+        const index = group.paths.indexOf(oldPath);
+        if (index >= 0) {
+          if (newRoot === oldRoot) {
+            group.paths[index] = newPath;
+          } else {
+            group.paths.splice(index, 1);
+          }
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.writeNovelConfig(oldRoot, config);
+      }
+      await this.normalizeArticleGroups(oldRoot);
+    }
+    if (newRoot && newRoot !== oldRoot) {
+      await this.normalizeArticleGroups(newRoot);
+    }
+  }
+
+  private async handleArticlePathDeleted(path: string): Promise<void> {
+    const roots = [...this.novelConfigs.keys()];
+    for (const root of roots) {
+      const config = await this.readNovelConfig(root);
+      let changed = false;
+      for (const group of config["article-groups"]) {
+        const next = group.paths.filter(
+          (entry) => entry !== path && !entry.startsWith(`${path}/`),
+        );
+        if (next.length !== group.paths.length) {
+          group.paths = next;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await this.writeNovelConfig(root, config);
+        await this.normalizeArticleGroups(root);
+      }
+    }
+  }
+
   getNovelConfig(folderPath: string): NovelConfig {
     return this.novelConfigs.get(this.normalizeFolderPath(folderPath))
       ?? parseNovelConfig({});
@@ -597,6 +884,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       paths,
     });
     await this.writeNovelConfig(group, config);
+    await this.normalizeArticleGroups(group);
   }
 
   async addArticlesToGroup(
@@ -617,6 +905,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
     group.paths = [...new Set([...group.paths, ...paths])];
     await this.writeNovelConfig(root, config);
+    await this.normalizeArticleGroups(root);
   }
 
   async updateArticleGroup(
@@ -651,6 +940,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       config["article-groups"] = config["article-groups"].filter((entry) => entry.id !== groupId);
     }
     await this.writeNovelConfig(root, config);
+    await this.normalizeArticleGroups(root);
   }
 
   async deleteArticleGroup(folderPath: string, id: string): Promise<void> {
@@ -809,6 +1099,145 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       } catch (error) {
         console.error("Novel View: invalid novel.json", file.path, error);
       }
+    }
+  }
+
+  private isArticleDragEvent(event: DragEvent): boolean {
+    if (this.articleDragPaths.length === 0) {
+      return false;
+    }
+    const types = event.dataTransfer?.types;
+    return !!types && (
+      types.includes(ARTICLES_MIME)
+      || types.includes(ARTICLE_MIME)
+    );
+  }
+
+  setArticleDrag(paths: string[]): void {
+    this.articleDragPaths = [...new Set(paths)];
+    this.articleDragCancelled = false;
+    this.articleDropHandled = false;
+    this.articleDropMode = null;
+    this.articleDropHeader = null;
+  }
+
+  clearArticleDrag(): void {
+    this.hideArticleDragPreview();
+    this.articleDragPaths = [];
+    this.articleDragCancelled = false;
+    this.articleDropMode = null;
+    this.articleDropHeader = null;
+    this.articleDropHandled = false;
+  }
+
+  private getArticleDropContext(target: EventTarget | null): {
+    mode: "split" | "tabs" | "replace";
+    header: HTMLElement | null;
+  } | null {
+    const element = target as HTMLElement | null;
+    const root = element?.closest<HTMLElement>(".workspace-split.mod-root");
+    if (!element || !root) {
+      return null;
+    }
+    const header = element.closest<HTMLElement>(".workspace-tab-header");
+    if (header && root.contains(header)) {
+      return { mode: "replace", header };
+    }
+    if (element.closest(".workspace-tab-header-container")) {
+      return { mode: "tabs", header: null };
+    }
+    if (element.closest(".workspace-leaf-content, .workspace-tab-container, .workspace-split.mod-root")) {
+      return { mode: "split", header: null };
+    }
+    return null;
+  }
+
+  private showArticleDragPreview(
+    event: DragEvent,
+    mode: "split" | "tabs" | "replace",
+  ): void {
+    const labels = {
+      split: "在第二栏打开",
+      tabs: "添加至标签页栏",
+      replace: "替换当前标签页并添加其余",
+    };
+    let preview = this.articleDragPreview;
+    if (!preview) {
+      preview = createDiv({ cls: "novelview-article-drop-preview" });
+      document.body.appendChild(preview);
+      this.articleDragPreview = preview;
+    }
+    preview.setText(`${this.articleDragPaths.length} 个文件 · ${labels[mode]}`);
+    const width = preview.offsetWidth;
+    const height = preview.offsetHeight;
+    preview.style.left = `${Math.min(event.clientX + 14, window.innerWidth - width - 8)}px`;
+    preview.style.top = `${Math.min(event.clientY + 16, window.innerHeight - height - 8)}px`;
+  }
+
+  private hideArticleDragPreview(): void {
+    this.articleDragPreview?.remove();
+    this.articleDragPreview = null;
+  }
+
+  private async performArticleDrop(
+    mode: "split" | "tabs" | "replace",
+    header: HTMLElement | null,
+    paths: string[],
+  ): Promise<void> {
+    try {
+      await this.performArticleDropInner(mode, header, paths);
+    } catch (error) {
+      console.error("Novel View: article drop failed", error);
+      new Notice("Novel View：打开拖拽文章失败。");
+    }
+  }
+
+  private async performArticleDropInner(
+    mode: "split" | "tabs" | "replace",
+    header: HTMLElement | null,
+    paths: string[],
+  ): Promise<void> {
+    const files = paths
+      .map((path) => this.app.vault.getAbstractFileByPath(path))
+      .filter((file): file is TFile => file instanceof TFile);
+    if (files.length === 0) {
+      return;
+    }
+    const activateMain = async (): Promise<void> => {
+      const leaf = this.app.workspace.getMostRecentLeaf(this.app.workspace.rootSplit);
+      if (leaf) {
+        this.app.workspace.setActiveLeaf(leaf, { focus: false });
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    };
+    if (mode === "tabs") {
+      await activateMain();
+      for (const file of files) {
+        const leaf = this.app.workspace.getLeaf("tab");
+        await leaf.openFile(file, { active: false });
+      }
+      return;
+    }
+    if (mode === "replace" && header) {
+      header.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+      const leaf = this.app.workspace.getMostRecentLeaf(this.app.workspace.rootSplit)
+        ?? this.app.workspace.activeLeaf;
+      if (leaf) {
+        await leaf.openFile(files[0], { active: true });
+        for (const file of files.slice(1)) {
+          const tab = this.app.workspace.getLeaf("tab");
+          await tab.openFile(file, { active: false });
+        }
+      }
+      return;
+    }
+    await activateMain();
+    const splitLeaf = this.app.workspace.getLeaf("split", "vertical");
+    await splitLeaf.openFile(files[0], { active: true });
+    for (const file of files.slice(1)) {
+      const leaf = this.app.workspace.getLeaf("tab");
+      await leaf.openFile(file, { active: false });
     }
   }
 
@@ -1282,6 +1711,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         }
       }
     });
+    const root = this.findNovelGroupRoot(targetFolder);
+    if (root) {
+      await this.normalizeArticleGroups(root);
+    }
     return true;
   }
 
@@ -1531,6 +1964,15 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       }
       if (targets.length === 1 && targets[0].kind === "volume") {
         const volumeTarget = targets[0];
+        menu.addItem((item) => {
+          item.setTitle("新建文章").setIcon("file-plus").onClick(() => {
+            void this.createArticleInFolder(
+              folderPath,
+              volumeTarget.path,
+              "无标题",
+            ).then(refresh);
+          });
+        });
         menu.addItem((item) => {
           item.setTitle("编辑").setIcon("pencil").onClick(() => {
             const config = this.getNovelConfig(folderPath);

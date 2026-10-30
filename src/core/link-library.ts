@@ -2,19 +2,7 @@ export const LINK_LIBRARY_JSON = "links.json";
 export const DEFAULT_LINK_GROUP = "分散组";
 export const DEFAULT_LINK_COLOR = "#9a5a2d";
 
-export type LinkHighlightStyle = "normal" | "bold" | "italic" | "bolditalic" | "underline";
-
-export const LINK_STYLE_LABELS: Record<LinkHighlightStyle, string> = {
-  normal: "正常",
-  bold: "粗体",
-  italic: "斜体",
-  bolditalic: "粗斜体",
-  underline: "下划线",
-};
-
-export interface LinkGroupConfig {
-  style: LinkHighlightStyle;
-}
+export type LinkGroupConfig = Record<string, never>;
 
 export interface LinkFileEntry {
   path: string;
@@ -34,8 +22,8 @@ export interface LinkKeywordEntry {
   keyword: string;
   path: string;
   group: string;
+  tag: string;
   color: string;
-  style: LinkHighlightStyle;
   basename: string;
 }
 
@@ -43,15 +31,11 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
   const root = isRecord(value) ? value : {};
   const group: Record<string, LinkGroupConfig> = {};
   if (isRecord(root.group)) {
-    for (const [name, raw] of Object.entries(root.group)) {
+    for (const name of Object.keys(root.group)) {
       if (!name.trim()) {
         continue;
       }
-      group[name.trim()] = {
-        style: isRecord(raw)
-          ? parseStyle(raw.style)
-          : "normal",
-      };
+      group[name.trim()] = {};
     }
   }
 
@@ -117,9 +101,9 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
 
 export function serializeLinkLibrary(data: LinkLibraryData): string {
   const group: Record<string, LinkGroupConfig> = {};
-  for (const [name, config] of Object.entries(data.group)) {
+  for (const name of Object.keys(data.group)) {
     if (name.trim()) {
-      group[name] = { style: config.style };
+      group[name] = {};
     }
   }
   const tags: Record<string, Record<string, string>> = {};
@@ -154,13 +138,6 @@ export function getLinkGroupNames(data: LinkLibraryData): string[] {
   const names = Object.keys(data.group);
   names.unshift(DEFAULT_LINK_GROUP);
   return [...new Set(names)];
-}
-
-export function getLinkGroupStyle(
-  data: LinkLibraryData,
-  group: string,
-): LinkHighlightStyle {
-  return data.group[group]?.style ?? "normal";
 }
 
 export function getLinkTagColor(
@@ -210,8 +187,8 @@ export function getLinkKeywordEntries(
         keyword,
         path: link.path,
         group: link.belong,
+        tag: link.tag,
         color: getLinkTagColor(data, link.belong, link.tag),
-        style: getLinkGroupStyle(data, link.belong),
         basename,
       });
     }
@@ -258,20 +235,8 @@ export function findLinkKeywordMatches(
   return matches;
 }
 
-export function parseStyle(value: unknown): LinkHighlightStyle {
-  if (typeof value !== "string") {
-    return "normal";
-  }
-  const normalized = value.trim().toLowerCase();
-  if (
-    normalized === "bold"
-    || normalized === "italic"
-    || normalized === "bolditalic"
-    || normalized === "underline"
-  ) {
-    return normalized;
-  }
-  return "normal";
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function normalizeColor(value: unknown): string {
@@ -279,9 +244,11 @@ function normalizeColor(value: unknown): string {
     return DEFAULT_LINK_COLOR;
   }
   const color = value.trim();
-  return /^#[0-9a-f]{3,8}$/iu.test(color) ? color : DEFAULT_LINK_COLOR;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  if (/^#[0-9a-f]{3,8}$/iu.test(color)) {
+    return color;
+  }
+  if (/^(?:rgb|hsl)a?\(/iu.test(color)) {
+    return color;
+  }
+  return DEFAULT_LINK_COLOR;
 }

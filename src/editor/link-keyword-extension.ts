@@ -68,38 +68,33 @@ function buildDecorations(view: EditorView): DecorationSet {
   const frontmatterEnd = findFrontmatterEnd(
     (index) => index < doc.lines ? doc.line(index + 1).text : null,
   );
-  let lastLineNumber = -1;
+  const seen = new Set<string>();
 
-  for (const range of view.visibleRanges) {
-    let position = range.from;
-
-    while (position <= range.to) {
-      const line = doc.lineAt(position);
-      if (line.number !== lastLineNumber) {
-        lastLineNumber = line.number;
-
-        if (line.number > frontmatterEnd && line.text.length > 0) {
-          for (const match of findLinkKeywordMatches(line.text, currentEntries)) {
-            builder.add(
-              line.from + match.start,
-              line.from + match.end,
-              Decoration.mark({
-                class: `novelview-link-keyword novelview-link-keyword-${match.entry.style}`,
-                attributes: {
-                  style: `color: ${match.entry.color};`,
-                  "data-novelview-link-path": match.entry.path,
-                  title: `打开 ${match.entry.basename}`,
-                },
-              }),
-            );
-          }
-        }
+  for (let lineNumber = frontmatterEnd + 1; lineNumber <= doc.lines; lineNumber += 1) {
+    const line = doc.line(lineNumber);
+    if (!line.text) {
+      continue;
+    }
+    for (const match of findLinkKeywordMatches(line.text, currentEntries)) {
+      const normalized = match.entry.keyword.toLocaleLowerCase();
+      if (seen.has(normalized)) {
+        continue;
       }
-
-      if (line.to >= range.to) {
-        break;
-      }
-      position = line.to + 1;
+      seen.add(normalized);
+      builder.add(
+        line.from + match.start,
+        line.from + match.end,
+        Decoration.mark({
+          class: "novelview-link-keyword",
+          attributes: {
+            style: `color: ${match.entry.color};`,
+            "data-novelview-link-path": match.entry.path,
+            "data-novelview-link-name": match.entry.basename,
+            "data-novelview-link-tag": match.entry.tag,
+            "data-novelview-link-group": match.entry.group,
+          },
+        }),
+      );
     }
   }
 
