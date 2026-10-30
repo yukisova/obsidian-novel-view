@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.7.20-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.7.21-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.7.20.zip](dist/novel-view-0.7.20.zip)。
+1. 下载 [novel-view-0.7.21.zip](dist/novel-view-0.7.21.zip)。
 2. 解压到：
 
    ```text
@@ -408,7 +408,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.7.20.zip](dist/novel-view-0.7.20.zip).
+1. Download [novel-view-0.7.21.zip](dist/novel-view-0.7.21.zip).
 2. Extract it to:
 
    ```text

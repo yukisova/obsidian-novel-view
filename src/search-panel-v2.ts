@@ -62,10 +62,12 @@ export class SearchPanelV2 {
       const rect = root.getBoundingClientRect();
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
-      root.style.transform = "none";
+      root.setCssStyles({ transform: "none" });
       const move = (moveEvent: PointerEvent): void => {
-        root.style.left = `${Math.round(moveEvent.clientX - offsetX)}px`;
-        root.style.top = `${Math.round(moveEvent.clientY - offsetY)}px`;
+        root.setCssStyles({
+          left: `${Math.round(moveEvent.clientX - offsetX)}px`,
+          top: `${Math.round(moveEvent.clientY - offsetY)}px`,
+        });
       };
       const up = (): void => {
         window.removeEventListener("pointermove", move);

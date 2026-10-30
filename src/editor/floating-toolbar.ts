@@ -149,7 +149,7 @@ export class NovelFloatingToolbar {
       this.hideSubmenu();
       return;
     }
-    this.submenu.style.top = `${button.offsetTop}px`;
+    this.submenu.setCssStyles({ top: `${button.offsetTop}px` });
     this.submenu.addClass("is-open");
     button.addClass("is-active");
   }

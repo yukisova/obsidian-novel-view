@@ -281,8 +281,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       Math.max(8, anchor.bottom + 5),
       window.innerHeight - height - 8,
     );
-    tooltip.style.left = `${left}px`;
-    tooltip.style.top = `${top}px`;
+    tooltip.setCssStyles({ left: `${left}px`, top: `${top}px` });
     this.keywordTooltip = tooltip;
   }
 
@@ -442,10 +441,9 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   applyModeStyles(contentEl: HTMLElement): void {
     (LegacyNovelViewPlugin.prototype as any).applyModeStyles.call(this, contentEl);
-    contentEl.style.setProperty(
-      "--novelview-font-size",
-      `${Number(this.settings.fontSize) || 16}px`,
-    );
+    contentEl.setCssProps({
+      "--novelview-font-size": `${Number(this.settings.fontSize) || 16}px`,
+    });
   }
 
   refreshWorkbenchViews(): void {
@@ -1170,8 +1168,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     preview.setText(`${this.articleDragPaths.length} 个文件 · ${labels[mode]}`);
     const width = preview.offsetWidth;
     const height = preview.offsetHeight;
-    preview.style.left = `${Math.min(event.clientX + 14, window.innerWidth - width - 8)}px`;
-    preview.style.top = `${Math.min(event.clientY + 16, window.innerHeight - height - 8)}px`;
+    preview.setCssStyles({
+      left: `${Math.min(event.clientX + 14, window.innerWidth - width - 8)}px`,
+      top: `${Math.min(event.clientY + 16, window.innerHeight - height - 8)}px`,
+    });
   }
 
   private hideArticleDragPreview(): void {

@@ -926,7 +926,7 @@ export class NovelArticleListView extends ItemView {
   private showGroupTooltip(anchor: HTMLElement, group: any): void {
     this.hideGroupTooltip();
     const tooltip = createEl("div", { cls: "novelview-article-group-tooltip" });
-    tooltip.style.visibility = "hidden";
+    tooltip.setCssStyles({ visibility: "hidden" });
     tooltip.createDiv({
       cls: "novelview-article-group-tooltip-name",
       text: group.name,
@@ -947,9 +947,11 @@ export class NovelArticleListView extends ItemView {
       Math.max(8, rect.top + rect.height / 2 - height / 2),
       window.innerHeight - height - 8,
     );
-    tooltip.style.left = `${Math.max(8, left)}px`;
-    tooltip.style.top = `${top}px`;
-    tooltip.style.visibility = "visible";
+    tooltip.setCssStyles({
+      left: `${Math.max(8, left)}px`,
+      top: `${top}px`,
+      visibility: "visible",
+    });
     this.groupTooltip = tooltip;
   }
 
@@ -965,7 +967,7 @@ export class NovelArticleListView extends ItemView {
   ): Promise<void> {
     this.hideVolumeTooltip();
     const tooltip = createEl("div", { cls: "novelview-volume-tooltip" });
-    tooltip.style.visibility = "hidden";
+    tooltip.setCssStyles({ visibility: "hidden" });
     tooltip.createDiv({
       cls: "novelview-volume-tooltip-name",
       text: volume.name,
@@ -1002,9 +1004,11 @@ export class NovelArticleListView extends ItemView {
       Math.max(8, rect.top + rect.height / 2 - height / 2),
       window.innerHeight - height - 8,
     );
-    tooltip.style.left = `${Math.max(8, left)}px`;
-    tooltip.style.top = `${top}px`;
-    tooltip.style.visibility = "visible";
+    tooltip.setCssStyles({
+      left: `${Math.max(8, left)}px`,
+      top: `${top}px`,
+      visibility: "visible",
+    });
   }
 
   private hideVolumeTooltip(): void {
@@ -1348,10 +1352,12 @@ export class NovelArticleListView extends ItemView {
       if (width > 3 || height > 3) {
         state.moved = true;
       }
-      state.box.style.left = `${left}px`;
-      state.box.style.top = `${top}px`;
-      state.box.style.width = `${width}px`;
-      state.box.style.height = `${height}px`;
+      state.box.setCssStyles({
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+      });
       state.box.toggleClass("is-visible", state.moved);
       const selectionRect = {
         left,
