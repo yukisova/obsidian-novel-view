@@ -19,6 +19,7 @@ import {
   type LinkFileEntry,
   type LinkLibraryData,
 } from "./core/link-library";
+import { LinkAliasModal } from "./link-alias-modal";
 import { LinkEditPanel } from "./link-edit-panel";
 import { LinkImportPanel } from "./link-import-panel";
 import type NovelViewPlugin from "./main";
@@ -117,6 +118,8 @@ export class LinkLibraryView extends ItemView {
       }
       this.selectedKeys.clear();
       this.selectionAnchorKey = null;
+      this.focusedKey = null;
+      this.updateFocus();
       this.updateSelectionClasses();
     });
     await this.render();
@@ -157,8 +160,16 @@ export class LinkLibraryView extends ItemView {
         continue;
       }
       const files = sortLinks(this.data.links.filter((entry) => entry.belong === group));
-      for (const file of files.filter((entry) => !entry.tag)) {
-        this.renderFile(section, group, file, 0);
+      const untagged = files.filter((entry) => !entry.tag);
+      if (untagged.length > 0) {
+        const untaggedSection = section.createDiv({ cls: "novelview-link-untagged" });
+        untaggedSection.createDiv({
+          cls: "novelview-link-untagged-label",
+          text: "未设置标签",
+        });
+        for (const file of untagged) {
+          this.renderFile(untaggedSection, group, file, 0);
+        }
       }
       for (const tag of getLinkGroupTags(this.data, group)) {
         const tagSection = section.createDiv({ cls: "novelview-link-tag-section" });
@@ -227,7 +238,8 @@ export class LinkLibraryView extends ItemView {
       this.moveDraggedFiles(group, "");
     });
     row.addEventListener("click", () => {
-      this.focusedKey = key;
+      this.focusedKey = null;
+      this.updateFocus();
       if (collapsed) {
         this.collapsedGroups.delete(group);
       } else {
@@ -238,7 +250,6 @@ export class LinkLibraryView extends ItemView {
   }
 
   private renderTag(parent: HTMLElement, group: string, tag: string): void {
-    const key = `tag:${group}/${tag}`;
     const collapsed = this.collapsedTags.has(`${group}/${tag}`);
     const row = parent.createDiv({
       cls: "novelview-link-tag-row",
@@ -276,7 +287,8 @@ export class LinkLibraryView extends ItemView {
     });
     row.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.focusedKey = key;
+      this.focusedKey = null;
+      this.updateFocus();
       if (collapsed) {
         this.collapsedTags.delete(`${group}/${tag}`);
       } else {
@@ -305,14 +317,25 @@ export class LinkLibraryView extends ItemView {
     setIcon(icon, "file-text");
     const text = row.createDiv({ cls: "novelview-link-file-text" });
     text.createDiv({ cls: "novelview-link-file-name", text: getLinkFileName(link.path) });
-    text.createDiv({
-      cls: "novelview-link-file-alias",
-      text: `${link.path}${link.aliases.length ? ` · ${link.aliases.join("、")}` : ""}`,
-    });
+    if (link.aliases.length > 0) {
+      text.createDiv({
+        cls: "novelview-link-file-alias",
+        text: link.aliases.join("、"),
+      });
+    } else {
+      row.addClass("is-no-alias");
+    }
+    row.setAttr("title", link.path);
     row.addEventListener("click", (event) => {
       if (this.handleSelectionClick(event, key)) {
         return;
       }
+      this.focusedKey = key;
+      this.updateFocus();
+    });
+    row.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       this.focusedKey = key;
       this.updateFocus();
       this.openLink(link.path);
@@ -644,13 +667,6 @@ export class LinkLibraryView extends ItemView {
     const affected = this.data.links.filter((entry) => (
       entry.belong === group && entry.tag === tag
     ));
-    if (!await confirmAction(
-      this.app,
-      "解绑联动标签",
-      `解绑“${tag}”？组内 ${affected.length} 个文件会保留并变为无标签。`,
-    )) {
-      return;
-    }
     this.pushDataUndo();
     let order = this.nextOrder(group, "");
     for (const link of affected) {
@@ -685,7 +701,13 @@ export class LinkLibraryView extends ItemView {
   }
 
   private startInlineRename(key: string): void {
-    const row = this.contentEl.querySelector<HTMLElement>(`[data-link-key="${CSS.escape(key)}"]`);
+    const row = key.startsWith("group:") || key.startsWith("tag:")
+      ? this.contentEl.querySelector<HTMLElement>(
+        `[data-link-target="${CSS.escape(key)}"]`,
+      )
+      : this.contentEl.querySelector<HTMLElement>(
+        `[data-link-key="${CSS.escape(key)}"]`,
+      );
     const nameEl = row?.querySelector<HTMLElement>(
       key.startsWith("group:")
         ? ".novelview-link-group-name"
@@ -722,7 +744,13 @@ export class LinkLibraryView extends ItemView {
         const slash = rest.indexOf("/");
         this.renameTag(rest.slice(0, slash), rest.slice(slash + 1), value);
       } else {
-        void this.renameFile(key.slice("file:".length), value);
+        void this.renameFile(key.slice("file:".length), value)
+          .then((renamed) => {
+            if (!renamed) {
+              void this.render();
+            }
+          })
+          .catch(() => void this.render());
       }
     };
     input.addEventListener("keydown", (event) => {
@@ -781,12 +809,49 @@ export class LinkLibraryView extends ItemView {
     void this.persist();
   }
 
-  private async renameFile(oldPath: string, newName: string): Promise<void> {
+  private async renameFile(oldPath: string, newName: string): Promise<boolean> {
     const link = this.data.links.find((entry) => entry.path === oldPath);
     if (!link) {
-      return;
+      return false;
     }
     const snapshot = JSON.parse(JSON.stringify(this.data)) as LinkLibraryData;
+    const others = this.data.links.filter((entry) => entry.path !== oldPath);
+    const otherNames = new Set(others.map((entry) => getLinkFileName(entry.path).toLowerCase()));
+    const otherAliases = new Set(others.flatMap((entry) => entry.aliases.map((alias) => alias.toLowerCase())));
+    const candidateName = newName.replace(/\.md$/iu, "");
+    const conflicts = otherNames.has(candidateName.toLowerCase())
+      || otherAliases.has(candidateName.toLowerCase());
+    if (conflicts) {
+      const alias = await new Promise<string | null>((resolve) => {
+        new LinkAliasModal(
+          this.app,
+          `“${candidateName}”与现有联动文件的名称或别名重复。请输入唯一别名作为该文件的新显示名；取消则保持原名。`,
+          (value) => {
+            if (!value.trim()) {
+              return "请输入别名。";
+            }
+            const normalized = value.trim().toLowerCase();
+            return otherNames.has(normalized) || otherAliases.has(normalized)
+              ? "该别名已存在，请重新输入。"
+              : null;
+          },
+          resolve,
+        ).open();
+      });
+      if (!alias) {
+        return false;
+      }
+      const finalConflict = this.keywordCollision(oldPath, [alias]);
+      if (finalConflict) {
+        return false;
+      }
+      // The requested file name is already occupied. Replace the displayed
+      // keyword with the alias instead of creating a duplicate file name.
+      this.pushDataUndo();
+      link.aliases = [alias];
+      await this.persist();
+      return true;
+    }
     const target = this.plugin.getLinkTargetFile(this.groupPath, oldPath);
     let nextActualPath: string | null = null;
     let previousActualPath: string | null = null;
@@ -796,7 +861,7 @@ export class LinkLibraryView extends ItemView {
         if (this.app.vault.getAbstractFileByPath(nextPath)) {
           new Notice("Novel View：同名联动文件已存在。");
           void this.render();
-          return;
+          return false;
         }
         previousActualPath = target.path;
         nextActualPath = nextPath;
@@ -818,6 +883,7 @@ export class LinkLibraryView extends ItemView {
       await this.render();
     });
     await this.persist();
+    return true;
   }
 
   private createGroup(): void {
@@ -847,6 +913,70 @@ export class LinkLibraryView extends ItemView {
     );
   }
 
+  private effectiveKeywords(
+    link: LinkFileEntry,
+    aliases = link.aliases,
+  ): string[] {
+    const normalized = [...new Set(
+      aliases.map((alias) => alias.trim()).filter(Boolean),
+    )];
+    return normalized.length > 0
+      ? normalized
+      : [getLinkFileName(link.path)];
+  }
+
+  private keywordCollision(path: string, aliases: string[]): string | null {
+    const candidate = this.effectiveKeywords(
+      { path, belong: DEFAULT_LINK_GROUP, tag: "", aliases, order: 0 },
+      aliases,
+    );
+    const used = new Set<string>();
+    for (const entry of this.data.links) {
+      if (entry.path === path) {
+        continue;
+      }
+      for (const keyword of this.effectiveKeywords(entry)) {
+        used.add(keyword.toLowerCase());
+      }
+    }
+    return candidate.find((keyword) => used.has(keyword.toLowerCase())) ?? null;
+  }
+
+  private promptUniqueLinkAlias(
+    path: string,
+    description: string,
+  ): Promise<string | null> {
+    const used = new Set<string>();
+    for (const entry of this.data.links) {
+      if (entry.path === path) {
+        continue;
+      }
+      used.add(getLinkFileName(entry.path).toLowerCase());
+      for (const alias of entry.aliases) {
+        used.add(alias.trim().toLowerCase());
+      }
+      for (const keyword of this.effectiveKeywords(entry)) {
+        used.add(keyword.trim().toLowerCase());
+      }
+    }
+    return new Promise((resolve) => {
+      new LinkAliasModal(
+        this.app,
+        description,
+        (value) => {
+          if (!value.trim()) {
+            return "请输入别名。";
+          }
+          const normalized = value.trim().toLowerCase();
+          return used.has(normalized)
+            ? "该别名已被其他联动文件使用，请重新输入。"
+            : null;
+        },
+        resolve,
+      ).open();
+    });
+  }
+
   private editFile(link: LinkFileEntry): void {
     this.editPanel?.close();
     this.editPanel = new LinkEditPanel(
@@ -858,14 +988,32 @@ export class LinkLibraryView extends ItemView {
         aliases: link.aliases,
       },
       (value) => {
-        this.pushDataUndo();
-        link.tag = value.tag ?? "";
-        if (link.tag) {
-          this.data.tags[link.belong] ??= {};
-          this.data.tags[link.belong][link.tag] = value.color ?? "#9a5a2d";
+        const aliases = [...new Set(
+          (value.aliases ?? []).map((alias) => alias.trim()).filter(Boolean),
+        )];
+        const apply = (finalAliases: string[]): void => {
+          this.pushDataUndo();
+          link.tag = value.tag ?? "";
+          if (link.tag) {
+            this.data.tags[link.belong] ??= {};
+            this.data.tags[link.belong][link.tag] = value.color ?? "#9a5a2d";
+          }
+          link.aliases = finalAliases;
+          void this.persist();
+        };
+        const conflict = this.keywordCollision(link.path, aliases);
+        if (conflict) {
+          void this.promptUniqueLinkAlias(
+            link.path,
+            `“${conflict}”已被其他联动文件作为关键词使用。为了让关键词唯一指向本文件，请为该文件输入一个新别名；取消则不保存本次修改。`,
+          ).then((alias) => {
+            if (alias) {
+              apply([alias]);
+            }
+          });
+          return;
         }
-        link.aliases = value.aliases ?? [];
-        void this.persist();
+        apply(aliases);
       },
       () => { this.editPanel = null; },
     );
@@ -950,21 +1098,46 @@ export class LinkLibraryView extends ItemView {
   private openImport(): void {
     const candidates = this.plugin.getLinkImportCandidates(this.groupPath);
     const existing = new Set(this.data.links.map((link) => link.path));
+    const existingNames = new Set(this.data.links.map((link) => (
+      getLinkFileName(link.path)
+    )));
+    const existingAliases = new Set(this.data.links.flatMap((link) => link.aliases));
     this.importPanel?.close();
     this.importPanel = new LinkImportPanel(
       candidates,
       existing,
+      existingNames,
+      existingAliases,
       (path, aliases) => {
-        if (!this.data.links.some((link) => link.path === path)) {
+        if (this.data.links.some((link) => link.path === path)) {
+          return;
+        }
+        const importLink = (finalAliases: string[]): void => {
+          if (this.data.links.some((link) => link.path === path)) {
+            return;
+          }
           this.data.links.push({
             path,
             belong: DEFAULT_LINK_GROUP,
             tag: "",
-            aliases,
+            aliases: finalAliases,
             order: this.nextOrder(DEFAULT_LINK_GROUP, ""),
           });
           void this.persist();
+        };
+        const conflict = this.keywordCollision(path, aliases);
+        if (!conflict) {
+          importLink(aliases);
+          return;
         }
+        void this.promptUniqueLinkAlias(
+          path,
+          `“${conflict}”已被其他联动文件使用。请输入唯一别名；取消则不导入该文件。`,
+        ).then((alias) => {
+          if (alias) {
+            importLink([alias]);
+          }
+        });
       },
       () => { this.importPanel = null; void this.render(); },
     );
@@ -983,10 +1156,20 @@ export class LinkLibraryView extends ItemView {
     if (event.button !== 0) {
       return;
     }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLInputElement
+      && active.classList.contains("novelview-link-inline-rename")
+    ) {
+      active.blur();
+      return;
+    }
     const target = event.target as HTMLElement | null;
     if (target?.closest("[data-link-key], [data-link-target], button, input, textarea, select")) {
       return;
     }
+    this.focusedKey = null;
+    this.updateFocus();
     const box = createEl("div", { cls: "novelview-selection-box" });
     document.body.appendChild(box);
     const state = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, box };

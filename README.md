@@ -3,7 +3,7 @@
 **为 Obsidian 打造的小说写作工作流。**  
 **A novel-writing workflow for Obsidian.**
 
-![version](https://img.shields.io/badge/version-0.6.22-9a5a2d)
+![version](https://img.shields.io/badge/version-0.7.12-9a5a2d)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed)
 ![license](https://img.shields.io/badge/license-MIT-4d7c56)
 ![author](https://img.shields.io/badge/author-yukisova-356c9a)
@@ -39,7 +39,7 @@ Novel View 在 Obsidian 原生 Markdown 之上提供小说组、文章树、章�
 
 ### Installation
 
-1. Download [novel-view-0.6.22.zip](dist/novel-view-0.6.22.zip).
+1. Download [novel-view-0.7.12.zip](dist/novel-view-0.7.12.zip).
 2. Extract to `<Vault>/.obsidian/plugins/novel-view/`.
 3. Enable **Novel View** in **Settings → Community plugins**.
 
@@ -85,7 +85,7 @@ novelview-state: 草稿
 - Statuses: 待写、草稿、大纲、修改中、已完稿.
 - Article rows show word count and status.
 - Novel-mode status card in the upper-right opens a dropdown to change status.
-- Novel-level status is removed from `NovelSetting.md` and from “Edit novel info”.
+- Novel-level status is removed from `novel.json` and from “Edit novel info”.
 
 ### Descriptions Removed
 
@@ -167,11 +167,11 @@ The plugin settings tab still contains the remaining controls; the four typograp
 
 ### 简介
 
-Novel View 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.6.22 增加章节字数/状态、联动库工具栏与多选，移除小说状态、描述和全部特殊页面。
+Novel View 为 Obsidian 增加小说写作层，不替换原生 Markdown 编辑器。0.7.12 引入 novel.json 配置、文章组、卷卡片与新的工作台布局。
 
 ### 安装
 
-下载 [novel-view-0.6.22.zip](dist/novel-view-0.6.22.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
+下载 [novel-view-0.7.12.zip](dist/novel-view-0.7.12.zip)，解压到 `<Vault>/.obsidian/plugins/novel-view/`，在 **设置 → 第三方插件** 启用。最低 Obsidian **1.7.2**。
 
 ### 文章列表
 
@@ -283,12 +283,23 @@ JSON 结构：
 
 插件设置页保留其余设置项；上述四项排版参数可直接在小说模式窗口中调整。
 
+
+### 0.7.12
+
+- 小说组配置迁移为 `novel.json`；旧 `NovelSetting.md` 首次加载时自动迁移，迁移后保留原文件且不再隐藏。
+- 新增文章组：连续文章可归入文章组，列表以边框整体显示，侧边可查看/删除。
+- 工作台新增卷卡片、卷描述、卷海报、文章组描述与小说统计。
+- 支持批量修改文章状态、拖拽文章到 MainArea 打开、删除/切换文章时减少闪烁和保持阅读位置。
+- 小说模式移除左上角字数/状态 UI。
+- 清理未使用 CSS 选择器。
+- 封面与卷海报统一保存到 `src`，已被引用的图片不再显示在素材库。
+
 ### 作者与许可
 
 作者：**yukisova**，基于 [MIT License](LICENSE) 发布。
 
 
-### 0.6.22 补充
+### 0.7.12 补充
 
 - 联动库：直接新建组、就地重命名组/标签、标签右键改色、批量拖拽与预览、分散组常驻、Cmd+Z 撤销。
 - 文章列表：聚焦文章/卷后按 Enter 进入重命名。

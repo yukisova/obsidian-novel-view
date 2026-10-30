@@ -117,8 +117,18 @@ export class NovelSrcGalleryView extends ItemView {
       return;
     }
 
+    const usedCovers = this.plugin.getUsedNovelCovers(this.folderPath);
     const files = [...folder.children]
       .filter((file): file is TFile => file instanceof TFile)
+      .filter((file) => {
+        const normalized = file.path.replace(/^\/+/u, "");
+        const name = file.name;
+        const base = file.basename;
+        return !usedCovers.has(normalized)
+          && !usedCovers.has(name)
+          && !usedCovers.has(base)
+          && !usedCovers.has(`src/${name}`);
+      })
       .sort((left, right) => left.name.localeCompare(
         right.name,
         "zh-CN",

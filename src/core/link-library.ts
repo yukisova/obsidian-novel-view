@@ -96,6 +96,9 @@ export function parseLinkLibrary(value: unknown): LinkLibraryData {
             .map((alias) => alias.trim())
             .filter(Boolean)
           : [];
+        if (links.some((entry) => entry.path === path)) {
+          continue;
+        }
         const tag = typeof config.tag === "string" ? config.tag.trim() : "";
         const order = Number(config.order);
         links.push({
@@ -190,12 +193,19 @@ export function getLinkKeywordEntries(
   data: LinkLibraryData,
 ): LinkKeywordEntry[] {
   const entries: LinkKeywordEntry[] = [];
+  const seen = new Set<string>();
   for (const link of data.links) {
     const basename = getLinkFileName(link.path);
-    const keywords = [basename, ...link.aliases]
-      .map((keyword) => keyword.trim())
-      .filter(Boolean);
-    for (const keyword of new Set(keywords)) {
+    const aliases = link.aliases.map((alias) => alias.trim()).filter(Boolean);
+    // An alias replaces the file name as the highlight keyword. A file
+    // without aliases falls back to its file name.
+    const keywords = aliases.length > 0 ? aliases : [basename];
+    for (const keyword of keywords) {
+      const normalized = keyword.toLocaleLowerCase();
+      if (seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
       entries.push({
         keyword,
         path: link.path,

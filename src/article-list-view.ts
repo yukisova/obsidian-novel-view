@@ -7,7 +7,8 @@ import {
   type WorkspaceLeaf,
 } from "obsidian";
 import { CHAPTER_STATUS_LABELS } from "./core/chapter-status";
-import type { NovelSettingData } from "./core/novel-setting";
+import type { NovelGroupInfo } from "./core/novel-config";
+import { ArticleGroupModal } from "./article-group-modal";
 import type NovelViewPlugin from "./main";
 
 export interface ArticleListTarget {
@@ -34,7 +35,7 @@ export interface VolumeEntry {
 }
 
 export interface ArticleListModel {
-  novel: NovelSettingData;
+  novel: NovelGroupInfo;
   folderPath: string;
   volumes: VolumeEntry[];
   articles: ArticleEntry[];
@@ -46,7 +47,8 @@ interface DragPayload {
   paths?: string[];
 }
 
-const ARTICLE_MIME = "application/x-novelview-article";
+export const ARTICLE_MIME = "application/x-novelview-article";
+export const ARTICLES_MIME = "application/x-novelview-articles";
 const VOLUME_MIME = "application/x-novelview-volume";
 
 export class NovelArticleListView extends ItemView {
@@ -66,6 +68,10 @@ export class NovelArticleListView extends ItemView {
   private mutationDepth = 0;
   private renderCooldownUntil = 0;
   private refreshTimer: number | null = null;
+  private volumeTooltip: HTMLElement | null = null;
+  private renderedFolderPath = "";
+  private ascending = true;
+  private groupTooltip: HTMLElement | null = null;
   private readonly selectionTargets = new Map<string, ArticleListTarget>();
   private marquee: {
     pointerId: number;
@@ -160,8 +166,33 @@ export class NovelArticleListView extends ItemView {
       }
     });
 
+    this.registerDomEvent(this.contentEl, "pointerdown", (event) => {
+      if (event.button !== 0 || this.marquee) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (!target) {
+        return;
+      }
+      if (target.closest(".novelview-article-list")) {
+        return;
+      }
+      if (target.closest(
+        "button, input, textarea, [data-select-key], .novelview-article-toolbar, .novelview-article-header, .novelview-article-group-rail",
+      )) {
+        return;
+      }
+      const list = this.contentEl.querySelector(".novelview-article-list");
+      if (list instanceof HTMLElement) {
+        this.startMarquee(event, list);
+      }
+    });
+
     this.registerEvent(this.app.vault.on("create", () => this.scheduleRefresh()));
-    this.registerEvent(this.app.vault.on("delete", () => this.scheduleRefresh()));
+    this.registerEvent(this.app.vault.on("delete", () => {
+      this.renderCooldownUntil = Math.max(this.renderCooldownUntil, Date.now() + 220);
+      this.scheduleRefresh();
+    }));
     this.registerEvent(this.app.vault.on("rename", () => this.scheduleRefresh()));
     this.registerEvent(this.app.vault.on("modify", () => this.scheduleRefresh()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
@@ -201,6 +232,8 @@ export class NovelArticleListView extends ItemView {
       window.clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
+    this.hideGroupTooltip();
+    this.hideVolumeTooltip();
     this.contentEl.empty();
     this.contentEl.removeClass("novelview-article-list-view");
   }
@@ -252,6 +285,16 @@ export class NovelArticleListView extends ItemView {
   }
 
   private render(): void {
+    this.hideGroupTooltip();
+    this.hideVolumeTooltip();
+    const previousList = this.contentEl.querySelector(".novelview-article-list");
+    const previousScrollTop = previousList instanceof HTMLElement
+      ? previousList.scrollTop
+      : 0;
+    const restoreScroll = this.renderedFolderPath === this.folderPath
+      ? previousScrollTop
+      : 0;
+    this.renderedFolderPath = this.folderPath;
     this.contentEl.empty();
 
     if (!this.folderPath) {
@@ -261,13 +304,26 @@ export class NovelArticleListView extends ItemView {
 
     const model = this.plugin.getArticleListModel(this.folderPath);
     if (!model) {
-      this.renderMessage("未找到小说组配置 NovelSetting。");
+      this.renderMessage("未找到小说组配置 novel.json。");
       return;
     }
-
-    this.renderToolbar(model);
-    this.renderHeader(model);
-    this.renderList(model);
+    void this.plugin.ensureVolumeOrder(this.folderPath).then((changed: boolean) => {
+      if (changed) {
+        this.scheduleRefresh();
+      }
+    });
+    const displayModel = this.ascending ? model : reverseArticleModel(model);
+    this.renderToolbar(displayModel);
+    this.renderHeader(displayModel);
+    this.renderList(displayModel);
+    if (restoreScroll > 0) {
+      window.requestAnimationFrame(() => {
+        const list = this.contentEl.querySelector(".novelview-article-list");
+        if (list instanceof HTMLElement) {
+          list.scrollTop = restoreScroll;
+        }
+      });
+    }
   }
 
   private renderToolbar(model: ArticleListModel): void {
@@ -291,10 +347,11 @@ export class NovelArticleListView extends ItemView {
 
     this.createToolbarButton(
       toolbar,
-      "layout-dashboard",
-      "Novel View 工作台",
+      this.ascending ? "arrow-up-narrow-wide" : "arrow-down-wide-narrow",
+      this.ascending ? "正序" : "倒序",
       () => {
-        void this.plugin.openWorkbenchForGroup(model.folderPath);
+        this.ascending = !this.ascending;
+        this.scheduleRefresh();
       },
     );
 
@@ -365,9 +422,20 @@ export class NovelArticleListView extends ItemView {
     const titleBlock = header.createDiv({
       cls: "novelview-article-title-block",
     });
-    titleBlock.createDiv({
-      cls: "novelview-article-title",
+    const title = titleBlock.createDiv({
+      cls: "novelview-article-title is-clickable",
       text: model.novel.name,
+      attr: { role: "button", tabindex: "0", title: "打开 Novel View 工作台" },
+    });
+    const openWorkbench = (): void => {
+      void this.plugin.openWorkbenchForGroup(model.folderPath);
+    };
+    title.addEventListener("click", openWorkbench);
+    title.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openWorkbench();
+      }
     });
     const count = model.articles.length
       + model.volumes.reduce((sum, volume) => sum + volume.articles.length, 0);
@@ -435,7 +503,7 @@ export class NovelArticleListView extends ItemView {
         return;
       }
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-select-key], input, button, [data-scattered]")) {
+      if (target?.closest("[data-select-key], input, button, [data-scattered], .novelview-article-group-rail")) {
         return;
       }
       this.startMarquee(event, list);
@@ -447,7 +515,7 @@ export class NovelArticleListView extends ItemView {
         return;
       }
       const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-select-key], input, [data-scattered]")) {
+      if (target?.closest("[data-select-key], input, [data-scattered], .novelview-article-group-rail")) {
         return;
       }
       this.selectedKeys.clear();
@@ -456,7 +524,9 @@ export class NovelArticleListView extends ItemView {
       this.focusedFolderPath = model.folderPath;
       this.focusedKey = null;
       this.focusedTarget = null;
-      this.scheduleRefresh();
+      for (const other of this.contentEl.querySelectorAll(".novelview-article-row.is-focused, .novelview-link-group-row.is-focused")) {
+        other.classList.remove("is-focused");
+      }
     });
 
     list.addEventListener("dragover", (event) => {
@@ -577,9 +647,7 @@ export class NovelArticleListView extends ItemView {
           text: "暂无分散文章。",
         });
       } else {
-        for (const article of model.articles) {
-          this.renderArticleRow(children, article, model.folderPath);
-        }
+        this.renderArticleRows(children, model.articles, model.folderPath, "");
       }
     }
   }
@@ -598,10 +666,16 @@ export class NovelArticleListView extends ItemView {
         "data-volume-name": volume.name,
         "data-select-key": `volume:${volume.path}`,
         "aria-expanded": String(expanded),
-        title: volume.path,
       },
     });
     row.setAttr("draggable", "true");
+    row.addEventListener("mouseenter", () => {
+      if (this.dragPayload) {
+        return;
+      }
+      void this.showVolumeTooltip(row, model.folderPath, volume);
+    });
+    row.addEventListener("mouseleave", () => this.hideVolumeTooltip());
     const icon = row.createSpan({ cls: "novelview-article-row-icon" });
     icon.setAttr("aria-hidden", "true");
     setIcon(icon, expanded ? "chevron-down" : "chevron-right");
@@ -715,11 +789,224 @@ export class NovelArticleListView extends ItemView {
           text: "卷内暂无文章，可将文章拖到这里。",
         });
       } else {
-        for (const article of volume.articles) {
-          this.renderArticleRow(children, article, volume.path);
-        }
+        this.renderArticleRows(children, volume.articles, volume.path, volume.name);
       }
     }
+  }
+
+  private renderArticleRows(
+    parent: HTMLElement,
+    articles: ArticleEntry[],
+    folderPath: string,
+    volumeName: string,
+  ): void {
+    const groupRoot = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
+    const groups = this.plugin.getArticleGroups(groupRoot).filter(
+      (group: any) => group.volume === volumeName,
+    );
+    let index = 0;
+    while (index < articles.length) {
+      const article = articles[index];
+      const group = groups.find((entry: any) => entry.paths.includes(article.path));
+      if (!group) {
+        this.renderArticleRow(parent, article, folderPath);
+        index += 1;
+        continue;
+      }
+      const wrapper = parent.createDiv({ cls: "novelview-article-group" });
+      const rail = wrapper.createDiv({
+        cls: "novelview-article-group-rail",
+        attr: {
+          title: "",
+          role: "button",
+          tabindex: "0",
+        },
+      });
+      rail.createSpan({ cls: "novelview-article-group-name", text: group.name });
+      rail.addEventListener("mouseenter", () => {
+        this.showGroupTooltip(rail, group);
+      });
+      rail.addEventListener("mouseleave", () => this.hideGroupTooltip());
+      const selectGroup = (): void => {
+        this.selectedKeys.clear();
+        for (const path of group.paths) {
+          this.selectedKeys.add(`article:${path}`);
+        }
+        const first = group.paths[0];
+        this.selectionAnchorKey = first ? `article:${first}` : null;
+        this.focusedKey = null;
+        this.focusedTarget = null;
+        for (const focused of this.contentEl.querySelectorAll(".is-focused")) {
+          focused.classList.remove("is-focused");
+        }
+        this.updateSelectionClasses();
+      };
+      rail.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectGroup();
+      });
+      rail.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectGroup();
+        }
+      });
+      rail.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const menu = new Menu();
+        menu.addItem((item) => {
+          item.setTitle("编辑").setIcon("pencil").onClick(() => {
+            new ArticleGroupModal(
+              this.app,
+              { name: group.name, description: group.description },
+              (draft) => {
+                void this.plugin.updateArticleGroup(folderPath, group.id, draft);
+              },
+              "编辑文章组",
+            ).open();
+          });
+        });
+        menu.addItem((item) => {
+          item.setTitle("删除文章组").setIcon("trash").onClick(() => {
+            void this.plugin.deleteArticleGroup(folderPath, group.id);
+          });
+        });
+        menu.showAtMouseEvent(event);
+      });
+      const groupRoot = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
+      wrapper.addEventListener("dragover", (event) => {
+        if (this.dragPayload?.kind !== "article") {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        wrapper.addClass("is-drop-group");
+      });
+      wrapper.addEventListener("dragleave", () => wrapper.removeClass("is-drop-group"));
+      wrapper.addEventListener("drop", (event) => {
+        if (this.dragPayload?.kind !== "article") {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        wrapper.removeClass("is-drop-group");
+        const paths = this.dragPayload.paths ?? [this.dragPayload.path];
+        this.dragPayload = null;
+        const lastPath = [...group.paths].reverse().find((path: string) => (
+          this.app.vault.getAbstractFileByPath(path)
+        ));
+        this.beginMutation();
+        const operation = lastPath
+          ? this.plugin.reorderArticlesAt(paths, lastPath, true)
+          : Promise.resolve(true);
+        void operation
+          .then(async () => {
+            await this.plugin.addArticlesToGroup(groupRoot, group.id, paths);
+          })
+          .finally(() => this.endMutation());
+      });
+      const content = wrapper.createDiv({ cls: "novelview-article-group-content" });
+      while (index < articles.length) {
+        const entry = articles[index];
+        const entryGroup = groups.find((item: any) => item.paths.includes(entry.path));
+        if (entryGroup?.id !== group.id) {
+          break;
+        }
+        this.renderArticleRow(content, entry, folderPath);
+        index += 1;
+      }
+    }
+  }
+
+  private showGroupTooltip(anchor: HTMLElement, group: any): void {
+    this.hideGroupTooltip();
+    const tooltip = createEl("div", { cls: "novelview-article-group-tooltip" });
+    tooltip.style.visibility = "hidden";
+    tooltip.createDiv({
+      cls: "novelview-article-group-tooltip-name",
+      text: group.name,
+    });
+    tooltip.createDiv({
+      cls: "novelview-article-group-tooltip-description",
+      text: group.description || "暂无文章组描述",
+    });
+    document.body.appendChild(tooltip);
+    const rect = anchor.getBoundingClientRect();
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    let left = rect.right + 8;
+    if (left + width > window.innerWidth - 8) {
+      left = rect.left - width - 8;
+    }
+    const top = Math.min(
+      Math.max(8, rect.top + rect.height / 2 - height / 2),
+      window.innerHeight - height - 8,
+    );
+    tooltip.style.left = `${Math.max(8, left)}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.visibility = "visible";
+    this.groupTooltip = tooltip;
+  }
+
+  private hideGroupTooltip(): void {
+    this.groupTooltip?.remove();
+    this.groupTooltip = null;
+  }
+
+  private async showVolumeTooltip(
+    anchor: HTMLElement,
+    folderPath: string,
+    volume: VolumeEntry,
+  ): Promise<void> {
+    this.hideVolumeTooltip();
+    const tooltip = createEl("div", { cls: "novelview-volume-tooltip" });
+    tooltip.style.visibility = "hidden";
+    tooltip.createDiv({
+      cls: "novelview-volume-tooltip-name",
+      text: volume.name,
+    });
+    const body = tooltip.createDiv({ cls: "novelview-volume-tooltip-body" });
+    const text = body.createDiv({ cls: "novelview-volume-tooltip-text" });
+    const cover = body.createDiv({ cls: "novelview-volume-tooltip-cover" });
+    document.body.appendChild(tooltip);
+    this.volumeTooltip = tooltip;
+    const root = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
+    const config = await this.plugin.readNovelConfig(root);
+    if (this.volumeTooltip !== tooltip || !anchor.isConnected) {
+      tooltip.remove();
+      return;
+    }
+    const meta = config.volumes[volume.name] ?? { description: "", cover: "" };
+    text.setText(meta.description || "暂无卷描述");
+    const coverUrl = meta.cover
+      ? this.plugin.getNovelCoverUrl(root, meta.cover)
+      : null;
+    if (coverUrl) {
+      cover.createEl("img", { attr: { src: coverUrl, alt: `${volume.name} 海报` } });
+    } else {
+      setIcon(cover, "image");
+    }
+    const rect = anchor.getBoundingClientRect();
+    const width = tooltip.offsetWidth;
+    const height = tooltip.offsetHeight;
+    let left = rect.right + 8;
+    if (left + width > window.innerWidth - 8) {
+      left = rect.left - width - 8;
+    }
+    const top = Math.min(
+      Math.max(8, rect.top + rect.height / 2 - height / 2),
+      window.innerHeight - height - 8,
+    );
+    tooltip.style.left = `${Math.max(8, left)}px`;
+    tooltip.style.top = `${top}px`;
+    tooltip.style.visibility = "visible";
+  }
+
+  private hideVolumeTooltip(): void {
+    this.volumeTooltip?.remove();
+    this.volumeTooltip = null;
   }
 
   private renderArticleRow(
@@ -792,6 +1079,7 @@ export class NovelArticleListView extends ItemView {
         : [article.path];
       this.dragPayload = { kind: "article", path: article.path, paths };
       event.dataTransfer?.setData(ARTICLE_MIME, article.path);
+      event.dataTransfer?.setData(ARTICLES_MIME, JSON.stringify(paths));
       if (event.dataTransfer) {
         event.dataTransfer.effectAllowed = "move";
       }
@@ -822,8 +1110,15 @@ export class NovelArticleListView extends ItemView {
       const after = event.clientY > rect.top + rect.height / 2;
       row.removeClass("is-drop-before", "is-drop-after");
       const paths = payload.paths ?? [payload.path];
+      const groupRoot = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
+      const targetGroup = this.plugin.getArticleGroupForPath(groupRoot, article.path);
       this.beginMutation();
       void this.plugin.reorderArticlesAt(paths, article.path, after)
+        .then(async () => {
+          if (targetGroup) {
+            await this.plugin.addArticlesToGroup(groupRoot, targetGroup.id, paths);
+          }
+        })
         .finally(() => {
           this.endMutation();
         });
@@ -1011,6 +1306,11 @@ export class NovelArticleListView extends ItemView {
     const box = createEl("div", { cls: "novelview-selection-box" });
     document.body.appendChild(box);
     const additive = event.metaKey || event.ctrlKey;
+    this.focusedKey = null;
+    this.focusedTarget = null;
+    for (const focused of this.contentEl.querySelectorAll(".is-focused")) {
+      focused.classList.remove("is-focused");
+    }
     if (!additive) {
       this.selectedKeys.clear();
       this.updateSelectionClasses();
@@ -1102,3 +1402,15 @@ export class NovelArticleListView extends ItemView {
 }
 
 
+
+
+function reverseArticleModel(model: ArticleListModel): ArticleListModel {
+  return {
+    ...model,
+    volumes: [...model.volumes].reverse().map((volume) => ({
+      ...volume,
+      articles: [...volume.articles].reverse(),
+    })),
+    articles: [...model.articles].reverse(),
+  };
+}

@@ -13,6 +13,7 @@ export class NovelWorkbenchView extends ItemView {
   private refreshFrame: number | null = null;
   private renderToken = 0;
 
+
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
@@ -88,7 +89,20 @@ export class NovelWorkbenchView extends ItemView {
       : null;
 
     if (novel) {
-      this.renderNovelOverview(novel);
+      const model = this.plugin.getArticleListModel(novel.folderPath);
+      const articles: any[] = model
+        ? [...model.articles, ...model.volumes.flatMap((volume: any) => volume.articles)]
+        : [];
+      let wordCount = 0;
+      for (const article of articles) {
+        const meta = await this.plugin.getChapterMeta(article.path);
+        wordCount += meta.wordCount;
+      }
+      this.renderNovelOverview(novel, {
+        wordCount,
+        volumeCount: model?.volumes.length ?? 0,
+        chapterCount: articles.length,
+      });
     } else {
       this.renderContext(current, folderPath);
     }
@@ -103,7 +117,7 @@ export class NovelWorkbenchView extends ItemView {
     name: string;
     description: string;
     cover: string;
-  }): void {
+  }, stats: { wordCount: number; volumeCount: number; chapterCount: number }): void {
     const root = this.contentEl.createDiv({
       cls: "novelview-workbench-novel",
     });
@@ -191,6 +205,11 @@ export class NovelWorkbenchView extends ItemView {
           description: value,
         });
       }
+    });
+
+    root.createDiv({
+      cls: "novelview-workbench-novel-stats",
+      text: `${new Intl.NumberFormat("zh-CN").format(stats.wordCount)}字 · 共 ${stats.volumeCount} 卷 · ${stats.chapterCount} 章`,
     });
   }
 

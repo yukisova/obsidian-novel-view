@@ -24,12 +24,13 @@ import {
 } from "../.test-build/search.mjs";
 import { formatNovelMarkdown } from "../.test-build/format.mjs";
 import {
-  createNovelSettingContent,
-  getNovelSettingPath,
-  isNovelSettingFile,
+  createNovelConfigContent,
+  getNovelConfigPath,
+  isNovelConfigFile,
   normalizeCoverPath,
-  parseNovelSetting,
-} from "../.test-build/novel-setting.mjs";
+  parseNovelConfig,
+  serializeNovelConfig,
+} from "../.test-build/novel-config.mjs";
 import { countNovelCharacters } from "../.test-build/status.mjs";
 import { parseChapterStatus } from "../.test-build/chapter-status.mjs";
 import {
@@ -405,33 +406,39 @@ test("short-circuits already formatted text and preserves BOM", () => {
 });
 
 
-test("parses and creates novel group settings", () => {
-  const data = parseNovelSetting(
-    {
-      "novelview-type": "novel-setting",
-      "Novel-Name": "长夜将尽",
-      "novel-description": "一场从旧城开始的漫长告别。",
-      "novel-cover": "![[附件/cover.jpg]]",
+test("parses and creates novel.json group settings", () => {
+  const parsed = parseNovelConfig({
+    "novel-description": "一场从旧城开始的漫长告别。",
+    "novel-cover": "附件/cover.jpg",
+    "volume-order": ["第一卷"],
+    volumes: {
+      "第一卷": { description: "旧城", cover: "第一卷.png" },
     },
-    "小说/长夜将尽",
-    "长夜将尽",
-  );
-  assert.equal(data.name, "长夜将尽");
-  assert.equal(data.description, "一场从旧城开始的漫长告别。");
-  assert.equal(data.cover, "附件/cover.jpg");
+    "article-groups": [
+      {
+        id: "g1",
+        volume: "第一卷",
+        name: "第一部分",
+        description: "开篇",
+        paths: ["小说/长夜将尽/第一卷/第一章.md"],
+      },
+    ],
+  });
+  assert.equal(parsed["novel-description"], "一场从旧城开始的漫长告别。");
+  assert.equal(parsed["novel-cover"], "附件/cover.jpg");
+  assert.equal(parsed.volumes["第一卷"].description, "旧城");
+  assert.equal(parsed["article-groups"][0].name, "第一部分");
 
-  const fallback = parseNovelSetting(undefined, "小说/无名", "无名");
-  assert.equal(fallback.name, "无名");
-  assert.equal(fallback.cover, "");
+  assert.equal(getNovelConfigPath("小说/长夜将尽"), "小说/长夜将尽/novel.json");
+  assert.equal(getNovelConfigPath(""), "novel.json");
+  assert.equal(isNovelConfigFile({ name: "novel.json", path: "a/novel.json" }), true);
+  assert.equal(isNovelConfigFile({ name: "NovelSetting.md", path: "a/NovelSetting.md" }), false);
 
-  assert.equal(getNovelSettingPath("小说/长夜将尽"), "小说/长夜将尽/NovelSetting.md");
-  assert.equal(getNovelSettingPath(""), "NovelSetting.md");
-  assert.equal(isNovelSettingFile({ basename: "NovelSetting", path: "a/NovelSetting.md", extension: "md" }), true);
-  assert.equal(isNovelSettingFile({ basename: "NovelSetting", path: "a/NovelSetting.txt", extension: "txt" }), false);
-
-  const content = createNovelSettingContent("长夜将尽");
-  assert.match(content, /novelview-type: novel-setting/u);
-  assert.match(content, /novel-name: "长夜将尽"/u);
+  const content = createNovelConfigContent();
+  const created = parseNovelConfig(JSON.parse(content));
+  assert.equal(created["novel-description"], "");
+  assert.deepEqual(created["article-groups"], []);
+  assert.equal(serializeNovelConfig(created), content);
   assert.equal(normalizeCoverPath("[[cover.png|封面]]"), "cover.png");
   assert.equal(normalizeCoverPath("![封面](assets/cover.png)"), "assets/cover.png");
 });
@@ -476,4 +483,35 @@ test("keeps tags for the default link group", () => {
   const roundtrip = parseLinkLibrary(JSON.parse(serializeLinkLibrary(data)));
   assert.equal(roundtrip.links[0].tag, "标签A");
   assert.deepEqual(getLinkGroupTags(roundtrip, DEFAULT_LINK_GROUP), ["标签A"]);
+});
+
+test("aliases replace file names and keyword entries are unique", () => {
+  const data = parseLinkLibrary({
+    group: {},
+    tag: {},
+    link: [
+      { "甲.md": { alias: ["共同别名"] } },
+      { "乙.md": { alias: ["共同别名"] } },
+      { "丙.md": {} },
+    ],
+  });
+  const entries = getLinkKeywordEntries(data);
+  const keywords = entries.map((entry) => entry.keyword);
+  assert.equal(keywords.filter((keyword) => keyword === "共同别名").length, 1);
+  assert.equal(keywords.includes("甲"), false);
+  assert.equal(keywords.includes("乙"), false);
+  assert.equal(keywords.includes("丙"), true);
+});
+
+
+test("does not keep duplicate linked file paths", () => {
+  const data = parseLinkLibrary({
+    group: {},
+    tag: {},
+    link: [
+      { "同一文件.md": { alias: ["别名一"] } },
+      { "同一文件.md": { alias: ["别名二"] } },
+    ],
+  });
+  assert.equal(data.links.length, 1);
 });

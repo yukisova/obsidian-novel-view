@@ -1,7 +1,7 @@
 {
   "id": "novel-view",
   "name": "Novel View",
-  "version": "0.6.22",
+  "version": "0.7.12",
   "minAppVersion": "1.7.2",
   "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "author": "yukisova",

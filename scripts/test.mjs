@@ -17,7 +17,7 @@ try {
       "search": "src/core/search.ts",
       "format": "src/core/format.ts",
       "format-utils": "src/core/format-utils.ts",
-      "novel-setting": "src/core/novel-setting.ts",
+      "novel-config": "src/core/novel-config.ts",
       "link-library": "src/core/link-library.ts",
       "status": "src/core/status.ts",
       "chapter-status": "src/core/chapter-status.ts",
