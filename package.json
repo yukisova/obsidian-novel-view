@@ -1,11 +1,13 @@
 {
   "name": "novelview",
-  "version": "0.7.21",
+  "version": "0.8.5",
   "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc --noEmit && node esbuild.config.mjs production",
+    "build": "tsc --noEmit && node esbuild.config.mjs production && node scripts/deploy.mjs",
+    "build:only": "tsc --noEmit && node esbuild.config.mjs production",
+    "deploy": "node scripts/deploy.mjs",
     "check": "tsc --noEmit",
     "test": "node scripts/test.mjs"
   },
@@ -28,5 +30,8 @@
     "obsidian": "^1.14.4",
     "typescript": "^5.9.3"
   },
-  "author": "yukisova"
+  "author": "yukisova",
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1"
+  }
 }

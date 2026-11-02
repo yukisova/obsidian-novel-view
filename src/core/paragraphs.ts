@@ -143,3 +143,29 @@ export function classifyLine(
     paragraphEnd: next === null || !isProseLine(next),
   };
 }
+
+export interface SplitFrontmatterContent {
+  head: string;
+  body: string;
+}
+
+/** Split the hidden YAML properties from the editable prose body. */
+export function splitFrontmatterContent(content: string): SplitFrontmatterContent {
+  const text = content.charCodeAt(0) === 0xfeff ? content.slice(1) : content;
+  const lines = text.split(/\r?\n/u);
+  const end = findFrontmatterEnd(
+    (index) => lines[index] ?? null,
+    lines.length,
+  );
+  if (end === 0) {
+    return { head: "", body: text };
+  }
+  return {
+    head: lines.slice(0, end).join("\n"),
+    body: lines.slice(end).join("\n"),
+  };
+}
+
+export function joinFrontmatterContent(head: string, body: string): string {
+  return head ? `${head}\n${body}` : body;
+}

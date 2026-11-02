@@ -1,6 +1,7 @@
 import {
   ItemView,
   Menu,
+  TFile,
   Notice,
   setIcon,
   type ViewStateResult,
@@ -72,6 +73,7 @@ export class NovelArticleListView extends ItemView {
   private renderedFolderPath = "";
   private ascending = true;
   private groupTooltip: HTMLElement | null = null;
+  private readonly metaRefreshTimers = new Map<string, number>();
   private readonly selectionTargets = new Map<string, ArticleListTarget>();
   private marquee: {
     pointerId: number;
@@ -195,9 +197,25 @@ export class NovelArticleListView extends ItemView {
       this.scheduleRefresh();
     }));
     this.registerEvent(this.app.vault.on("rename", () => this.scheduleRefresh()));
-    this.registerEvent(this.app.vault.on("modify", () => this.scheduleRefresh()));
-    this.registerEvent(this.app.metadataCache.on("changed", () => this.scheduleRefresh()));
-    this.registerEvent(this.app.metadataCache.on("resolved", () => this.scheduleRefresh()));
+    this.registerEvent(this.app.vault.on("modify", (file) => {
+      if (!(file instanceof TFile)) {
+        return;
+      }
+      if (this.plugin.isSpecialNovelFile(file)) {
+        return;
+      }
+      if (this.isCurrentGroupFile(file)) {
+        this.scheduleArticleMetaRefresh(file.path);
+      }
+    }));
+    this.registerEvent(this.app.metadataCache.on("changed", (file) => {
+      if (this.plugin.isSpecialNovelFile(file)) {
+        return;
+      }
+      if (this.isCurrentGroupFile(file)) {
+        this.scheduleArticleMetaRefresh(file.path);
+      }
+    }));
 
     if (!this.folderPath) {
       this.folderPath = this.plugin.getWorkbenchFolderPath() ?? "";
@@ -225,6 +243,10 @@ export class NovelArticleListView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    for (const timer of this.metaRefreshTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    this.metaRefreshTimers.clear();
     if (this.refreshFrame !== null) {
       window.cancelAnimationFrame(this.refreshFrame);
       this.refreshFrame = null;
@@ -287,6 +309,10 @@ export class NovelArticleListView extends ItemView {
   }
 
   private render(): void {
+    for (const timer of this.metaRefreshTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    this.metaRefreshTimers.clear();
     this.hideGroupTooltip();
     this.hideVolumeTooltip();
     const previousList = this.contentEl.querySelector(".novelview-article-list");
@@ -865,7 +891,8 @@ export class NovelArticleListView extends ItemView {
               this.app,
               { name: group.name, description: group.description },
               (draft) => {
-                void this.plugin.updateArticleGroup(folderPath, group.id, draft);
+                void this.plugin.updateArticleGroup(folderPath, group.id, draft)
+                  .then(() => this.scheduleRefresh());
               },
               "编辑文章组",
             ).open();
@@ -873,7 +900,8 @@ export class NovelArticleListView extends ItemView {
         });
         menu.addItem((item) => {
           item.setTitle("删除文章组").setIcon("trash").onClick(() => {
-            void this.plugin.deleteArticleGroup(folderPath, group.id);
+            void this.plugin.deleteArticleGroup(folderPath, group.id)
+              .then(() => this.scheduleRefresh());
           });
         });
         menu.showAtMouseEvent(event);
@@ -1016,6 +1044,50 @@ export class NovelArticleListView extends ItemView {
     this.volumeTooltip = null;
   }
 
+  private isCurrentGroupFile(file: TFile): boolean {
+    if (file.extension !== "md") {
+      return false;
+    }
+    const root = this.plugin.findNovelGroupRoot(
+      this.plugin.normalizeFolderPath(file.parent?.path ?? "/"),
+    );
+    return root === this.folderPath;
+  }
+
+  private scheduleArticleMetaRefresh(path: string): void {
+    const existing = this.metaRefreshTimers.get(path);
+    if (existing !== undefined) {
+      window.clearTimeout(existing);
+    }
+    const timer = window.setTimeout(() => {
+      this.metaRefreshTimers.delete(path);
+      const row = this.contentEl.querySelector<HTMLElement>(
+        `[data-article-path="${CSS.escape(path)}"]`,
+      );
+      const meta = row?.querySelector<HTMLElement>(".novelview-article-row-meta");
+      if (meta) {
+        void this.fillArticleMeta(meta, path);
+      }
+    }, 220);
+    this.metaRefreshTimers.set(path, timer);
+  }
+
+  private async fillArticleMeta(meta: HTMLElement, path: string): Promise<void> {
+    const chapter = await this.plugin.getChapterMeta(path);
+    if (!meta.isConnected) {
+      return;
+    }
+    meta.empty();
+    meta.createSpan({
+      cls: "novelview-article-row-words",
+      text: `${new Intl.NumberFormat("zh-CN").format(chapter.wordCount)} 字`,
+    });
+    meta.createSpan({
+      cls: "novelview-article-row-state",
+      text: CHAPTER_STATUS_LABELS[chapter.status],
+    }).setAttr("data-state", chapter.status);
+  }
+
   private renderArticleRow(
     parent: HTMLElement,
     article: ArticleEntry,
@@ -1042,20 +1114,7 @@ export class NovelArticleListView extends ItemView {
     const meta = row.createSpan({
       cls: "novelview-article-row-meta",
     });
-    void this.plugin.getChapterMeta(article.path).then((chapter) => {
-      if (!meta.isConnected) {
-        return;
-      }
-      meta.empty();
-      meta.createSpan({
-        cls: "novelview-article-row-words",
-        text: `${new Intl.NumberFormat("zh-CN").format(chapter.wordCount)} 字`,
-      });
-      meta.createSpan({
-        cls: "novelview-article-row-state",
-        text: CHAPTER_STATUS_LABELS[chapter.status],
-      });
-    });
+    void this.fillArticleMeta(meta, article.path);
 
     const articleKey = `article:${article.path}`;
     const articleTarget: ArticleListTarget = {

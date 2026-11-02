@@ -1,7 +1,7 @@
 import {
   ItemView,
   setIcon,
-  type TFile,
+  TFile,
   type WorkspaceLeaf,
 } from "obsidian";
 import type NovelViewPlugin from "./main";
@@ -103,6 +103,7 @@ export class NovelWorkbenchView extends ItemView {
         volumeCount: model?.volumes.length ?? 0,
         chapterCount: articles.length,
       });
+      this.renderHistory(novel.folderPath);
     } else {
       this.renderContext(current, folderPath);
     }
@@ -211,6 +212,51 @@ export class NovelWorkbenchView extends ItemView {
       cls: "novelview-workbench-novel-stats",
       text: `${new Intl.NumberFormat("zh-CN").format(stats.wordCount)}字 · 共 ${stats.volumeCount} 卷 · ${stats.chapterCount} 章`,
     });
+  }
+
+  private renderHistory(folderPath: string): void {
+    const config = this.plugin.getNovelConfig(folderPath);
+    const section = this.contentEl.createDiv({ cls: "novelview-history" });
+    section.createDiv({ cls: "novelview-history-title", text: "历史记录" });
+    if (config.history.length === 0) {
+      section.createDiv({
+        cls: "novelview-history-empty",
+        text: "暂无历史记录。",
+      });
+      return;
+    }
+    const buckets = new Map<number, typeof config.history>();
+    for (const entry of config.history) {
+      const list = buckets.get(entry.bucketStart) ?? [];
+      list.push(entry);
+      buckets.set(entry.bucketStart, list);
+    }
+    const blocks = section.createDiv({ cls: "novelview-history-blocks" });
+    const ordered = [...buckets.entries()].sort(([left], [right]) => right - left);
+    for (const [bucketStart, entries] of ordered) {
+      const date = new Date(bucketStart);
+      const block = blocks.createDiv({ cls: "novelview-history-bucket" });
+      block.createDiv({
+        cls: "novelview-history-date",
+        text: `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`,
+      });
+      const startHour = date.getHours();
+      block.createDiv({
+        cls: "novelview-history-time",
+        text: `${String(startHour).padStart(2, "0")}:00 - ${String(startHour + 4).padStart(2, "0")}:00`,
+      });
+      const list = block.createDiv({ cls: "novelview-history-entries" });
+      for (const entry of [...entries].sort((left, right) => right.updatedAt - left.updatedAt)) {
+        const file = this.app.vault.getAbstractFileByPath(entry.path);
+        const name = file instanceof TFile ? file.basename : entry.name;
+        const row = list.createDiv({ cls: "novelview-history-entry" });
+        row.createDiv({ cls: "novelview-history-entry-name", text: name });
+        row.createDiv({
+          cls: `novelview-history-delta${entry.delta > 0 ? " is-positive" : " is-negative"}`,
+          text: `${entry.delta > 0 ? "+" : ""}${entry.delta}字`,
+        });
+      }
+    }
   }
 
   private renderContext(current: TFile | null, folderPath: string | null): void {

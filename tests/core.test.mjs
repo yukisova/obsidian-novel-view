@@ -4,6 +4,8 @@ import {
   classifyLine,
   findFrontmatterEnd,
   hasFrontmatterBlock,
+  joinFrontmatterContent,
+  splitFrontmatterContent,
   isMarkdownSpecialLine,
   isProseLine,
   isSpecialBlockLine,
@@ -514,4 +516,16 @@ test("does not keep duplicate linked file paths", () => {
     ],
   });
   assert.equal(data.links.length, 1);
+});
+
+
+test("standalone novel editor hides and preserves YAML properties", () => {
+  const content = "---\nnovelview-state: 待写\n---\n\n正文 **原样**";
+  const split = splitFrontmatterContent(content);
+  assert.equal(split.head, "---\nnovelview-state: 待写\n---");
+  assert.equal(split.body, "\n正文 **原样**");
+  assert.equal(joinFrontmatterContent(split.head, split.body), content);
+  const noFrontmatter = splitFrontmatterContent("正文");
+  assert.equal(noFrontmatter.head, "");
+  assert.equal(noFrontmatter.body, "正文");
 });

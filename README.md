@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.7.21-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.8.5-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
 </p>
 
-Novel View 是一个面向长篇小说写作的 Obsidian 插件。它保留原生 Markdown 编辑器，并围绕小说组、文章列表、卷与文章组、素材库、联动库、小说模式和查找替换提供一套完整的写作工作流。
+Novel View 是一个面向长篇小说写作的 Obsidian 插件。小说文章使用独立的纯文本编辑视图，不经过 Obsidian 原生 MarkdownView 渲染；插件围绕小说组、文章列表、卷与文章组、素材库、联动库、小说模式和查找替换提供完整的写作工作流。
 
 Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdown editor and adds novel groups, an article tree, volumes and article groups, a materials library, a linked-file library, novel mode, and find/replace.
 
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.7.21.zip](dist/novel-view-0.7.21.zip)。
+1. 下载 [novel-view-0.8.5.zip](dist/novel-view-0.8.5.zip)。
 2. 解压到：
 
    ```text
@@ -89,6 +89,8 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 点击标题：重命名小说组文件夹；
 - 点击简介：在界面内编辑并保存；
 - 点击封面：选择图片作为小说封面。
+
+工作台下方会显示 **历史记录** 卡片：每四小时为一个时间段，按日期倒序记录各章节的字数增减。
 
 封面与卷海报会保存到小说组的 `src/` 文件夹。
 
@@ -145,7 +147,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 | 修改中 | `revising` |
 | 已完稿 | `done` |
 
-右键选中文章 → **修改状态**，可批量设置状态。
+右键选中文章 → **修改状态**，可批量设置状态。不同章节状态在文章列表中使用不同颜色显示。
 
 #### 导入与导出
 
@@ -248,17 +250,27 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 ### 小说模式
 
-小说组内的 Markdown 文件会自动进入小说模式。
+小说组内的 Markdown 文件会由独立的 **Novel Editor** 视图打开，不进入原生 MarkdownView，也不复用其渲染逻辑。
 
-- 隐藏 H1–H6 标题标记。
-- 列表、引用块保持原生 Markdown 行为。
-- 分隔线只取消首行缩进。
-- 左上角目录按分隔线分组；默认缩略显示，聚焦时展开。
-- 浮动工具栏提供：
+- 独立视图使用纯文本编辑器，不解析 Markdown。
+- 正文中的所有字符原样显示，包括 `#`、`**`、`[]()`、列表符号等 Markdown 标记。
+- 标题、加粗、斜体、链接、列表、引用块和代码块不应用 Markdown 视觉格式。
+- YAML 笔记属性不会载入编辑器，既不显示也无法编辑；保存时自动保留原属性。
+- 分隔线显示为视觉分隔线。
+- 联动关键词保留颜色，移除下划线。
+- 不显示目录（TOC）卡片。
+- 格式设置中的字号、行高、段距、首行缩进均会实时应用到独立编辑器。
+- 正文开头显示当前文章标题，顶格、加粗，字号为正文的 1.2 倍。
+- 右上角提供目录（TOC）缩略卡片：默认显示三条短横线；鼠标悬停在 TOC 卡片上时展开为按 `---` 分隔的章节卡片列表，移出后恢复缩略状态，点击可跳转。
+- 左下角浮动工具栏卡片提供：
   - 自动排版；
-  - 插入图片（从文件 / 从素材库）；
+  - 插入图片；
   - 高级查找替换；
   - 格式设置。
+- 插入的图片在正文中以块级图片实时显示，并保留原始嵌入链接。
+- 编辑器内右键菜单暂时禁用。
+- 输入后自动保存，关闭视图前会完成最后一次保存。
+- 普通 MarkdownView 不再被小说模式修改，其编辑与渲染逻辑保持原生行为。
 
 #### 自动排版
 
@@ -340,6 +352,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 文章 ID 保存在笔记属性 `novelview-id`。
 - 文章状态保存在 `novelview-state`。
 - 联动数据保存在小说组根目录 `links.json`。
+- `history` 由工作台历史记录自动生成，无需手动维护。
 
 ### 快捷键与操作
 
@@ -360,7 +373,8 @@ npm install
 npm run dev     # 监听构建
 npm run check   # TypeScript 检查
 npm test        # 核心测试
-npm run build   # 生产构建
+npm run build   # 生产构建并同步到 Obsidian 主仓库插件目录
+npm run deploy  # 仅同步构建文件
 ```
 
 产物：
@@ -408,7 +422,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.7.21.zip](dist/novel-view-0.7.21.zip).
+1. Download [novel-view-0.8.5.zip](dist/novel-view-0.8.5.zip).
 2. Extract it to:
 
    ```text
@@ -450,6 +464,8 @@ Click to edit:
 - Title: rename the novel-group folder;
 - Description: edit inline;
 - Cover: choose a cover image.
+
+A **History** card below the workbench detail groups chapter word-count changes into four-hour blocks, newest first.
 
 Novel covers and volume posters are stored in the group's `src/` folder.
 
@@ -506,7 +522,7 @@ Chapter status is stored in `novelview-state`:
 | Revising | `revising` |
 | Done | `done` |
 
-Right-click selected articles → **Change status** to set it in bulk.
+Right-click selected articles → **Change status** to set it in bulk. Each chapter status has a distinct color in the article list.
 
 #### Import and export
 
@@ -609,17 +625,27 @@ The linked-file library connects novel keywords to other Markdown files and high
 
 ### Novel mode
 
-Markdown files inside a novel group enter novel mode automatically.
+Markdown files inside a novel group open in the standalone **Novel Editor** view, not the native MarkdownView.
 
-- H1–H6 heading markers are hidden.
-- Lists and blockquotes keep native Markdown behavior.
-- Horizontal rules only remove first-line indentation.
-- The top-left table of contents is split by separators; it is collapsed by default and expands on focus.
-- The floating toolbar provides:
+- The standalone view uses a plain-text editor and does not parse Markdown.
+- Every character is shown as-is, including Markdown markers such as `#`, `**`, `[]()`, and list bullets.
+- Headings, bold, italics, links, lists, quotes, and code blocks do not apply Markdown formatting.
+- YAML properties are never loaded into the editor, so they are neither visible nor editable; they are preserved when saving.
+- Separators render as visual dividers.
+- Linked keywords keep their color without an underline.
+- The table of contents (TOC) card is not displayed.
+- Format settings for font size, line height, paragraph spacing, and first-line indent apply live to the standalone editor.
+- The current article title appears at the top, unindented and bold at 1.2× body size.
+- A TOC thumbnail sits at the top right: three short bars by default; hovering the TOC card expands a boxed section list split by `---`, and leaving it collapses again. Click an entry to jump.
+- The floating toolbar card at the bottom-left provides:
   - auto format;
-  - insert image (file or materials library);
+  - insert image;
   - find/replace;
   - format settings.
+- Inserted images render as block-level images in the body while preserving their embed markup.
+- The editor context menu is disabled for now.
+- Changes save automatically, with a final save when the view closes.
+- Normal MarkdownView is no longer modified by novel mode and keeps native editing and rendering.
 
 #### Auto format
 
@@ -701,6 +727,7 @@ Notes:
 - Article IDs are stored in `novelview-id`.
 - Chapter status is stored in `novelview-state`.
 - Linked-file data is stored in `links.json` in the novel-group root.
+- `history` is maintained automatically by the workbench history card.
 
 ### Shortcuts
 
@@ -721,7 +748,8 @@ npm install
 npm run dev     # watch build
 npm run check   # TypeScript check
 npm test        # core tests
-npm run build   # production build
+npm run build   # production build + deploy to the main Obsidian vault
+npm run deploy  # deploy existing build artifacts only
 ```
 
 Artifacts:

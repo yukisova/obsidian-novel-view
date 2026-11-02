@@ -14,12 +14,21 @@ export interface NovelArticleGroup {
   paths: string[];
 }
 
+export interface NovelHistoryEntry {
+  bucketStart: number;
+  path: string;
+  name: string;
+  delta: number;
+  updatedAt: number;
+}
+
 export interface NovelConfig {
   "novel-description": string;
   "novel-cover": string;
   "volume-order": string[];
   volumes: Record<string, NovelVolumeMeta>;
   "article-groups": NovelArticleGroup[];
+  history: NovelHistoryEntry[];
 }
 
 export interface NovelGroupInfo {
@@ -58,6 +67,7 @@ export function createNovelConfigContent(): string {
     "volume-order": [],
     volumes: {},
     "article-groups": [],
+    history: [],
   };
   return `${JSON.stringify(config, null, 2)}\n`;
 }
@@ -104,6 +114,33 @@ export function parseNovelConfig(value: unknown): NovelConfig {
       });
     }
   }
+  const history: NovelHistoryEntry[] = [];
+  if (Array.isArray(source.history)) {
+    for (const entry of source.history) {
+      if (!entry || typeof entry !== "object") {
+        continue;
+      }
+      const record = entry as Record<string, unknown>;
+      const bucketStart = Number(record.bucketStart);
+      const delta = Number(record.delta);
+      const updatedAt = Number(record.updatedAt);
+      if (
+        !Number.isFinite(bucketStart)
+        || !Number.isFinite(delta)
+        || delta === 0
+        || typeof record.path !== "string"
+      ) {
+        continue;
+      }
+      history.push({
+        bucketStart,
+        path: record.path,
+        name: typeof record.name === "string" ? record.name : "",
+        delta,
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : bucketStart,
+      });
+    }
+  }
   return {
     "novel-description": typeof source["novel-description"] === "string"
       ? source["novel-description"]
@@ -116,6 +153,7 @@ export function parseNovelConfig(value: unknown): NovelConfig {
       : [],
     volumes,
     "article-groups": groups,
+    history,
   };
 }
 

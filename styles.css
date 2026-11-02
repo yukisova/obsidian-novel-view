@@ -1336,7 +1336,8 @@
   white-space: nowrap;
 }.novelview-link-keyword{
   font-weight: 600;
-  border-bottom: 1px dotted currentColor;
+  text-decoration: none;
+  border-bottom: none;
   cursor: pointer;
 }.novelview-link-keyword:hover{
   background: color-mix(in srgb, currentColor 10%, transparent);
@@ -2715,4 +2716,711 @@
   border-radius: var(--radius-s, 5px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   pointer-events: none;
+}
+
+/* Workbench history card */
+.novelview-history {
+  margin-top: 16px;
+  padding: 18px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 8px);
+}
+
+.novelview-history-title {
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.novelview-history-empty {
+  padding: 18px 4px 6px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.novelview-history-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.novelview-history-bucket {
+  padding: 10px 12px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 5px);
+}
+
+.novelview-history-date {
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 10px;
+}
+
+.novelview-history-time {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+}
+
+.novelview-history-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.novelview-history-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s, 5px);
+}
+
+.novelview-history-entry-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novelview-history-delta {
+  flex: 0 0 auto;
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.novelview-history-delta.is-positive {
+  color: var(--color-green, #4d7c56);
+}
+
+.novelview-history-delta.is-negative {
+  color: var(--color-red, #c0392b);
+}
+
+/* Distinct chapter status colors */
+.novelview-article-row-state[data-state="todo"] {
+  color: var(--text-faint);
+  background: color-mix(in srgb, var(--text-faint) 10%, transparent);
+}
+
+.novelview-article-row-state[data-state="draft"] {
+  color: var(--color-orange, #c26a1b);
+  background: color-mix(in srgb, var(--color-orange, #c26a1b) 11%, transparent);
+}
+
+.novelview-article-row-state[data-state="outline"] {
+  color: var(--color-purple, #8064a2);
+  background: color-mix(in srgb, var(--color-purple, #8064a2) 11%, transparent);
+}
+
+.novelview-article-row-state[data-state="revising"] {
+  color: var(--color-blue, #356c9a);
+  background: color-mix(in srgb, var(--color-blue, #356c9a) 11%, transparent);
+}
+
+.novelview-article-row-state[data-state="done"] {
+  color: var(--color-green, #4d7c56);
+  background: color-mix(in srgb, var(--color-green, #4d7c56) 11%, transparent);
+}
+
+/* Novel mode: render body content as plain text, ignoring Markdown syntax. */
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
+    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
+    .cm-hashtag, .cm-url) {
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  :is(.cm-header, .cm-strong, .cm-em, .cm-link, .cm-inline-code,
+    .cm-highlight, .cm-strikethrough, .cm-quote) {
+  color: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  text-decoration: none !important;
+  background: transparent !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-line:is(.HyperMD-header, .HyperMD-quote, .HyperMD-list-line) {
+  font-size: inherit !important;
+  font-weight: inherit !important;
+}
+
+.novelview-novel-mode
+  .markdown-preview-view
+  :is(h1, h2, h3, h4, h5, h6, strong, em, a, code, mark, del, th) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  text-decoration: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.novelview-novel-mode .markdown-preview-view :is(ul, ol) {
+  padding-inline-start: 0 !important;
+  list-style: none !important;
+}
+
+.novelview-novel-mode .markdown-preview-view blockquote {
+  margin-inline: 0 !important;
+  padding-inline: 0 !important;
+  color: inherit !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.novelview-novel-mode .markdown-preview-view :is(a, button) {
+  pointer-events: none;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-line:is(.HyperMD-codeblock, .HyperMD-codeblock-begin, .HyperMD-codeblock-end) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  background: transparent !important;
+}
+
+.novelview-novel-mode .markdown-preview-view :is(pre, pre code, table, thead, tbody, tr, td) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Novel mode is a raw-text editor: keep every Markdown character visible. */
+.novelview-novel-mode.novelview-hide-markers
+  .markdown-source-view.mod-cm6
+  .cm-line
+  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
+    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
+    .cm-hashtag, .cm-url, .cm-formatting-code, .cm-formatting-code-block) {
+  display: inline !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  letter-spacing: inherit !important;
+  text-decoration: none !important;
+  background: transparent !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-line
+  :is(.cm-header, .cm-strong, .cm-em, .cm-link, .cm-url, .cm-inline-code,
+    .cm-highlight, .cm-strikethrough, .cm-quote, .cm-hashtag,
+    .cm-formatting, .cm-formatting-header, .cm-formatting-list,
+    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
+    .cm-formatting-code, .cm-formatting-code-block) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  letter-spacing: inherit !important;
+  text-decoration: none !important;
+  background: transparent !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-line:is(.HyperMD-header, .HyperMD-codeblock, .HyperMD-codeblock-begin,
+    .HyperMD-codeblock-end, .HyperMD-quote, .HyperMD-list-line) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  background: transparent !important;
+}
+
+/* Reading view fallback: remove Markdown visual styling without deleting text. */
+.novelview-novel-mode .markdown-preview-view :is(h1, h2, h3, h4, h5, h6,
+  strong, em, a, code, pre, mark, del, th, td, blockquote) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  text-decoration: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Novel mode: force every CodeMirror line and token to plain text. */
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line {
+  color: var(--text-normal) !important;
+  font-family: var(--font-text, var(--font-interface)) !important;
+  font-size: var(--novelview-font-size, 16px) !important;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  line-height: var(--novelview-line-height, 1.8) !important;
+  letter-spacing: normal !important;
+  text-decoration: none !important;
+  text-transform: none !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line
+  *:not(.cm-cursor):not(.cm-selectionBackground):not(.cm-widgetBuffer):not(.novelview-link-keyword) {
+  color: inherit !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-style: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  text-decoration: none !important;
+  text-transform: inherit !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line
+  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
+    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
+    .cm-hashtag, .cm-url, .cm-formatting-code, .cm-formatting-code-block) {
+  display: inline !important;
+  font-size: inherit !important;
+  letter-spacing: inherit !important;
+}
+
+/* Keep YAML properties out of the novel-mode body. */
+.novelview-novel-mode .metadata-container,
+.novelview-novel-mode .frontmatter,
+.novelview-novel-mode .markdown-preview-view .metadata-container,
+.novelview-novel-mode .markdown-preview-view .frontmatter,
+.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.cm-frontmatter,
+.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line[class*="frontmatter"] {
+  display: none !important;
+}
+
+/* Restore the separator's visual line while keeping source characters intact. */
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line.HyperMD-hr {
+  height: 1px !important;
+  margin: 14px 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1px !important;
+  border: none !important;
+  border-top: 1px solid var(--background-modifier-border) !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* Restore keyword color and underline. */
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line
+  .novelview-link-keyword,
+.novelview-novel-mode .markdown-preview-view .novelview-link-keyword {
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  border-bottom: none !important;
+  cursor: pointer;
+}
+
+/* Hide frontmatter lines in the novel-mode editor; the decoration makes them non-editable. */
+.novelview-novel-mode
+  .markdown-source-view.mod-cm6
+  .cm-content
+  .cm-line.novelview-hidden-frontmatter {
+  display: none !important;
+}
+
+.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.frontmatter,
+.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.metadata-container,
+.novelview-novel-mode .metadata-container,
+.novelview-novel-mode .frontmatter {
+  display: none !important;
+}
+
+/* Standalone novel editor view */
+.novelview-editor-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-text, var(--font-interface));
+}
+
+.novelview-editor-toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 10px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.novelview-editor-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s, 4px);
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.novelview-editor-toolbar-button:hover {
+  color: var(--text-accent);
+  background: var(--background-modifier-hover);
+  border-color: var(--background-modifier-border);
+}
+
+.novelview-editor-toolbar-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.novelview-editor-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.novelview-editor-host .cm-editor {
+  height: 100%;
+  background: var(--background-primary);
+}
+
+.novelview-editor-host .cm-scroller {
+  font-family: var(--font-text, var(--font-interface));
+}
+
+.novelview-editor-message {
+  padding: 24px;
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 12px;
+}
+
+/* Standalone editor: separators keep their visual divider appearance. */
+.novelview-editor-view .cm-line.novelview-editor-hr {
+  height: 1px !important;
+  margin: 14px 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 1px !important;
+  border-top: 1px solid var(--background-modifier-border) !important;
+  background: transparent !important;
+}
+
+/* Standalone editor: paragraph spacing and first-line indentation. */
+.novelview-editor-view.novelview-editor-paragraph-mode-line
+  .cm-line.novelview-editor-prose::before,
+.novelview-editor-view.novelview-editor-paragraph-mode-blank-line
+  .cm-line.novelview-editor-paragraph-start::before {
+  content: "";
+  display: inline-block;
+  width: var(--novelview-first-line-indent, 2em);
+}
+
+.novelview-editor-view.novelview-editor-paragraph-mode-line
+  .cm-line.novelview-editor-prose.novelview-editor-preindented::before,
+.novelview-editor-view.novelview-editor-paragraph-mode-blank-line
+  .cm-line.novelview-editor-paragraph-start.novelview-editor-preindented::before {
+  content: none;
+}
+
+.novelview-editor-view.novelview-editor-paragraph-mode-line
+  .cm-line.novelview-editor-prose {
+  padding-bottom: var(--novelview-paragraph-spacing, 0.65em) !important;
+}
+
+.novelview-editor-view.novelview-editor-paragraph-mode-blank-line
+  .cm-line.novelview-editor-paragraph-end {
+  padding-bottom: var(--novelview-paragraph-spacing, 0.65em) !important;
+}
+
+/* Standalone editor has no native line-number gutter. */
+.novelview-editor-view .cm-gutters {
+  display: none !important;
+}
+
+/* Novel editor selection/caret visibility */
+.novelview-editor-view .cm-editor .cm-selectionBackground {
+  background: color-mix(in srgb, var(--interactive-accent) 38%, transparent) !important;
+}
+
+.novelview-editor-view .cm-editor.cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--interactive-accent) 48%, transparent) !important;
+}
+
+.novelview-editor-view .cm-editor .cm-cursor {
+  border-left: 2px solid var(--interactive-accent) !important;
+  margin-left: -1px;
+}
+
+.novelview-editor-view .cm-content ::selection {
+  background: color-mix(in srgb, var(--interactive-accent) 40%, transparent) !important;
+}
+
+/* Floating toolbar card, bottom-left */
+.novelview-editor-view {
+  position: relative;
+}
+
+.novelview-editor-toolbar {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 30;
+  padding: 4px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.16));
+}
+
+/* Title widget at the start of the document */
+.novelview-editor-title {
+  margin: 0 0 0.85em;
+  padding: 0;
+  color: var(--text-normal);
+  font-family: var(--font-text, var(--font-interface));
+  font-size: calc(var(--novelview-font-size, 16px) * 1.2);
+  font-weight: 700;
+  line-height: 1.3;
+  text-indent: 0;
+  user-select: none;
+}
+
+/* Focus-only TOC card, top-right */
+.novelview-editor-toc {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 25;
+  display: none;
+  flex-direction: column;
+  width: 190px;
+  max-height: 45vh;
+  padding: 8px;
+  overflow: hidden;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 9px;
+  box-shadow: var(--shadow-s, 0 5px 18px rgba(0, 0, 0, 0.18));
+}
+
+.novelview-editor-toc.is-visible:not(.is-empty) {
+  display: flex;
+}
+
+.novelview-editor-toc-title {
+  flex: 0 0 auto;
+  padding: 1px 5px 5px;
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.novelview-editor-toc-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.novelview-editor-toc-item {
+  display: block;
+  width: 100%;
+  padding: 3px 5px 3px calc(5px + (var(--novelview-toc-level, 1) - 1) * 11px);
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.novelview-editor-toc-item:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* Block image rendering inside the raw editor */
+.novelview-editor-image {
+  display: block;
+  margin: 10px 0 16px;
+  padding: 0;
+  text-align: center;
+}
+
+.novelview-editor-image img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: var(--radius-s, 5px);
+}
+
+.novelview-editor-image figcaption {
+  margin-top: 4px;
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 10px;
+}
+
+/* TOC thumbnail/full-card states */
+.novelview-editor-toc {
+  display: flex;
+  width: 36px;
+  max-width: 36px;
+  max-height: none;
+  min-height: 58px;
+  padding: 6px;
+  overflow: hidden;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 7px;
+  box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.16));
+  transition: width 130ms ease, max-width 130ms ease, padding 130ms ease;
+}
+
+.novelview-editor-toc.is-expanded {
+  width: 190px;
+  max-width: 190px;
+  max-height: 45vh;
+  padding: 8px;
+}
+
+.novelview-editor-toc.is-empty {
+  display: none !important;
+}
+
+.novelview-editor-toc.is-collapsed {
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.novelview-editor-toc-collapsed {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  width: 22px;
+}
+
+.novelview-editor-toc.is-collapsed .novelview-editor-toc-collapsed {
+  display: flex;
+}
+
+.novelview-editor-toc-bar {
+  width: 18px;
+  height: 2px;
+  margin: 0 auto;
+  background: var(--text-muted);
+  border-radius: 1px;
+}
+
+.novelview-editor-toc.is-collapsed .novelview-editor-toc-list {
+  display: none;
+}
+
+.novelview-editor-toc.is-expanded .novelview-editor-toc-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.novelview-editor-toc-item {
+  display: block;
+  width: 100%;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.novelview-editor-toc-item:hover {
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
 }
