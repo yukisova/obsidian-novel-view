@@ -43,7 +43,7 @@ export class VolumeEditModal extends Modal {
       this.close();
       this.options.onPickCover();
     });
-    const field = this.contentEl.createDiv({ cls: "novelview-link-edit-field" });
+    const field = this.contentEl.createDiv({ cls: "novelview-form-field" });
     field.createEl("label", { text: "卷描述" });
     const input = field.createEl("textarea", {
       attr: { rows: "5", placeholder: "填写这一卷的简介" },

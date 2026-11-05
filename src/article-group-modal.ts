@@ -30,7 +30,7 @@ export class ArticleGroupModal extends Modal {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-article-group-modal");
     this.titleEl.setText(this.title);
-    const nameField = this.contentEl.createDiv({ cls: "novelview-link-edit-field" });
+    const nameField = this.contentEl.createDiv({ cls: "novelview-form-field" });
     nameField.createEl("label", { text: "文章组名称" });
     const name = nameField.createEl("input", {
       attr: { type: "text", placeholder: "例如：第一部分" },
@@ -39,7 +39,7 @@ export class ArticleGroupModal extends Modal {
     name.addEventListener("input", () => {
       this.nameValue = name.value.trim();
     });
-    const descField = this.contentEl.createDiv({ cls: "novelview-link-edit-field" });
+    const descField = this.contentEl.createDiv({ cls: "novelview-form-field" });
     descField.createEl("label", { text: "文章组描述" });
     const description = descField.createEl("textarea", {
       attr: { rows: "4", placeholder: "概括这组文章的内容" },

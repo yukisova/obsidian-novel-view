@@ -7,29 +7,29 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import {
-  findLinkKeywordMatches,
-  type LinkKeywordEntry,
-} from "../core/link-library";
+  findSettingKeywordMatches,
+  type SettingKeywordEntry,
+} from "../core/setting-collection";
 import { findFrontmatterEnd } from "../core/paragraphs";
 
-let currentEntries: LinkKeywordEntry[] = [];
+let currentEntries: SettingKeywordEntry[] = [];
 const activeViews = new Set<EditorView>();
 
-export function setLinkKeywords(entries: LinkKeywordEntry[]): void {
+export function setSettingKeywords(entries: SettingKeywordEntry[]): void {
   currentEntries = entries;
 }
 
-export function refreshLinkKeywords(): void {
+export function refreshSettingKeywords(): void {
   for (const view of activeViews) {
     try {
       view.dispatch({});
     } catch (error) {
-      console.debug("Novel View: link keyword refresh skipped", error);
+      console.debug("Novel View: setting keyword refresh skipped", error);
     }
   }
 }
 
-class LinkKeywordPlugin {
+class SettingKeywordPlugin {
   private readonly view: EditorView;
   decorations: DecorationSet;
 
@@ -48,8 +48,8 @@ class LinkKeywordPlugin {
   }
 }
 
-export const linkKeywordExtension = ViewPlugin.fromClass(
-  LinkKeywordPlugin,
+export const settingKeywordExtension = ViewPlugin.fromClass(
+  SettingKeywordPlugin,
   {
     decorations: (plugin) => plugin.decorations,
   },
@@ -62,20 +62,18 @@ function buildDecorations(view: EditorView): DecorationSet {
   ) {
     return Decoration.none;
   }
-
   const builder = new RangeSetBuilder<Decoration>();
   const { doc } = view.state;
   const frontmatterEnd = findFrontmatterEnd(
     (index) => index < doc.lines ? doc.line(index + 1).text : null,
   );
   const seen = new Set<string>();
-
   for (let lineNumber = frontmatterEnd + 1; lineNumber <= doc.lines; lineNumber += 1) {
     const line = doc.line(lineNumber);
     if (!line.text) {
       continue;
     }
-    for (const match of findLinkKeywordMatches(line.text, currentEntries)) {
+    for (const match of findSettingKeywordMatches(line.text, currentEntries)) {
       const normalized = match.entry.keyword.toLocaleLowerCase();
       if (seen.has(normalized)) {
         continue;
@@ -85,18 +83,17 @@ function buildDecorations(view: EditorView): DecorationSet {
         line.from + match.start,
         line.from + match.end,
         Decoration.mark({
-          class: "novelview-link-keyword",
+          class: "novelview-setting-keyword",
           attributes: {
             style: `color: ${match.entry.color};`,
-            "data-novelview-link-path": match.entry.path,
-            "data-novelview-link-name": match.entry.basename,
-            "data-novelview-link-tag": match.entry.tag,
-            "data-novelview-link-group": match.entry.group,
+            "data-novelview-setting-keyword": match.entry.keyword,
+            "data-novelview-setting-group": match.entry.group,
+            "data-novelview-setting-tag": match.entry.tag,
+            "data-novelview-setting-content": match.entry.content,
           },
         }),
       );
     }
   }
-
   return builder.finish();
 }

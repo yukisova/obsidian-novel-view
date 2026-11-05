@@ -1,4 +1,14 @@
 export const NOVEL_CONFIG_FILENAME = "novel.json";
+
+export const HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function pruneNovelHistory<T extends { bucketStart: number }>(
+  history: T[],
+  now = Date.now(),
+): T[] {
+  const cutoff = now - HISTORY_RETENTION_MS;
+  return history.filter((entry) => entry.bucketStart >= cutoff);
+}
 export const LEGACY_NOVEL_SETTING_FILENAME = "NovelSetting.md";
 
 export interface NovelVolumeMeta {
@@ -130,6 +140,9 @@ export function parseNovelConfig(value: unknown): NovelConfig {
         || delta === 0
         || typeof record.path !== "string"
       ) {
+        continue;
+      }
+      if (bucketStart < Date.now() - HISTORY_RETENTION_MS) {
         continue;
       }
       history.push({

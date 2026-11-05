@@ -1,5 +1,6 @@
 import {
   ItemView,
+  Menu,
   Notice,
   TFile,
   setIcon,
@@ -28,10 +29,22 @@ import {
   joinFrontmatterContent,
   splitFrontmatterContent,
 } from "./core/paragraphs";
-import { linkKeywordExtension } from "./editor/link-keyword-extension";
+import { settingKeywordExtension } from "./editor/setting-keyword-extension";
+import {
+  PENDING_COLOR_OPTIONS,
+  pendingBlockAt,
+  pendingBlockExtension,
+  pendingBoundaryKeymap,
+  pendingFenceProtection,
+  parsePendingBlocks,
+  type PendingBlock,
+  type PendingColor,
+} from "./editor/pending-block";
 import type NovelViewPlugin from "./main";
 
 export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
+
+const sharedSaveChains = new Map<string, Promise<void>>();
 
 class EditorTitleWidget extends WidgetType {
   constructor(private readonly title: string) {
@@ -220,7 +233,13 @@ function buildProseDecorations(view: EditorView): DecorationSet {
         const previous = line.number > 1 ? doc.line(line.number - 1).text : null;
         const next = line.number < doc.lines ? doc.line(line.number + 1).text : null;
         const classification = classifyLine(line.text, previous, next);
-        if (classification.prose) {
+        if (!line.text.trim()) {
+          builder.add(
+            line.from,
+            line.from,
+            Decoration.line({ class: "novelview-editor-empty-line" }),
+          );
+        } else if (classification.prose) {
           const classes: string[] = [];
           if (classification.paragraphStart) {
             classes.push("novelview-editor-paragraph-start");
@@ -274,6 +293,15 @@ export class NovelEditorView extends ItemView {
   private tocList: HTMLElement | null = null;
   private tocTimer: number | null = null;
   private tocHovered = false;
+  private pendingButton: HTMLButtonElement | null = null;
+  private pendingPanel: HTMLElement | null = null;
+  private pendingInput: HTMLInputElement | null = null;
+  private pendingTitleError: HTMLElement | null = null;
+  private pendingEmojiRow: HTMLElement | null = null;
+  private activePending: PendingBlock | null = null;
+  private pendingPanelOpen = false;
+  private pendingHideTimer: number | null = null;
+  private allowFenceEdit = false;
   private saveTimer: number | null = null;
   private loading = false;
   private lastSavedBody = "";
@@ -363,22 +391,116 @@ export class NovelEditorView extends ItemView {
     this.contentEl.addEventListener("contextmenu", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest(".cm-content")) {
+        return;
+      }
+      this.openSelectionContextMenu(event);
     }, true);
-    this.contentEl.addEventListener("focusin", () => this.updateTocVisibility());
-    this.contentEl.addEventListener("focusout", () => {
-      window.setTimeout(() => this.updateTocVisibility(), 0);
+    this.pendingButton = this.contentEl.createEl("button", {
+      cls: "novelview-pending-trigger",
+      attr: {
+        type: "button",
+        "aria-label": "编辑待修改部分",
+        title: "编辑待修改部分",
+      },
+    });
+    setIcon(this.pendingButton, "pencil");
+    this.pendingButton.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    this.pendingButton.addEventListener("pointerenter", () => {
+      this.openPendingPanel();
+    });
+    this.pendingButton.addEventListener("pointerleave", () => {
+      this.schedulePendingPanelHide();
+    });
+
+    this.pendingPanel = this.contentEl.createDiv({
+      cls: "novelview-pending-panel",
+    });
+    this.pendingPanel.createDiv({
+      cls: "novelview-pending-panel-label",
+      text: "待修改部分标题",
+    });
+    this.pendingInput = this.pendingPanel.createEl("input", {
+      cls: "novelview-pending-panel-input",
+      attr: { type: "text", placeholder: "待修改部分" },
+    });
+    this.pendingTitleError = this.pendingPanel.createDiv({
+      cls: "novelview-pending-panel-error",
+    });
+    this.pendingInput.addEventListener("input", () => {
+      const title = (this.pendingInput?.value.trim() || "待修改部分");
+      if (this.isPendingTitleDuplicate(title)) {
+        this.pendingTitleError?.setText("名称已存在");
+        return;
+      }
+      this.pendingTitleError?.setText("");
+      this.updateActivePending({ title });
+    });
+    this.pendingPanel.createDiv({
+      cls: "novelview-pending-panel-label",
+      text: "背景颜色",
+    });
+    this.pendingEmojiRow = this.pendingPanel.createDiv({
+      cls: "novelview-pending-emoji-row",
+    });
+    for (const option of PENDING_COLOR_OPTIONS) {
+      const emoji = this.pendingEmojiRow.createEl("button", {
+        cls: "novelview-pending-emoji",
+        text: option.emoji,
+        attr: {
+          type: "button",
+          "aria-label": option.color,
+          title: option.color,
+          "data-emoji": option.emoji,
+          "data-color": option.color,
+        },
+      });
+      emoji.addEventListener("click", () => {
+        this.updateActivePending({ emoji: option.emoji, color: option.color });
+      });
+    }
+    const remove = this.pendingPanel.createEl("button", {
+      cls: "novelview-pending-delete",
+      text: "移除代码块标记",
+      attr: { type: "button" },
+    });
+    remove.addEventListener("click", () => this.deleteActivePending());
+    this.pendingPanel.addEventListener("pointerenter", () => {
+      this.cancelPendingPanelHide();
+    });
+    this.pendingPanel.addEventListener("pointerleave", () => {
+      this.schedulePendingPanelHide();
+    });
+
+    this.contentEl.addEventListener("focusin", () => {
+      this.updateTocVisibility();
+      this.updatePendingUi();
+    });
+    this.contentEl.addEventListener("focusout", (event) => {
+      const next = event.relatedTarget as Node | null;
+      if (!next || !this.contentEl.contains(next)) {
+        void this.flushSave();
+      }
+      window.setTimeout(() => {
+        this.updateTocVisibility();
+        this.updatePendingUi();
+      }, 0);
     });
     this.contentEl.addEventListener("click", (event) => {
       const keyword = (event.target as HTMLElement | null)?.closest<HTMLElement>(
-        ".novelview-link-keyword",
+        ".novelview-setting-keyword",
       );
-      const path = keyword?.getAttribute("data-novelview-link-path");
-      if (path && this.filePath) {
-        event.preventDefault();
-        event.stopPropagation();
-        const file = this.app.vault.getAbstractFileByPath(this.filePath);
-        if (file instanceof TFile) {
-          this.plugin.openLinkKeywordTarget(path, file);
+      if (keyword && this.filePath) {
+        const group = keyword.dataset.novelviewSettingGroup ?? "";
+        const tag = keyword.dataset.novelviewSettingTag ?? "";
+        const name = keyword.dataset.novelviewSettingKeyword ?? "";
+        if (group && name) {
+          event.preventDefault();
+          event.stopPropagation();
+          this.plugin.openSettingRecord(this.filePath, group, tag, name);
         }
       }
     });
@@ -400,6 +522,17 @@ export class NovelEditorView extends ItemView {
     this.tocEl = null;
     this.tocList = null;
     this.tocHovered = false;
+    this.pendingButton = null;
+    this.pendingPanel = null;
+    this.pendingInput = null;
+    this.pendingTitleError = null;
+    this.pendingEmojiRow = null;
+    this.activePending = null;
+    this.pendingPanelOpen = false;
+    if (this.pendingHideTimer !== null) {
+      window.clearTimeout(this.pendingHideTimer);
+      this.pendingHideTimer = null;
+    }
     this.editorView?.destroy();
     this.editorView = null;
     this.editorHost = null;
@@ -410,6 +543,7 @@ export class NovelEditorView extends ItemView {
     const file = this.app.vault.getAbstractFileByPath(this.filePath);
     if (file instanceof TFile) {
       this.plugin.setNovelEditorFile(file);
+      void this.syncFromDisk();
     }
   }
 
@@ -476,12 +610,18 @@ export class NovelEditorView extends ItemView {
                 this.scheduleSave();
                 this.scheduleTocRefresh();
               }
+              if (update.docChanged || update.selectionSet) {
+                this.updatePendingUi();
+              }
             }),
-            linkKeywordExtension,
+            settingKeywordExtension,
             titleExtension(this.getDisplayText()),
             imageExtension(this.app, () => this.filePath),
             hrDecorationExtension,
             proseDecorationExtension,
+            pendingBlockExtension,
+            pendingBoundaryKeymap,
+            pendingFenceProtection(() => this.allowFenceEdit),
             EditorView.theme({
               "&": {
                 height: "100%",
@@ -517,12 +657,17 @@ export class NovelEditorView extends ItemView {
         effects: EditorView.scrollIntoView(line.from, { y: "center" }),
       });
       this.lastSavedBody = body;
+      this.editorView.scrollDOM.addEventListener("scroll", () => {
+        this.updateTocVisibility();
+        this.updatePendingUi();
+      });
       this.editorView.focus();
       this.plugin.setNovelEditorFile(file);
-      this.plugin.refreshLinkKeywordIndex();
+      this.plugin.refreshSettingKeywordIndex();
       this.containerEl.querySelector<HTMLElement>(".view-header-title")
         ?.setText(this.getDisplayText());
       this.renderToc();
+      this.updatePendingUi();
     } catch (error) {
       console.error("Novel View: standalone editor failed to load", error);
       this.editorHost.empty();
@@ -552,7 +697,17 @@ export class NovelEditorView extends ItemView {
       return;
     }
     list.empty();
-    const sections: Array<{ line: number; label: string }> = [];
+    const sections: Array<{
+      line: number;
+      label: string;
+      color?: PendingColor;
+    }> = [];
+    const pendingByOpenLine = new Map(
+      parsePendingBlocks(this.editorView.state).map((block) => [
+        block.openLine,
+        block,
+      ]),
+    );
     let inFence = false;
     let sectionLabel = "";
     let sectionLine = 0;
@@ -565,6 +720,19 @@ export class NovelEditorView extends ItemView {
       sectionLine = 0;
     };
     for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+      const pending = pendingByOpenLine.get(lineNumber);
+      if (pending) {
+        flushSection();
+        sections.push({
+          line: pending.contentStartLine <= doc.lines
+            ? doc.line(pending.contentStartLine).from
+            : pending.openFrom,
+          label: pending.title,
+          color: pending.color,
+        });
+        lineNumber = pending.closeLine;
+        continue;
+      }
       const line = doc.line(lineNumber);
       if (/^\s*(?:```|~~~)/u.test(line.text)) {
         inFence = !inFence;
@@ -600,6 +768,12 @@ export class NovelEditorView extends ItemView {
         cls: "novelview-editor-toc-item",
         attr: { type: "button" },
       });
+      if (section.color) {
+        item.addClass(
+          "novelview-editor-toc-pending",
+          `novelview-pending-${section.color}`,
+        );
+      }
       item.setText(section.label);
       item.addEventListener("click", (event) => {
         event.preventDefault();
@@ -681,6 +855,273 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  private cancelPendingPanelHide(): void {
+    if (this.pendingHideTimer !== null) {
+      window.clearTimeout(this.pendingHideTimer);
+      this.pendingHideTimer = null;
+    }
+  }
+
+  private schedulePendingPanelHide(): void {
+    this.cancelPendingPanelHide();
+    this.pendingHideTimer = window.setTimeout(() => {
+      this.pendingHideTimer = null;
+      if (
+        this.pendingButton?.matches(":hover")
+        || this.pendingPanel?.matches(":hover")
+        || this.pendingPanel?.contains(document.activeElement)
+      ) {
+        return;
+      }
+      this.pendingPanelOpen = false;
+      this.pendingPanel?.removeClass("is-open");
+      this.pendingButton?.removeClass("is-active");
+    }, 160);
+  }
+
+  private updatePendingUi(): void {
+    if (!this.editorView || !this.pendingButton || !this.pendingPanel) {
+      return;
+    }
+    const selection = this.editorView.state.selection.main;
+    const block = pendingBlockAt(this.editorView.state, selection.head);
+    const panelFocused = Boolean(
+      this.pendingPanel.contains(document.activeElement),
+    );
+    if (!block) {
+      this.pendingButton.removeClass("is-visible");
+      this.pendingPanelOpen = false;
+      this.pendingPanel.removeClass("is-open");
+      this.pendingButton.removeClass("is-active");
+      this.activePending = null;
+      return;
+    }
+    const editorFocused = this.editorView.hasFocus;
+    const keepVisible = editorFocused || panelFocused || this.pendingPanelOpen;
+    if (!keepVisible) {
+      this.pendingButton.removeClass("is-visible");
+      return;
+    }
+    this.activePending = block;
+    this.pendingButton.addClass("is-visible");
+    const coords = this.editorView.coordsAtPos(selection.head);
+    if (coords) {
+      const rect = this.contentEl.getBoundingClientRect();
+      const top = Math.max(
+        46,
+        Math.min(coords.top - rect.top - 8, Math.max(80, rect.height - 110)),
+      );
+      this.pendingButton.setCssProps({
+        "--novelview-pending-top": `${top}px`,
+      });
+      const panelTop = Math.min(
+        Math.max(38, top - 12),
+        Math.max(38, rect.height - 230),
+      );
+      this.pendingPanel.setCssProps({
+        "--novelview-pending-top": `${panelTop}px`,
+      });
+    }
+    if (this.pendingPanelOpen) {
+      this.openPendingPanel();
+    }
+  }
+
+  private openPendingPanel(): void {
+    if (!this.activePending || !this.pendingPanel || !this.pendingInput) {
+      return;
+    }
+    this.cancelPendingPanelHide();
+    this.pendingPanelOpen = true;
+    this.pendingPanel.addClass("is-open");
+    this.pendingTitleError?.setText("");
+    this.pendingButton?.addClass("is-active");
+    if (document.activeElement !== this.pendingInput) {
+      this.pendingInput.value = this.activePending.title;
+    }
+    for (const button of this.pendingEmojiRow?.querySelectorAll<HTMLElement>(
+      ".novelview-pending-emoji",
+    ) ?? []) {
+      button.toggleClass(
+        "is-selected",
+        button.getAttribute("data-emoji") === this.activePending.emoji,
+      );
+    }
+  }
+
+  private updateActivePending(patch: {
+    title?: string;
+    emoji?: string;
+    color?: PendingColor;
+  }): void {
+    if (!this.editorView || !this.activePending) {
+      return;
+    }
+    const current = parsePendingBlocks(this.editorView.state)
+      .find((block) => block.openFrom === this.activePending?.openFrom);
+    if (!current) {
+      return;
+    }
+    const title = (patch.title ?? current.title)
+      .replace(/[\r\n`]/gu, " ")
+      .trim();
+    const emoji = patch.emoji ?? current.emoji;
+    const suffix = title && title !== "待修改部分" ? ` ${title}` : "";
+    const line = `\`\`\`待修改部分${emoji}${suffix}`;
+    this.allowFenceEdit = true;
+    this.editorView.dispatch({
+      changes: {
+        from: current.openFrom,
+        to: current.openTo,
+        insert: line,
+      },
+    });
+    this.allowFenceEdit = false;
+    if (patch.color !== undefined) {
+      this.activePending = {
+        ...this.activePending,
+        color: patch.color,
+      };
+    }
+    this.scheduleTocRefresh();
+    this.updatePendingUi();
+  }
+
+  private deleteActivePending(): void {
+    if (!this.editorView || !this.activePending) {
+      return;
+    }
+    const block = parsePendingBlocks(this.editorView.state)
+      .find((item) => item.openFrom === this.activePending?.openFrom);
+    if (!block) {
+      return;
+    }
+    this.allowFenceEdit = true;
+    const removeLine = (from: number, to: number) => {
+      const doc = this.editorView?.state.doc;
+      if (!doc) {
+        return { from, to, insert: "" };
+      }
+      return {
+        from,
+        to: to < doc.length && doc.sliceString(to, to + 1) === "\n"
+          ? to + 1
+          : to,
+        insert: "",
+      };
+    };
+    this.editorView.dispatch({
+      changes: [
+        removeLine(block.openFrom, block.openTo),
+        removeLine(block.closeFrom, block.closeTo),
+      ],
+    });
+    this.allowFenceEdit = false;
+    this.pendingPanelOpen = false;
+    this.pendingPanel?.removeClass("is-open");
+    this.pendingButton?.removeClass("is-active");
+    this.pendingButton?.removeClass("is-visible");
+    this.activePending = null;
+    this.editorView.focus();
+    this.scheduleTocRefresh();
+  }
+
+  private isPendingTitleDuplicate(title: string): boolean {
+    if (!this.editorView) {
+      return false;
+    }
+    const value = title.trim() || "待修改部分";
+    const current = this.activePending?.openFrom;
+    return parsePendingBlocks(this.editorView.state).some((block) => (
+      block.openFrom !== current && block.title === value
+    ));
+  }
+
+  private selectionOverlapsPending(): boolean {
+    if (!this.editorView) {
+      return false;
+    }
+    const selection = this.editorView.state.selection.main;
+    if (selection.empty) {
+      return false;
+    }
+    return parsePendingBlocks(this.editorView.state).some((block) => (
+      selection.from < block.closeTo + 1 && selection.to > block.openFrom
+    ));
+  }
+
+  private openSelectionContextMenu(event: MouseEvent): void {
+    if (!this.editorView) {
+      return;
+    }
+    const selection = this.editorView.state.selection.main;
+    if (selection.empty || this.selectionOverlapsPending()) {
+      return;
+    }
+    const menu = new Menu();
+    menu.addItem((item) => {
+      item
+        .setTitle("转换成待修改代码块")
+        .setIcon("square-pen")
+        .onClick(() => this.wrapSelectionInPending());
+    });
+    menu.showAtMouseEvent(event);
+  }
+
+  private uniquePendingTitle(): string {
+    if (!this.editorView) {
+      return "待修改部分";
+    }
+    const used = new Set(
+      parsePendingBlocks(this.editorView.state).map((block) => block.title),
+    );
+    if (!used.has("待修改部分")) {
+      return "待修改部分";
+    }
+    let index = 2;
+    while (used.has(`待修改部分 ${index}`)) {
+      index += 1;
+    }
+    return `待修改部分 ${index}`;
+  }
+
+  private wrapSelectionInPending(): void {
+    if (!this.editorView) {
+      return;
+    }
+    const selection = this.editorView.state.selection.main;
+    if (selection.empty) {
+      return;
+    }
+    const doc = this.editorView.state.doc;
+    const selected = this.editorView.state.sliceDoc(selection.from, selection.to);
+    if (!selected.trim()) {
+      return;
+    }
+    const title = this.uniquePendingTitle();
+    const info = title === "待修改部分"
+      ? "```待修改部分🟢"
+      : `\`\`\`待修改部分🟢 ${title}`;
+    const body = selected.endsWith("\n") ? selected.slice(0, -1) : selected;
+    const before = selection.from > 0
+      && doc.sliceString(selection.from - 1, selection.from) !== "\n"
+      ? "\n"
+      : "";
+    const after = selection.to < doc.length
+      && doc.sliceString(selection.to, selection.to + 1) !== "\n"
+      ? "\n"
+      : "";
+    const insertion = `${before}${info}\n${body}\n\`\`\`${after}`;
+    this.allowFenceEdit = true;
+    this.editorView.dispatch({
+      changes: { from: selection.from, to: selection.to, insert: insertion },
+      selection: { anchor: selection.from + insertion.length },
+    });
+    this.allowFenceEdit = false;
+    this.editorView.focus();
+    this.scheduleTocRefresh();
+  }
+
   private autoFormat(): void {
     if (!this.editorView) {
       return;
@@ -690,6 +1131,7 @@ export class NovelEditorView extends ItemView {
       new Notice("Novel View：文档已经是整洁格式，无需调整。");
       return;
     }
+    this.allowFenceEdit = true;
     this.editorView.dispatch({
       changes: {
         from: 0,
@@ -697,6 +1139,7 @@ export class NovelEditorView extends ItemView {
         insert: result.text,
       },
     });
+    this.allowFenceEdit = false;
     this.scheduleSave();
   }
 
@@ -725,16 +1168,84 @@ export class NovelEditorView extends ItemView {
     if (body === this.lastSavedBody) {
       return;
     }
-    this.saveChain = this.saveChain.then(async () => {
-      await this.app.vault.process(file, (data) => {
-        const { head } = splitFrontmatterContent(data);
-        return joinFrontmatterContent(head, body);
+    const previous = sharedSaveChains.get(file.path) ?? this.saveChain;
+    const task = previous
+      .catch(() => undefined)
+      .then(async () => {
+        await this.app.vault.process(file, (data) => {
+          const { head } = splitFrontmatterContent(data);
+          return joinFrontmatterContent(head, body);
+        });
+        this.lastSavedBody = body;
+      })
+      .catch((error) => {
+        console.error("Novel View: save failed", error);
+        new Notice("Novel View：文章保存失败。");
       });
-      this.lastSavedBody = body;
-    }).catch((error) => {
-      console.error("Novel View: save failed", error);
-      new Notice("Novel View：文章保存失败。");
-    });
-    await this.saveChain;
+    this.saveChain = task;
+    sharedSaveChains.set(file.path, task);
+    try {
+      await task;
+    } finally {
+      if (sharedSaveChains.get(file.path) === task) {
+        sharedSaveChains.delete(file.path);
+      }
+    }
+  }
+
+  private async syncFromDisk(): Promise<void> {
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    const path = this.filePath;
+    await new Promise((resolve) => window.setTimeout(resolve, 20));
+    const pendingSave = sharedSaveChains.get(path);
+    if (pendingSave) {
+      await pendingSave.catch(() => undefined);
+    }
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile) || !this.editorView || this.filePath !== path) {
+      return;
+    }
+    let content: string;
+    try {
+      content = await this.app.vault.read(file);
+    } catch {
+      return;
+    }
+    if (!this.editorView || this.filePath !== path) {
+      return;
+    }
+    const diskBody = splitFrontmatterContent(content).body;
+    const currentBody = this.editorView.state.doc.toString();
+    if (diskBody === currentBody) {
+      this.lastSavedBody = diskBody;
+      return;
+    }
+    if (currentBody !== this.lastSavedBody) {
+      await this.flushSave();
+      return;
+    }
+    const selection = this.editorView.state.selection.main;
+    const scrollTop = this.editorView.scrollDOM.scrollTop;
+    this.loading = true;
+    try {
+      this.editorView.dispatch({
+        changes: {
+          from: 0,
+          to: this.editorView.state.doc.length,
+          insert: diskBody,
+        },
+        selection: {
+          anchor: Math.min(selection.head, diskBody.length),
+        },
+      });
+    } finally {
+      this.loading = false;
+    }
+    this.lastSavedBody = diskBody;
+    this.editorView.scrollDOM.scrollTop = scrollTop;
+    this.scheduleTocRefresh();
+    this.updatePendingUi();
   }
 }

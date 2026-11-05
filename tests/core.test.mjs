@@ -12,19 +12,23 @@ import {
 } from "../.test-build/paragraphs.mjs";
 import { compareFilesNaturally } from "../.test-build/format-utils.mjs";
 import {
-  DEFAULT_LINK_GROUP,
-  findLinkKeywordMatches,
-  getLinkGroupTags,
-  getLinkKeywordEntries,
-  parseLinkLibrary,
-  serializeLinkLibrary,
-} from "../.test-build/link-library.mjs";
+  HISTORY_RETENTION_MS,
+  pruneNovelHistory,
+} from "../.test-build/novel-config.mjs";
 import {
   compileSearchExpression,
   findSearchMatches,
   replaceSearchMatches,
 } from "../.test-build/search.mjs";
 import { formatNovelMarkdown } from "../.test-build/format.mjs";
+import { formatNovelTxt, parseNovelTxt } from "../.test-build/txt.mjs";
+import {
+  findSettingKeywordMatches,
+  getSettingKeywordEntries,
+  parseSettingCollectionIndex,
+  serializeSettingCollectionIndex,
+  settingGroupFolderName,
+} from "../.test-build/setting-collection.mjs";
 import {
   createNovelConfigContent,
   getNovelConfigPath,
@@ -473,52 +477,6 @@ test("identifies list, quote, and callout lines as native blocks", () => {
 
 
 
-test("keeps tags for the default link group", () => {
-  const data = parseLinkLibrary({
-    group: {},
-    tag: {},
-    link: [
-      { "未命名.md": { tag: "标签A", alias: ["别名"] } },
-    ],
-  });
-  data.tags[DEFAULT_LINK_GROUP] = { "标签A": "#e5484d" };
-  const roundtrip = parseLinkLibrary(JSON.parse(serializeLinkLibrary(data)));
-  assert.equal(roundtrip.links[0].tag, "标签A");
-  assert.deepEqual(getLinkGroupTags(roundtrip, DEFAULT_LINK_GROUP), ["标签A"]);
-});
-
-test("aliases replace file names and keyword entries are unique", () => {
-  const data = parseLinkLibrary({
-    group: {},
-    tag: {},
-    link: [
-      { "甲.md": { alias: ["共同别名"] } },
-      { "乙.md": { alias: ["共同别名"] } },
-      { "丙.md": {} },
-    ],
-  });
-  const entries = getLinkKeywordEntries(data);
-  const keywords = entries.map((entry) => entry.keyword);
-  assert.equal(keywords.filter((keyword) => keyword === "共同别名").length, 1);
-  assert.equal(keywords.includes("甲"), false);
-  assert.equal(keywords.includes("乙"), false);
-  assert.equal(keywords.includes("丙"), true);
-});
-
-
-test("does not keep duplicate linked file paths", () => {
-  const data = parseLinkLibrary({
-    group: {},
-    tag: {},
-    link: [
-      { "同一文件.md": { alias: ["别名一"] } },
-      { "同一文件.md": { alias: ["别名二"] } },
-    ],
-  });
-  assert.equal(data.links.length, 1);
-});
-
-
 test("standalone novel editor hides and preserves YAML properties", () => {
   const content = "---\nnovelview-state: 待写\n---\n\n正文 **原样**";
   const split = splitFrontmatterContent(content);
@@ -528,4 +486,118 @@ test("standalone novel editor hides and preserves YAML properties", () => {
   const noFrontmatter = splitFrontmatterContent("正文");
   assert.equal(noFrontmatter.head, "");
   assert.equal(noFrontmatter.body, "正文");
+});
+
+
+test("history keeps only the last seven days", () => {
+  const now = Date.now();
+  const history = [
+    { bucketStart: now - 8 * 24 * 60 * 60 * 1000, path: "旧.md", name: "旧", delta: 10, updatedAt: now },
+    { bucketStart: now - HISTORY_RETENTION_MS + 60_000, path: "近.md", name: "近", delta: 5, updatedAt: now },
+  ];
+  const pruned = pruneNovelHistory(history, now);
+  assert.equal(pruned.length, 1);
+  assert.equal(pruned[0].path, "近.md");
+  const parsed = parseNovelConfig({ history });
+  assert.equal(parsed.history.length, 1);
+  assert.equal(parsed.history[0].path, "近.md");
+});
+
+
+test("TXT import strips two full-width spaces and splits volumes/chapters", () => {
+  const input = [
+    "第1卷 风起",
+    "第一章",
+    "　　第一行",
+    "　　",
+    "　　第二行",
+    "第二章",
+    "第2卷 云涌",
+    "第三章",
+    "　　内容",
+  ].join("\n");
+  const chapters = parseNovelTxt(input);
+  assert.deepEqual(chapters.map((chapter) => ({
+    title: chapter.title,
+    volume: chapter.volume,
+    body: chapter.body,
+  })), [
+    { title: "第一章", volume: "风起", body: "第一行\n\n第二行" },
+    { title: "第二章", volume: "风起", body: "" },
+    { title: "第三章", volume: "云涌", body: "内容" },
+  ]);
+});
+
+test("TXT export/import round-trips volume and chapter structure", () => {
+  const formatted = formatNovelTxt([
+    { title: "第一章", volume: "风起", volumeNumber: 1, body: "第一行\n\n第二行" },
+    { title: "第二章", volume: "风起", volumeNumber: 1, body: "" },
+    { title: "第三章", volume: "云涌", volumeNumber: 2, body: "内容" },
+  ]);
+  const parsed = parseNovelTxt(formatted);
+  assert.deepEqual(parsed.map((chapter) => ({
+    title: chapter.title,
+    volume: chapter.volume,
+    body: chapter.body,
+  })), [
+    { title: "第一章", volume: "风起", body: "第一行\n\n第二行" },
+    { title: "第二章", volume: "风起", body: "" },
+    { title: "第三章", volume: "云涌", body: "内容" },
+  ]);
+  assert.equal(formatted.includes("\u3000\u3000"), true);
+});
+
+
+test("setting collection index parses groups, tags, colors and entries", () => {
+  const data = parseSettingCollectionIndex({
+    人物: [
+      {
+        tag: "主角",
+        color: 0xff0000,
+        contain: [
+          { keyword: "零一", content: "主角设定" },
+          { keyword: "", content: "" },
+        ],
+      },
+    ],
+    地点: [],
+  });
+  assert.deepEqual(data, {
+    人物: [{
+      tag: "主角",
+      color: "16711680",
+      contain: [{ keyword: "零一", content: "主角设定" }],
+    }],
+    地点: [],
+  });
+  assert.equal(settingGroupFolderName("人物"), "人物");
+  assert.equal(settingGroupFolderName("bad/name"), "bad-name");
+  const roundtrip = parseSettingCollectionIndex(
+    JSON.parse(serializeSettingCollectionIndex(data)),
+  );
+  assert.deepEqual(roundtrip, data);
+});
+
+
+test("setting collection keywords keep tag color and first occurrence", () => {
+  const index = parseSettingCollectionIndex({
+    人物: [
+      {
+        tag: "主角",
+        color: "#ff0000",
+        contain: [{ keyword: "零一", content: "主角简介" }],
+      },
+      {
+        tag: "反派",
+        color: "#9900ff",
+        contain: [{ keyword: "零一", content: "重复关键词" }],
+      },
+    ],
+  });
+  const entries = getSettingKeywordEntries(index);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].color, "#ff0000");
+  assert.deepEqual(findSettingKeywordMatches("零一与伊兹", entries), [
+    { start: 0, end: 2, entry: entries[0] },
+  ]);
 });

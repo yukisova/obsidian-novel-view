@@ -385,10 +385,10 @@ export class NovelArticleListView extends ItemView {
 
     this.createToolbarButton(
       toolbar,
-      "link",
-      "联动库",
+      "library",
+      "设定集",
       () => {
-        void this.plugin.openLinkLibrary(model.folderPath);
+        void this.plugin.openSettingCollection(model.folderPath);
       },
     );
 
@@ -552,7 +552,7 @@ export class NovelArticleListView extends ItemView {
       this.focusedFolderPath = model.folderPath;
       this.focusedKey = null;
       this.focusedTarget = null;
-      for (const other of this.contentEl.querySelectorAll(".novelview-article-row.is-focused, .novelview-link-group-row.is-focused")) {
+      for (const other of this.contentEl.querySelectorAll(".novelview-article-row.is-focused")) {
         other.classList.remove("is-focused");
       }
     });

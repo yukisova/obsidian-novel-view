@@ -6,13 +6,12 @@ import {
 } from "./core/search";
 import type NovelViewPlugin from "./main";
 
-type SearchScope = "chapter" | "volume" | "book" | "links";
+type SearchScope = "chapter" | "volume" | "book";
 
 const SCOPE_LABELS: Record<SearchScope, string> = {
   chapter: "全章",
   volume: "本卷",
   book: "全书",
-  links: "联动库文件",
 };
 
 export class SearchPanelV2 {
@@ -149,12 +148,6 @@ export class SearchPanelV2 {
     }
     if (this.activeScope === "chapter") {
       return [current];
-    }
-    if (this.activeScope === "links") {
-      const data = await this.plugin.readLinkLibrary(group);
-      return data.links
-        .map((link) => this.plugin.getLinkTargetFile(group, link.path))
-        .filter((file: TFile | null): file is TFile => file instanceof TFile);
     }
     if (this.activeScope === "volume") {
       const parent = this.plugin.normalizeFolderPath(current.parent?.path ?? "/");

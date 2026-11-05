@@ -5,15 +5,15 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.8.5-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.9.12-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
 </p>
 
-Novel View 是一个面向长篇小说写作的 Obsidian 插件。小说文章使用独立的纯文本编辑视图，不经过 Obsidian 原生 MarkdownView 渲染；插件围绕小说组、文章列表、卷与文章组、素材库、联动库、小说模式和查找替换提供完整的写作工作流。
+Novel View 是一个面向长篇小说写作的 Obsidian 插件。小说文章使用独立的纯文本编辑视图，不经过 Obsidian 原生 MarkdownView 渲染；插件围绕小说组、文章列表、卷与文章组、素材库、设定集、小说模式和查找替换提供完整的写作工作流。
 
-Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdown editor and adds novel groups, an article tree, volumes and article groups, a materials library, a linked-file library, novel mode, and find/replace.
+Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdown editor and adds novel groups, an article tree, volumes and article groups, a materials library, a setting collection, novel mode, and find/replace.
 
 > **桌面端专用。** 系统文件选择器、TXT 导入导出与封面资源管理依赖桌面端能力，插件已声明为 desktop-only。
 
@@ -28,7 +28,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - [Novel View 工作台](#novel-view-工作台)
 - [文章列表](#文章列表)
 - [卷与文章组](#卷与文章组)
-- [联动库](#联动库)
+- [设定集](#设定集)
 - [素材库](#素材库)
 - [小说模式](#小说模式)
 - [高级查找替换](#高级查找替换)
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.8.5.zip](dist/novel-view-0.8.5.zip)。
+1. 下载 [novel-view-0.9.12.zip](dist/novel-view-0.9.12.zip)。
 2. 解压到：
 
    ```text
@@ -90,7 +90,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 点击简介：在界面内编辑并保存；
 - 点击封面：选择图片作为小说封面。
 
-工作台下方会显示 **历史记录** 卡片：每四小时为一个时间段，按日期倒序记录各章节的字数增减。
+工作台下方会显示 **历史记录** 卡片：每四小时为一个时间段，按日期倒序记录各章节的字数增减，仅保留最近 7 天。
 
 封面与卷海报会保存到小说组的 `src/` 文件夹。
 
@@ -103,6 +103,8 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 文章按属性 `novelview-id` 排序，与文件名无关。
 - 新建文章自动分配当前序列的下一个递增 ID。
 - 卷顺序保存在 `novel.json` 的 `volume-order` 中，不按名称排序。
+- 卷名不能以 `-` 开头；重命名为该形式会取消并提示，`-` 前缀保留给设定集。
+- 以 `-` 开头的文件夹不能构建为小说组。
 - 分散卷始终显示；没有分散文章时也会保留。
 - ID 不在树状列表中显示。
 - 右键卷可：
@@ -153,10 +155,41 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 工具栏的 **导入与导出** 菜单提供：
 
-- **导入 TXT**：使用系统文件选择器选择一个 TXT 文件，并在当前小说组中创建章节；
-- **导出合并稿**：将小说组全部文章合并为一个 TXT，并通过系统文件夹选择器指定保存位置。
+- **导入 TXT**：按卷名、章名、正文行的格式批量创建卷和章节；
+- **导出合并稿**：按卷名、章名、正文格式导出，并通过系统文件夹选择器保存。
 
-单章与单卷也可通过右键菜单导出 TXT。
+#### TXT 格式
+
+导入：
+
+```text
+第1卷 风起
+第一章
+　　正文第一行
+　　
+　　正文第二行
+第二章
+```
+
+- `第x卷 卷名` 识别为卷标题，创建/复用同名卷。
+- 非空且不以两个全角空格开头的行识别为章名。
+- 以两个全角空格开头的行是正文；导入时删除这两个字符。
+- 连续章名会创建空章节。
+- 没有卷标题时，章节导入到小说组根目录。
+
+导出：
+
+```text
+第1卷 风起
+第一章
+　　正文第一行
+　　
+　　正文第二行
+```
+
+- 卷标题为 `第n卷 ` 加原卷名。
+- 正文每一行前加入两个全角空格，包括空行。
+- 单章、单卷、选章和全组导出使用同一格式。
 
 ### 卷与文章组
 
@@ -190,55 +223,79 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
   - **以下**：移出该文章及其下方同组成员；
   - **以上**：移出该文章及其上方同组成员。
 
-### 联动库
+### 设定集
 
-联动库用于建立小说关键词与其他 Markdown 文件之间的关联，并在小说模式中自动高亮关键词。
+设定集用于整理小说的设定资料，替代原联动库。
 
-#### 联动组与标签
+- 在 Obsidian 文件列表右击小说组，可选择 **构建设定集**。
+- 插件会在小说组内创建 `-设定` 文件夹，文件列表显示时忽略开头的 `-`。
+- 小说组在文件列表中强制展开，只显示其下的设定集，且不可折叠。
+- 设定集自身可以正常展开/折叠查看其下文件。
+- 设定集文件不会进入小说章节编辑模式，按普通 Markdown 文件打开。
 
-- 联动组用于组织联动文件。
-- 标签可选；一个联动文件最多一个标签。
-- 标签颜色用于关键词高亮。
-- 联动组不再支持粗体、斜体、粗斜体、下划线等字体样式。
-- 新建联动组会直接创建，不弹出命名窗口。
-- 组、标签均支持右键就地重命名。
-- 标签支持右键修改颜色或解绑；解绑不再弹确认窗口。
-- 导入窗口只按文件名/路径筛选，不再使用回车导入。
+#### index.json
 
-#### 别名与关键词唯一性
+设定集目录必须包含 `index.json`。文件缺失时插件会自动重建；重建时会优先保留现有组文件夹。
 
-- 联动文件可以有多个别名，逗号分隔。
-- 有别名时，**别名替代文件名**作为关键词。
-- 无别名时，文件名作为关键词。
-- 一个关键词只能指向一个联动文件。
-- 导入、编辑别名、重命名时都会检查关键词冲突；冲突时强制输入唯一别名。
-- 若取消别名输入，本次操作无效。
-- 重命名冲突时，别名只替代显示关键词，不修改实际文件名，避免产生同名文件。
+```json
+{
+  "人物": [
+    {
+      "tag": "主角",
+      "color": "#ff0000",
+      "contain": [
+        {
+          "keyword": "零一",
+          "content": "主角设定简介"
+        }
+      ]
+    }
+  ],
+  "地点": []
+}
+```
 
-#### 树状结构与操作
-
-- 组下包含：
-  - **未设置标签**文件；
-  - 标签分组及其文件。
-- 单击联动文件：仅聚焦。
-- 双击联动文件：打开文件。
-- 同一时间只允许一个联动文件聚焦。
-- 点击空白处或开始框选会取消聚焦。
-- 鼠标悬停联动文件显示完整路径。
-- 文件副标题只显示别名；无别名时主标题放大。
-- 多选联动文件后可拖拽：
-  - 拖到组名：移入该组；
-  - 拖到标签名：移入该组并归入该标签；
-  - 拖到文件之间：插入并调整顺序。
-- 联动库支持 `Cmd/Ctrl+Z` 撤销移动、删除、重命名、标签和别名变更。
-
-#### 导入联动文件
-
-- 打开导入窗口后可按文件名实时筛选。
-- 双击文件尝试导入。
-- 无重名时直接导入。
-- 与已有文件名或别名重名时，必须输入新别名。
-- 别名仍重复时继续要求重新输入。
+- 每个顶层键是一个设定分组，值是该组的标签列表。
+- 每个标签包含 `tag`、`color` 和 `contain`。
+- `contain` 中每条记录包含 `keyword` 和 `content`。
+- 插件会根据 index.json 的设定分组名，在设定集目录中自动创建对应文件夹。
+- 设定集目录中不存在于 index.json 的设定分组文件夹会被自动删除，视为外部加入的目录。
+- 在文件列表内重命名设定分组文件夹时，会自动更新 index.json 的分组名；若新名称缺少 `-` 前缀，会自动补回，避免文件夹被目录同步删除。
+- index.json 修改后会自动重新同步文件夹。
+- 文章列表工具栏的“设定集”入口用于查看 index.json 中的组、标签和记录。
+- 设定集完全取代原联动库；联动库视图、links.json 读写和旧关键词高亮代码均已移除。
+- 文章列表工具栏的设定集按钮始终可以打开设定集视图；尚未构建设定集时，视图内提供“构建设定集”按钮。
+- 设定集视图提供“导入设定”按钮：选择一个文件夹后，其一级子文件夹名称会作为新的设定分组，子文件夹内容递归导入到对应的 `-分组名` 文件夹。
+- 设定集标题显示对应设定集文件夹名称（隐藏开头 `-`），副标题显示小说组名。
+- 设定集空白处右击可新建设定分组；尚未构建设定集时该菜单为构建设定集。
+- 设定记录悬停时的详细文件按钮不显示标题，与简介以分隔线隔开，左对齐并每行两个。
+- 设定集视图支持：
+  - 新建、重命名、删除设定分组；
+  - 在分组下新建标签、选择标签颜色；
+  - 在标签下新建、编辑、删除设定记录；
+  - 设定记录包含关键词与简介，关键词在同一分组内唯一。
+- 卡片根据鼠标悬停自动展开、折叠：
+  - 设定分组默认只显示标题，悬停展开标签列表；
+  - 标签默认只显示名称，悬停展开记录；
+  - 记录默认只显示关键词，悬停显示简介；
+  - 鼠标移出后自动折叠，同一时间只展开当前悬停层级。
+- 拖拽操作期间会自动展开所有分组和标签，方便定位放置目标。
+- 从正文关键词跳转时，会强制展开并高亮对应分组、标签和记录。
+- 设定记录的详细文件：
+  - 放在该记录所属设定分组文件夹下；
+  - 文件名以 `关键词-标题.md` 命名，例如 `小王-生平履历.md`；
+  - 设定集视图中悬停记录会列出详细文件，点击打开；
+  - 记录右侧 `+` 或右键可新建详细文件；
+  - 记录重命名时详细文件前缀同步重命名；
+  - 记录或标签跨设定分组移动时，详细文件跟随移动。
+- 设定集支持拖拽移动：
+  - 拖动记录到其他标签：移动记录；
+  - 拖动记录到另一条记录前后：调整记录顺序；
+  - 拖动标签到其他设定分组：移动标签及其记录；
+  - 拖动标签到另一标签前后：调整标签顺序或跨组插入；
+  - 拖动设定分组到另一分组前后：调整分组顺序；
+  - 目标位置出现插入线或高亮边框；
+  - 标签重名或关键词重复时取消移动并提示。
 
 ### 素材库
 
@@ -269,6 +326,16 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
   - 格式设置。
 - 插入的图片在正文中以块级图片实时显示，并保留原始嵌入链接。
 - 编辑器内右键菜单暂时禁用。
+
+#### 待修改部分
+
+- 使用 ` ```待修改部分🟢 ` 开启一个待修改代码块，结尾使用 ` ``` ` 关闭。
+- 标题写在 emoji 后，例如 ` ```待修改部分🔴 雨夜重写 `。
+- emoji 决定整个待修改部分的背景颜色；未写 emoji 时默认绿色。
+- 代码块围栏、标题和关闭符号不会直接显示或进入编辑。
+- 光标位于待修改正文时，右侧出现浮动按钮；鼠标悬停可修改标题、切换背景 emoji，或移除代码块标记（保留正文）。
+- TOC 中待修改部分条目使用对应 emoji 背景色。
+- TOC 会把待修改部分作为独立条目，并忽略块内的 `---` 分隔线。
 - 输入后自动保存，关闭视图前会完成最后一次保存。
 - 普通 MarkdownView 不再被小说模式修改，其编辑与渲染逻辑保持原生行为。
 
@@ -299,7 +366,6 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
   - 全章；
   - 本卷；
   - 全书；
-  - 联动库文件。
 - 输入时实时查找。
 - 结果按文件分组，点击文件展开详情。
 - 窗口标题下显示当前小说组。
@@ -351,7 +417,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 旧版 `NovelSetting.md` 会在首次加载时自动迁移描述和封面到 `novel.json`；原文件会保留并正常显示，可自行归档或删除。
 - 文章 ID 保存在笔记属性 `novelview-id`。
 - 文章状态保存在 `novelview-state`。
-- 联动数据保存在小说组根目录 `links.json`。
+- 设定集数据保存在小说的 `-设定/index.json`。
 - `history` 由工作台历史记录自动生成，无需手动维护。
 
 ### 快捷键与操作
@@ -360,9 +426,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 | --- | --- |
 | 新建章节 | 文章列表内 `Cmd/Ctrl+N` |
 | 撤销文章列表操作 | 文章列表内 `Cmd/Ctrl+Z` |
-| 撤销联动库操作 | 联动库内 `Cmd/Ctrl+Z` |
 | 多选文章 | 框选 / Shift / Ctrl/Cmd |
-| 快速打开联动文件 | 双击联动文件 |
 | 关闭查找窗口 | `Esc` |
 | 取消 MainArea 拖拽 | `Esc` 或拖出 MainArea |
 
@@ -403,7 +467,7 @@ manifest.json
 - [Workbench](#workbench)
 - [Article list](#article-list)
 - [Volumes and article groups](#volumes-and-article-groups)
-- [Linked-file library](#linked-file-library)
+- [Setting collection](#setting-collection)
 - [Materials library](#materials-library)
 - [Novel mode](#novel-mode)
 - [Find and replace](#find-and-replace)
@@ -422,7 +486,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.8.5.zip](dist/novel-view-0.8.5.zip).
+1. Download [novel-view-0.9.12.zip](dist/novel-view-0.9.12.zip).
 2. Extract it to:
 
    ```text
@@ -528,8 +592,41 @@ Right-click selected articles → **Change status** to set it in bulk. Each chap
 
 The toolbar's **Import & Export** menu provides:
 
-- **Import TXT**: pick a TXT file with the system file picker and create a chapter;
-- **Export merged manuscript**: merge all group articles into one TXT and choose the destination folder with the system folder picker.
+- **Import TXT**: bulk-create volumes and chapters from the volume/chapter/body format;
+- **Export merged manuscript**: export in the same volume/chapter/body format to a chosen folder.
+
+#### TXT format
+
+Import:
+
+```text
+第1卷 风起
+第一章
+　　正文第一行
+　　
+　　正文第二行
+第二章
+```
+
+- Lines like `第x卷 卷名` create or reuse a volume.
+- Other non-empty lines that do not start with two ideographic spaces are chapter titles.
+- Lines starting with two ideographic spaces are body text; those two characters are removed on import.
+- Consecutive chapter titles create empty chapters.
+- Without a volume heading, chapters are created at the novel-group root.
+
+Export:
+
+```text
+第1卷 风起
+第一章
+　　正文第一行
+　　
+　　正文第二行
+```
+
+- Volume headings are `第n卷 ` plus the original volume name.
+- Every body line, including blank lines, gets two leading ideographic spaces.
+- Single-chapter, single-volume, selected-chapter, and whole-group exports use the same format.
 
 Individual chapters and volumes can also be exported from their context menus.
 
@@ -565,55 +662,78 @@ Actions:
   - **Below**: remove this article and the members below it;
   - **Above**: remove this article and the members above it.
 
-### Linked-file library
+### Setting collection
 
-The linked-file library connects novel keywords to other Markdown files and highlights those keywords in novel mode.
+The setting collection organizes worldbuilding reference material and replaces the former linked-file library.
 
-#### Groups and tags
+- Right-click a novel group in Obsidian's file explorer and choose **Build setting collection**.
+- The plugin creates a `-设定` folder inside the novel group; the leading `-` is hidden in the file explorer.
+- The novel group is forced open and shows only its setting collection, without a collapse control.
+- The setting collection itself expands and collapses normally to show its files.
+- Setting-collection files are not novel chapters and open as normal Markdown files.
 
-- Groups organize linked files.
-- Tags are optional; a linked file has at most one tag.
-- Tag colors are used for keyword highlighting.
-- Group font styles (bold, italic, bold italic, underline) are no longer supported.
-- New groups are created immediately without a naming dialog.
-- Groups and tags can be renamed inline from the context menu.
-- Tags can be recolored or unbound from the context menu; unbinding no longer asks for confirmation.
-- The import window filters by filename/path and does not use Enter to import.
+#### index.json
 
-#### Aliases and keyword uniqueness
+The setting-collection folder must contain `index.json`. If it is missing, the plugin recreates it, preserving existing group folders where possible.
 
-- A linked file may have multiple aliases, separated by commas.
-- When aliases exist, **aliases replace the filename** as highlight keywords.
-- Without aliases, the filename is the keyword.
-- A keyword may point to only one linked file.
-- Importing, editing aliases, and renaming all validate keyword uniqueness and force a unique alias on conflict.
-- Canceling the alias prompt cancels the operation.
-- If a rename conflicts, the alias replaces the displayed keyword without renaming the actual file, preventing duplicate filenames.
+```json
+{
+  "人物": [
+    {
+      "tag": "主角",
+      "color": "#ff0000",
+      "contain": [
+        {
+          "keyword": "零一",
+          "content": "Protagonist profile"
+        }
+      ]
+    }
+  ],
+  "地点": []
+}
+```
 
-#### Tree and interactions
-
-- Each group contains:
-  - files under **No tag**;
-  - tag sections with their files.
-- Single-click a linked file to focus it.
-- Double-click to open it.
-- Only one linked file can be focused at a time.
-- Clicking blank space or starting a marquee clears focus.
-- Hover a linked file to see its full path.
-- The subtitle shows aliases only; without aliases the main title is enlarged.
-- Drag multi-selected linked files:
-  - onto a group name: move to that group;
-  - onto a tag name: move to that group and assign the tag;
-  - between files: insert at that position.
-- `Cmd/Ctrl+Z` undoes moves, deletions, renames, tag changes, and alias changes.
-
-#### Importing linked files
-
-- Filter candidates by filename in real time.
-- Double-click a file to import it.
-- Import directly when there is no conflict.
-- If the filename conflicts with an existing filename or alias, a unique alias is required.
-- If the alias also conflicts, the prompt remains until a unique alias is entered.
+- Each top-level key is a setting group; its value is a list of tags.
+- Each tag has `tag`, `color`, and `contain`.
+- Each `contain` entry has `keyword` and `content`.
+- The plugin creates one folder under the setting collection for each index group.
+- Folders not present in index.json are automatically deleted as externally added directories.
+- Editing index.json automatically resynchronizes the group folders.
+- The article-list **Setting collection** entry displays groups, tags, and records from index.json.
+- Setting-group folders use a leading `-` (for example `-设定/-人物`) and are kept in sync with index.json.
+- Renaming a group folder in the file explorer updates its index key and restores the leading `-` if omitted.
+- The setting-collection view offers **Import settings**: each direct subfolder becomes a setting group, and its contents are imported recursively.
+- The setting collection fully replaces the old linked-file library, whose code has been removed.
+- The view title shows the setting-collection folder name with its leading `-` hidden; the subtitle shows the novel group.
+- Right-clicking empty space offers “New setting group” (or “Build setting collection” when missing).
+- Record detail buttons are left-aligned, two per row, with no “detail files” heading and separated from the description by a divider.
+- Setting-record keywords are highlighted in the novel editor using their tag color.
+- Hovering a keyword shows a card with the keyword title, tag on the left, setting group on the right, description between dividers, and two-column detail-file buttons.
+- Clicking a keyword opens the setting collection and focuses the matching record.
+- The old article-toolbar “linked-file library” entry now opens the setting collection view.
+- The view supports creating, renaming, and deleting setting groups; creating colored tags; and creating/editing/deleting records with a unique keyword per group.
+- Detail files for setting records:
+  - Live in the record's setting-group folder;
+  - Use `keyword-title.md`, for example `小王-生平履历.md`;
+  - Appear under the record on hover and open on click;
+  - Can be created from the record's `+` button or context menu;
+  - Are renamed with the record keyword and move with the record or tag across groups.
+- Cards expand and collapse on hover:
+  - A group shows only its title until hovered, then reveals its tags;
+  - A tag shows only its name until hovered, then reveals its records;
+  - A record shows only its keyword until hovered, then reveals its description;
+  - Leaving the area collapses it again;
+  - All groups and tags expand while dragging to make drop targets reachable.
+- Keyword navigation forces the matching group, tag, and record open and highlighted.
+- Drag and drop:
+  - Drag a record onto another tag to move it;
+  - Drop a record before or after another record to reorder;
+  - Drag a tag onto another group to move it with its records;
+  - Drop a tag before or after another tag to reorder or insert across groups;
+  - Drop a group before or after another group to reorder groups;
+  - Insertion lines and highlighted drop zones show the target;
+  - Duplicate tag names or record keywords cancel the move with a notice.
 
 ### Materials library
 
@@ -643,8 +763,19 @@ Markdown files inside a novel group open in the standalone **Novel Editor** view
   - find/replace;
   - format settings.
 - Inserted images render as block-level images in the body while preserving their embed markup.
-- The editor context menu is disabled for now.
-- Changes save automatically, with a final save when the view closes.
+- Select prose and right-click to choose “转换成待修改代码块”; pending titles default to “待修改部分” with automatic numbering when duplicated.
+- Right-clicking without a selection no longer shows the default context menu.
+
+#### Pending revisions
+
+- Start a pending-revision block with ` ```待修改部分🟢 ` and close it with ` ``` `.
+- Put a custom title after the emoji, for example ` ```待修改部分🔴 Rainy-night rewrite `.
+- The emoji selects the block background color; green is used when no emoji is present.
+- Fence lines, the title, and the closing fence are hidden from direct editing.
+- When the caret is inside the block content, a floating button appears on the right; hover it to edit the title, change the emoji color, or remove the block markers while keeping the prose.
+- TOC entries for pending blocks use the matching emoji background color.
+- The TOC lists the pending block as its own section and ignores `---` separators inside it.
+- Changes save automatically, with a final save when the view closes; split views of the same file save the current editor and reload the latest content when focus switches.
 - Normal MarkdownView is no longer modified by novel mode and keeps native editing and rendering.
 
 #### Auto format
@@ -726,7 +857,7 @@ Notes:
 - Legacy `NovelSetting.md` files are migrated to `novel.json` on first load. The original Markdown file is kept visible and can be archived or deleted manually.
 - Article IDs are stored in `novelview-id`.
 - Chapter status is stored in `novelview-state`.
-- Linked-file data is stored in `links.json` in the novel-group root.
+- Setting-collection data is stored in `-设定/index.json` inside the novel group.
 - `history` is maintained automatically by the workbench history card.
 
 ### Shortcuts
@@ -735,9 +866,7 @@ Notes:
 | --- | --- |
 | New chapter | `Cmd/Ctrl+N` in the article list |
 | Undo article-list action | `Cmd/Ctrl+Z` in the article list |
-| Undo linked-library action | `Cmd/Ctrl+Z` in the linked-file library |
 | Multi-select articles | Marquee / Shift / Ctrl/Cmd |
-| Open linked file | Double-click |
 | Close find window | `Esc` |
 | Cancel MainArea drag | `Esc` or drag outside MainArea |
 
