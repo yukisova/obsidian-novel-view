@@ -17,7 +17,7 @@ export class ModeSettingsPanel {
   ) {
     this.values = { ...initial };
     this.onChange = onChange;
-    this.root = createEl("div", { cls: "novelview-mode-settings" });
+    this.root = createDiv({ cls: "novelview-mode-settings" });
     this.root.setAttr("role", "dialog");
     this.root.setAttr("aria-label", "格式设置");
     const header = this.root.createDiv({ cls: "novelview-mode-settings-header" });
@@ -32,7 +32,7 @@ export class ModeSettingsPanel {
     this.slider("行距", "lineHeight", 1.2, 2.4, 0.1, "倍");
     this.slider("段距", "paragraphSpacing", 0, 2, 0.1, "em");
     this.slider("首行缩进", "firstLineIndent", 0, 8, 1, "字符");
-    document.body.appendChild(this.root);
+    activeDocument.body.appendChild(this.root);
   }
 
   private slider(

@@ -1,9 +1,12 @@
 import {
   ItemView,
+  Notice,
   setIcon,
   TFile,
   type WorkspaceLeaf,
 } from "obsidian";
+import { confirmAction } from "./confirm-modal";
+import { SettingGroupModal } from "./setting-collection-modal";
 import type NovelViewPlugin from "./main";
 
 export const WORKBENCH_VIEW_TYPE = "novelview-workbench";
@@ -59,6 +62,7 @@ export class NovelWorkbenchView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    await Promise.resolve();
     this.renderToken += 1;
     if (this.refreshFrame !== null) {
       window.cancelAnimationFrame(this.refreshFrame);
@@ -90,8 +94,8 @@ export class NovelWorkbenchView extends ItemView {
 
     if (novel) {
       const model = this.plugin.getArticleListModel(novel.folderPath);
-      const articles: any[] = model
-        ? [...model.articles, ...model.volumes.flatMap((volume: any) => volume.articles)]
+      const articles = model
+        ? [...model.articles, ...model.volumes.flatMap((volume) => volume.articles)]
         : [];
       let wordCount = 0;
       for (const article of articles) {
@@ -208,10 +212,120 @@ export class NovelWorkbenchView extends ItemView {
       }
     });
 
+    this.renderNovelRootFiles(body, novel.folderPath);
+
     root.createDiv({
       cls: "novelview-workbench-novel-stats",
       text: `${new Intl.NumberFormat("zh-CN").format(stats.wordCount)}字 · 共 ${stats.volumeCount} 卷 · ${stats.chapterCount} 章`,
     });
+  }
+
+  private renderNovelRootFiles(body: HTMLElement, folderPath: string): void {
+    const files = this.app.vault.getFiles()
+      .filter((file) => (
+        file.extension === "md"
+        && file.parent?.path === folderPath
+        && file.basename.startsWith("-")
+        && !this.plugin.isSpecialNovelFile(file)
+      ))
+      .sort((left, right) => left.basename.localeCompare(
+        right.basename,
+        "zh-CN",
+        { numeric: true, sensitivity: "base" },
+      ));
+    if (files.length === 0) {
+      return;
+    }
+    const section = body.createDiv({
+      cls: "novelview-workbench-root-files",
+    });
+    section.createDiv({
+      cls: "novelview-workbench-root-files-title",
+      text: "小说组文件",
+    });
+    for (const file of files) {
+      const row = section.createDiv({
+        cls: "novelview-workbench-root-file",
+      });
+      const icon = row.createSpan({
+        cls: "novelview-workbench-root-file-icon",
+      });
+      setIcon(icon, "file-text");
+      row.createSpan({
+        cls: "novelview-workbench-root-file-name",
+        text: file.basename.replace(/^-+/u, ""),
+      });
+      row.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement | null)?.closest("button")) {
+          return;
+        }
+        void this.app.workspace.getLeaf(false).openFile(file);
+      });
+      const actions = row.createDiv({
+        cls: "novelview-workbench-root-file-actions",
+      });
+      const rename = actions.createEl("button", {
+        attr: { type: "button", "aria-label": "重命名文件", title: "重命名" },
+      });
+      setIcon(rename, "pencil");
+      rename.addEventListener("click", () => {
+        this.renameRootFile(file);
+      });
+      const remove = actions.createEl("button", {
+        attr: { type: "button", "aria-label": "删除文件", title: "删除" },
+      });
+      setIcon(remove, "trash-2");
+      remove.addEventListener("click", () => {
+        void this.deleteRootFile(file);
+      });
+    }
+  }
+
+  private renameRootFile(file: TFile): void {
+    new SettingGroupModal(
+      this.app,
+      "重命名文件",
+      file.basename.replace(/^-+/u, ""),
+      async (value, setError) => {
+        const cleanName = value.replace(/^-+/u, "");
+        const safeName = this.plugin.sanitizeFileBase(
+          cleanName,
+          file.basename.replace(/^-+/u, ""),
+        );
+        const base = `-${safeName}`;
+        if (!safeName || base === file.basename) {
+          return true;
+        }
+        const targetPath = `${file.parent?.path ?? ""}/${base}.md`;
+        if (this.app.vault.getAbstractFileByPath(targetPath)) {
+          setError("同名文件已存在。");
+          return false;
+        }
+        await this.app.fileManager.renameFile(file, targetPath);
+        this.plugin.refreshArticleListViews();
+        this.scheduleRefresh();
+        return true;
+      },
+      "文件名",
+    ).open();
+  }
+
+  private async deleteRootFile(file: TFile): Promise<void> {
+    const confirmed = await confirmAction(
+      this.app,
+      "删除文件",
+      `删除“${file.basename}”？`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    if (!(file instanceof TFile)) {
+      new Notice("Novel View：文件不存在。");
+      return;
+    }
+    await this.app.fileManager.trashFile(file);
+    this.plugin.refreshArticleListViews();
+    this.scheduleRefresh();
   }
 
   private renderHistory(folderPath: string): void {

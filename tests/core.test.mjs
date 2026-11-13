@@ -26,6 +26,8 @@ import {
   findSettingKeywordMatches,
   getSettingKeywordEntries,
   parseSettingCollectionIndex,
+  parseSettingGroupMarkdown,
+  serializeSettingGroupMarkdown,
   serializeSettingCollectionIndex,
   settingGroupFolderName,
 } from "../.test-build/setting-collection.mjs";
@@ -566,7 +568,13 @@ test("setting collection index parses groups, tags, colors and entries", () => {
     人物: [{
       tag: "主角",
       color: "16711680",
-      contain: [{ keyword: "零一", content: "主角设定" }],
+      contain: [{
+        keyword: "零一",
+        content: "主角设定",
+        fields: [],
+        relations: [],
+        marks: [],
+      }],
     }],
     地点: [],
   });
@@ -600,4 +608,27 @@ test("setting collection keywords keep tag color and first occurrence", () => {
   assert.deepEqual(findSettingKeywordMatches("零一与伊兹", entries), [
     { start: 0, end: 2, entry: entries[0] },
   ]);
+});
+
+
+test("setting group markdown round-trips fields, relations and marks", () => {
+  const tags = [{
+    tag: "主角",
+    color: "#e74c3c",
+    contain: [{
+      keyword: "小红",
+      content: "小红在13岁那年离开旧宅。",
+      fields: [{ name: "年龄", value: "16" }],
+      relations: [{
+        targetGroup: "人物",
+        targetKeyword: "小黄",
+        type: "兄妹",
+        direction: "two-way",
+      }],
+      marks: [{ start: 3, end: 7, attribute: "生平" }],
+    }],
+  }];
+  const md = serializeSettingGroupMarkdown(tags);
+  assert.match(md, /novelview-setting-index: true/u);
+  assert.deepEqual(parseSettingGroupMarkdown(md), tags);
 });

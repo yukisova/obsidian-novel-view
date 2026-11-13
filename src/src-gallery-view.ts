@@ -61,6 +61,7 @@ export class NovelSrcGalleryView extends ItemView {
   }
 
   protected override async onOpen(): Promise<void> {
+    await Promise.resolve();
     this.contentEl.empty();
     this.contentEl.addClass("novelview-src-gallery-view");
     this.registerEvent(this.app.vault.on("create", () => this.render()));
@@ -82,6 +83,7 @@ export class NovelSrcGalleryView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    await Promise.resolve();
     this.contentEl.empty();
   }
 
@@ -246,14 +248,14 @@ export class NovelSrcGalleryView extends ItemView {
       }
       input.remove();
     });
-    document.body.appendChild(input);
+    activeDocument.body.appendChild(input);
     input.click();
   }
 
   private deleteFile(file: TFile): void {
     void this.app.fileManager.promptForDeletion(file).then((confirmed) => {
       if (confirmed) {
-        void this.app.vault.delete(file).then(() => this.render());
+        void this.app.fileManager.trashFile(file).then(() => this.render());
       }
     });
   }

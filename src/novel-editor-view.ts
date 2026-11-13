@@ -23,13 +23,25 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { formatNovelMarkdown } from "./core/format";
+import {
+  OUTLINE_MARKS_PROPERTY,
+  parseOutlineMarks,
+  serializeOutlineMarks,
+  type OutlineMark,
+} from "./core/outline-marks";
 import { joinVaultPath } from "./core/novel-config";
 import {
   classifyLine,
   joinFrontmatterContent,
   splitFrontmatterContent,
 } from "./core/paragraphs";
+import {
+  getOutlineMarks,
+  outlineMarksExtension,
+  setOutlineMarksEffect,
+} from "./editor/outline-marks";
 import { settingKeywordExtension } from "./editor/setting-keyword-extension";
+import { TextPromptModal } from "./text-prompt-modal";
 import {
   PENDING_COLOR_OPTIONS,
   pendingBlockAt,
@@ -46,39 +58,6 @@ export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
 
 const sharedSaveChains = new Map<string, Promise<void>>();
 
-class EditorTitleWidget extends WidgetType {
-  constructor(private readonly title: string) {
-    super();
-  }
-
-  override eq(other: EditorTitleWidget): boolean {
-    return other.title === this.title;
-  }
-
-  override toDOM(): HTMLElement {
-    const title = document.createElement("div");
-    title.className = "novelview-editor-title";
-    title.textContent = this.title;
-    return title;
-  }
-
-  override ignoreEvent(): boolean {
-    return true;
-  }
-}
-
-function titleExtension(title: string) {
-  return EditorView.decorations.of(
-    Decoration.set([
-      Decoration.widget({
-        widget: new EditorTitleWidget(title),
-        side: -1,
-        block: true,
-      }).range(0),
-    ]),
-  );
-}
-
 class EditorImageWidget extends WidgetType {
   constructor(
     private readonly src: string,
@@ -92,15 +71,15 @@ class EditorImageWidget extends WidgetType {
   }
 
   override toDOM(): HTMLElement {
-    const figure = document.createElement("figure");
+    const figure = createEl("figure");
     figure.className = "novelview-editor-image";
-    const image = document.createElement("img");
+    const image = createEl("img");
     image.src = this.src;
     image.alt = this.alt;
     image.loading = "lazy";
     figure.appendChild(image);
     if (this.alt) {
-      const caption = document.createElement("figcaption");
+      const caption = createEl("figcaption");
       caption.textContent = this.alt;
       figure.appendChild(caption);
     }
@@ -289,6 +268,7 @@ export class NovelEditorView extends ItemView {
   private pendingLine = 1;
   private editorView: EditorView | null = null;
   private editorHost: HTMLElement | null = null;
+  private chapterTitleEl: HTMLElement | null = null;
   private tocEl: HTMLElement | null = null;
   private tocList: HTMLElement | null = null;
   private tocTimer: number | null = null;
@@ -306,6 +286,7 @@ export class NovelEditorView extends ItemView {
   private loading = false;
   private lastSavedBody = "";
   private saveChain: Promise<void> = Promise.resolve();
+  private outlineMarksTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -339,6 +320,7 @@ export class NovelEditorView extends ItemView {
     const nextFile = typeof state.file === "string" ? state.file : this.filePath;
     if (nextFile !== this.filePath) {
       await this.flushSave();
+      await this.flushOutlineMarks();
     }
     this.filePath = nextFile;
     this.pendingLine = typeof state.line === "number" ? state.line : 1;
@@ -367,6 +349,29 @@ export class NovelEditorView extends ItemView {
     });
     this.addToolbarButton(toolbar, "settings-2", "格式设置", () => {
       this.plugin.openModeSettings();
+    });
+    this.chapterTitleEl = this.contentEl.createDiv({
+      cls: "novelview-editor-title is-editable",
+      attr: {
+        contenteditable: "true",
+        role: "textbox",
+        spellcheck: "false",
+        title: "点击修改章节名称",
+      },
+    });
+    this.chapterTitleEl.setText(this.getDisplayText());
+    this.chapterTitleEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.chapterTitleEl?.blur();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.chapterTitleEl?.setText(this.getDisplayText());
+        this.chapterTitleEl?.blur();
+      }
+    });
+    this.chapterTitleEl.addEventListener("blur", () => {
+      void this.renameFromTitle();
     });
     this.editorHost = this.contentEl.createDiv({ cls: "novelview-editor-host" });
     this.tocEl = this.contentEl.createDiv({ cls: "novelview-editor-toc" });
@@ -494,13 +499,11 @@ export class NovelEditorView extends ItemView {
         ".novelview-setting-keyword",
       );
       if (keyword && this.filePath) {
-        const group = keyword.dataset.novelviewSettingGroup ?? "";
-        const tag = keyword.dataset.novelviewSettingTag ?? "";
         const name = keyword.dataset.novelviewSettingKeyword ?? "";
-        if (group && name) {
+        if (name) {
           event.preventDefault();
           event.stopPropagation();
-          this.plugin.openSettingRecord(this.filePath, group, tag, name);
+          void this.plugin.openSettingKeywordRecord(this.filePath, name);
         }
       }
     });
@@ -511,6 +514,11 @@ export class NovelEditorView extends ItemView {
 
   protected override async onClose(): Promise<void> {
     await this.flushSave();
+    await this.flushOutlineMarks();
+    if (this.outlineMarksTimer !== null) {
+      window.clearTimeout(this.outlineMarksTimer);
+      this.outlineMarksTimer = null;
+    }
     if (this.saveTimer !== null) {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
@@ -536,6 +544,7 @@ export class NovelEditorView extends ItemView {
     this.editorView?.destroy();
     this.editorView = null;
     this.editorHost = null;
+    this.chapterTitleEl = null;
     this.contentEl.empty();
   }
 
@@ -569,13 +578,14 @@ export class NovelEditorView extends ItemView {
     icon: string,
     label: string,
     action: () => void,
-  ): void {
+  ): HTMLButtonElement {
     const button = toolbar.createEl("button", {
       cls: "novelview-editor-toolbar-button",
       attr: { type: "button", "aria-label": label, title: label },
     });
     setIcon(button, icon);
     button.addEventListener("click", action);
+    return button;
   }
 
   private async loadFile(): Promise<void> {
@@ -594,6 +604,16 @@ export class NovelEditorView extends ItemView {
     try {
       const content = await this.app.vault.read(file);
       const { body } = splitFrontmatterContent(content);
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      const outlineMarks = parseOutlineMarks(
+        frontmatter?.[OUTLINE_MARKS_PROPERTY],
+      )
+        .map((mark) => ({
+          ...mark,
+          start: Math.min(mark.start, body.length),
+          end: Math.min(mark.end, body.length),
+        }))
+        .filter((mark) => mark.end > mark.start);
       this.editorHost.empty();
       this.editorView?.destroy();
       this.editorView = new EditorView({
@@ -608,6 +628,7 @@ export class NovelEditorView extends ItemView {
             EditorView.updateListener.of((update) => {
               if (update.docChanged && !this.loading) {
                 this.scheduleSave();
+                this.scheduleOutlineMarksSave();
                 this.scheduleTocRefresh();
               }
               if (update.docChanged || update.selectionSet) {
@@ -615,13 +636,13 @@ export class NovelEditorView extends ItemView {
               }
             }),
             settingKeywordExtension,
-            titleExtension(this.getDisplayText()),
             imageExtension(this.app, () => this.filePath),
             hrDecorationExtension,
             proseDecorationExtension,
             pendingBlockExtension,
             pendingBoundaryKeymap,
             pendingFenceProtection(() => this.allowFenceEdit),
+            outlineMarksExtension,
             EditorView.theme({
               "&": {
                 height: "100%",
@@ -647,6 +668,9 @@ export class NovelEditorView extends ItemView {
           ],
         }),
       });
+      this.editorView.dispatch({
+        effects: setOutlineMarksEffect.of(outlineMarks),
+      });
       const lineNumber = Math.min(
         Math.max(1, this.pendingLine),
         this.editorView.state.doc.lines,
@@ -663,9 +687,10 @@ export class NovelEditorView extends ItemView {
       });
       this.editorView.focus();
       this.plugin.setNovelEditorFile(file);
-      this.plugin.refreshSettingKeywordIndex();
+      void this.plugin.refreshSettingKeywordIndex();
       this.containerEl.querySelector<HTMLElement>(".view-header-title")
         ?.setText(this.getDisplayText());
+      this.chapterTitleEl?.setText(this.getDisplayText());
       this.renderToc();
       this.updatePendingUi();
     } catch (error) {
@@ -678,6 +703,147 @@ export class NovelEditorView extends ItemView {
     } finally {
       this.loading = false;
     }
+  }
+
+  private addOutlineMark(): void {
+    if (!this.editorView) {
+      return;
+    }
+    const selection = this.editorView.state.selection.main;
+    if (selection.empty) {
+      new Notice("Novel View：请先选中要标记的文字。");
+      return;
+    }
+    const { from, to } = selection;
+    new TextPromptModal(this.app, {
+      title: "添加文字标记",
+      description: "为选中的大纲文字添加一个标记名称。",
+      placeholder: "例如：伏笔、冲突、转折",
+      submitLabel: "标记",
+      onSubmit: (label) => {
+        if (!this.editorView) {
+          return;
+        }
+        const marks = [
+          ...getOutlineMarks(this.editorView.state),
+          { start: from, end: to, label },
+        ].sort((left, right) => left.start - right.start);
+        this.editorView.dispatch({
+          effects: setOutlineMarksEffect.of(marks),
+        });
+        void this.flushOutlineMarks();
+      },
+    }).open();
+  }
+
+  private outlineMarksAtSelection(): OutlineMark[] {
+    if (!this.editorView) {
+      return [];
+    }
+    const selection = this.editorView.state.selection.main;
+    return getOutlineMarks(this.editorView.state).filter((mark) => (
+      selection.empty
+        ? selection.head >= mark.start && selection.head <= mark.end
+        : mark.start < selection.to && mark.end > selection.from
+    ));
+  }
+
+  private removeOutlineMarks(): void {
+    if (!this.editorView) {
+      return;
+    }
+    const selected = this.outlineMarksAtSelection();
+    if (selected.length === 0) {
+      return;
+    }
+    const marks = getOutlineMarks(this.editorView.state).filter(
+      (mark) => !selected.includes(mark),
+    );
+    this.editorView.dispatch({
+      effects: setOutlineMarksEffect.of(marks),
+    });
+    void this.flushOutlineMarks();
+    new Notice("Novel View：已移除文字标记。");
+  }
+
+  private scheduleOutlineMarksSave(): void {
+    if (this.outlineMarksTimer !== null) {
+      window.clearTimeout(this.outlineMarksTimer);
+    }
+    this.outlineMarksTimer = window.setTimeout(() => {
+      this.outlineMarksTimer = null;
+      void this.flushOutlineMarks();
+    }, 700);
+  }
+
+  private async flushOutlineMarks(): Promise<void> {
+    if (this.outlineMarksTimer !== null) {
+      window.clearTimeout(this.outlineMarksTimer);
+      this.outlineMarksTimer = null;
+    }
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    const file = this.app.vault.getAbstractFileByPath(this.filePath);
+    if (!(file instanceof TFile)) {
+      return;
+    }
+    const marks = getOutlineMarks(this.editorView.state);
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        if (marks.length > 0) {
+          frontmatter[OUTLINE_MARKS_PROPERTY] = serializeOutlineMarks(marks);
+        } else {
+          delete frontmatter[OUTLINE_MARKS_PROPERTY];
+        }
+      });
+    } catch (error) {
+      console.error("Novel View: failed to save outline marks", error);
+    }
+  }
+
+  private async renameFromTitle(): Promise<void> {
+    if (!this.chapterTitleEl || !this.filePath) {
+      return;
+    }
+    const value = this.chapterTitleEl.textContent?.trim() ?? "";
+    const file = this.app.vault.getAbstractFileByPath(this.filePath);
+    if (!(file instanceof TFile)) {
+      return;
+    }
+    if (!value) {
+      this.chapterTitleEl.setText(file.basename);
+      return;
+    }
+    if (value.startsWith("-")) {
+      new Notice("Novel View：章节名称不能以 - 开头。");
+      this.chapterTitleEl.setText(file.basename);
+      return;
+    }
+    const base = this.plugin.sanitizeFileBase(value, file.basename);
+    if (!base || base === file.basename) {
+      this.chapterTitleEl.setText(file.basename);
+      return;
+    }
+    const parentPath = this.plugin.normalizeFolderPath(file.parent?.path ?? "/");
+    const targetPath = parentPath === "/"
+      ? `${base}.md`
+      : `${parentPath}/${base}.md`;
+    if (this.app.vault.getAbstractFileByPath(targetPath)) {
+      new Notice("Novel View：同名章节已存在。");
+      this.chapterTitleEl.setText(file.basename);
+      return;
+    }
+    this.chapterTitleEl.setText(base);
+    await this.app.fileManager.renameFile(file, targetPath);
+    this.filePath = targetPath;
+    const renamed = this.app.vault.getAbstractFileByPath(targetPath);
+    if (renamed instanceof TFile) {
+      this.plugin.setNovelEditorFile(renamed);
+    }
+    this.plugin.refreshArticleListViews();
+    this.containerEl.querySelector<HTMLElement>(".view-header-title")
+      ?.setText(base);
   }
 
   private scheduleTocRefresh(): void {
@@ -807,9 +973,7 @@ export class NovelEditorView extends ItemView {
       return;
     }
     try {
-      const chooseLocalImage = (this.plugin as any).chooseLocalImage as
-        () => Promise<string | null>;
-      const localPath = await chooseLocalImage.call(this.plugin);
+      const localPath = await this.plugin.chooseLocalImage();
       if (!localPath) {
         return;
       }
@@ -817,10 +981,7 @@ export class NovelEditorView extends ItemView {
         this.plugin.normalizeFolderPath(file.parent?.path ?? "/"),
       );
       const targetFolder = root ? joinVaultPath(root, "src") : undefined;
-      const saveImageToVault = (this.plugin as any).saveImageToVault as
-        (local: string, source: string, target?: string) => Promise<TFile | null>;
-      const saved = await saveImageToVault.call(
-        this.plugin,
+      const saved = await this.plugin.saveImageToVault(
         localPath,
         file.path,
         targetFolder,
@@ -869,7 +1030,7 @@ export class NovelEditorView extends ItemView {
       if (
         this.pendingButton?.matches(":hover")
         || this.pendingPanel?.matches(":hover")
-        || this.pendingPanel?.contains(document.activeElement)
+        || this.pendingPanel?.contains(activeDocument.activeElement)
       ) {
         return;
       }
@@ -886,7 +1047,7 @@ export class NovelEditorView extends ItemView {
     const selection = this.editorView.state.selection.main;
     const block = pendingBlockAt(this.editorView.state, selection.head);
     const panelFocused = Boolean(
-      this.pendingPanel.contains(document.activeElement),
+      this.pendingPanel.contains(activeDocument.activeElement),
     );
     if (!block) {
       this.pendingButton.removeClass("is-visible");
@@ -936,7 +1097,7 @@ export class NovelEditorView extends ItemView {
     this.pendingPanel.addClass("is-open");
     this.pendingTitleError?.setText("");
     this.pendingButton?.addClass("is-active");
-    if (document.activeElement !== this.pendingInput) {
+    if (activeDocument.activeElement !== this.pendingInput) {
       this.pendingInput.value = this.activePending.title;
     }
     for (const button of this.pendingEmojiRow?.querySelectorAll<HTMLElement>(
@@ -1055,16 +1216,38 @@ export class NovelEditorView extends ItemView {
       return;
     }
     const selection = this.editorView.state.selection.main;
-    if (selection.empty || this.selectionOverlapsPending()) {
+    const marks = this.outlineMarksAtSelection();
+    if (
+      (selection.empty || this.selectionOverlapsPending())
+      && marks.length === 0
+    ) {
       return;
     }
     const menu = new Menu();
-    menu.addItem((item) => {
-      item
-        .setTitle("转换成待修改代码块")
-        .setIcon("square-pen")
-        .onClick(() => this.wrapSelectionInPending());
-    });
+    if (!selection.empty && !this.selectionOverlapsPending()) {
+      menu.addItem((item) => {
+        item
+          .setTitle("转换成待修改代码块")
+          .setIcon("square-pen")
+          .onClick(() => this.wrapSelectionInPending());
+      });
+    }
+    if (!selection.empty) {
+      menu.addItem((item) => {
+        item
+          .setTitle("添加文字标记")
+          .setIcon("highlighter")
+          .onClick(() => this.addOutlineMark());
+      });
+    }
+    if (marks.length > 0) {
+      menu.addItem((item) => {
+        item
+          .setTitle("移除文字标记")
+          .setIcon("eraser")
+          .onClick(() => this.removeOutlineMarks());
+      });
+    }
     menu.showAtMouseEvent(event);
   }
 

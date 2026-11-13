@@ -6,12 +6,26 @@ import {
 } from "./core/search";
 import type NovelViewPlugin from "./main";
 
-type SearchScope = "chapter" | "volume" | "book";
+export type SearchScope = "chapter" | "volume" | "book" | "marks" | "pending" | "keywords";
+
+export interface FinderResult {
+  title: string;
+  detail: string;
+  kind: "file" | "setting";
+  path?: string;
+  line?: number;
+  group?: string;
+  tag?: string;
+  keyword?: string;
+}
 
 const SCOPE_LABELS: Record<SearchScope, string> = {
-  chapter: "全章",
+  chapter: "本章",
   volume: "本卷",
   book: "全书",
+  marks: "文字标记",
+  pending: "待修改部分",
+  keywords: "关键词",
 };
 
 export class SearchPanelV2 {
@@ -28,6 +42,7 @@ export class SearchPanelV2 {
   private regexInput: HTMLInputElement | null = null;
   private activeScope: SearchScope = "chapter";
   private ownerView: MarkdownView | null = null;
+  private debounceTimer: number | null = null;
 
 
   constructor(plugin: NovelViewPlugin) {
@@ -43,37 +58,61 @@ export class SearchPanelV2 {
       return;
     }
     this.ownerView = view ?? null;
-    this.root = createEl("div", { cls: "novelview-search-v2" });
+    this.root = createDiv({ cls: "novelview-search-v2" });
     this.root.addClass("is-open");
     this.root.setAttr("role", "dialog");
-    this.root.setAttr("aria-label", "高级查找替换");
+    this.root.setAttr("aria-label", "NovelFinder");
     const header = this.root.createDiv({ cls: "novelview-search-v2-header" });
-    header.createSpan({ text: "高级查找替换" });
+    header.createSpan({ text: "NovelFinder" });
     this.groupLabel = this.root.createDiv({ cls: "novelview-search-v2-group" });
     header.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement | null)?.closest("button")) {
+      if (event.button !== 0 || (event.target as HTMLElement | null)?.closest("button")) {
         return;
       }
       const root = this.root;
       if (!root) {
         return;
       }
+      if (!root.hasClass("is-positioned")) {
+        const initial = root.getBoundingClientRect();
+        root.setCssProps({
+          left: `${Math.round(initial.left)}px`,
+          top: `${Math.round(initial.top)}px`,
+        });
+        root.addClass("is-positioned");
+      }
       const rect = root.getBoundingClientRect();
       const offsetX = event.clientX - rect.left;
       const offsetY = event.clientY - rect.top;
-      root.setCssStyles({ transform: "none" });
+      let frame = 0;
+      let nextLeft = rect.left;
+      let nextTop = rect.top;
       const move = (moveEvent: PointerEvent): void => {
-        root.setCssStyles({
-          left: `${Math.round(moveEvent.clientX - offsetX)}px`,
-          top: `${Math.round(moveEvent.clientY - offsetY)}px`,
+        nextLeft = Math.round(moveEvent.clientX - offsetX);
+        nextTop = Math.round(moveEvent.clientY - offsetY);
+        if (frame !== 0) {
+          return;
+        }
+        frame = window.requestAnimationFrame(() => {
+          frame = 0;
+          root.setCssProps({
+            left: `${nextLeft}px`,
+            top: `${nextTop}px`,
+          });
         });
       };
       const up = (): void => {
+        if (frame !== 0) {
+          window.cancelAnimationFrame(frame);
+          frame = 0;
+        }
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
       event.preventDefault();
     });
     const close = header.createEl("button", { text: "×", attr: { type: "button" } });
@@ -91,8 +130,11 @@ export class SearchPanelV2 {
     this.queryInput = top.createEl("input", {
       attr: { type: "text", placeholder: "查找内容", "aria-label": "查找内容" },
     });
-    this.replaceInput = top.createEl("input", {
-      attr: { type: "text", placeholder: "替换为", "aria-label": "替换为" },
+    const replaceRow = this.root.createDiv({
+      cls: "novelview-search-v2-replace-row",
+    });
+    this.replaceInput = replaceRow.createEl("input", {
+      attr: { type: "text", placeholder: "替换为（可留空）", "aria-label": "替换为" },
     });
     const options = this.root.createDiv({ cls: "novelview-search-v2-options" });
     this.caseInput = this.option(options, "区分大小写");
@@ -100,12 +142,16 @@ export class SearchPanelV2 {
     this.regexInput = this.option(options, "正则");
     const actions = this.root.createDiv({ cls: "novelview-search-v2-actions" });
     this.queryInput.addEventListener("input", () => {
-      window.clearTimeout((this as any).debounceTimer);
-      (this as any).debounceTimer = window.setTimeout(() => void this.search(), 220);
+      if (this.debounceTimer !== null) {
+        window.clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = window.setTimeout(() => void this.search(), 220);
     });
     this.replaceInput.addEventListener("input", () => {
-      window.clearTimeout((this as any).debounceTimer);
-      (this as any).debounceTimer = window.setTimeout(() => void this.search(), 220);
+      if (this.debounceTimer !== null) {
+        window.clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = window.setTimeout(() => void this.search(), 220);
     });
     actions.createEl("button", { text: "全部替换", attr: { type: "button" } })
       .addEventListener("click", () => void this.replaceAll());
@@ -117,7 +163,7 @@ export class SearchPanelV2 {
         this.close();
       }
     });
-    document.body.appendChild(this.root);
+    activeDocument.body.appendChild(this.root);
     window.setTimeout(() => this.queryInput?.focus(), 0);
   }
 
@@ -135,7 +181,7 @@ export class SearchPanelV2 {
     return input;
   }
 
-  private async searchFiles(): Promise<TFile[]> {
+  private searchFiles(): TFile[] {
     const current = this.plugin.getLastActiveMarkdownFile();
     if (!current) {
       return [];
@@ -179,12 +225,32 @@ export class SearchPanelV2 {
     }
     this.resultsEl.empty();
     const options = this.options();
+    if (
+      this.activeScope === "marks"
+      || this.activeScope === "pending"
+      || this.activeScope === "keywords"
+    ) {
+      const results = await this.collectSpecialResults(
+        this.activeScope,
+        options.query,
+      );
+      this.titleEl.setText(`NovelFinder · ${SCOPE_LABELS[this.activeScope]}`);
+      this.resultsEl.createDiv({
+        cls: "novelview-search-v2-empty",
+        text: `已在右侧 NovelFinder 结果中显示 ${results.length} 条结果。`,
+      });
+      await this.plugin.showNovelFinderResults(
+        SCOPE_LABELS[this.activeScope],
+        results,
+      );
+      return;
+    }
     const compiled = compileSearchExpression(options);
     if (!compiled.regex) {
       this.titleEl.setText("查找结果 · 请输入查找内容");
       return;
     }
-    const files = await this.searchFiles();
+    const files = this.searchFiles();
     const current = this.plugin.getLastActiveMarkdownFile();
     const group = current
       ? this.plugin.findNovelGroupRoot(
@@ -215,56 +281,147 @@ export class SearchPanelV2 {
         total += matches.length;
       }
     }
+    const results: FinderResult[] = [];
     for (const group of grouped) {
-      const fileGroup = this.resultsEl.createDiv({ cls: "novelview-search-v2-file-group" });
-      const header = fileGroup.createEl("button", {
-        cls: "novelview-search-v2-file-header",
-        attr: { type: "button" },
-      });
-      header.createSpan({ cls: "novelview-search-v2-file-name", text: group.file.basename });
-      header.createSpan({
-        cls: "novelview-search-v2-file-count",
-        text: `${group.matches.length} 处`,
-      });
-      const details = fileGroup.createDiv({ cls: "novelview-search-v2-file-details" });
-      details.addClass("is-collapsed");
-      header.addEventListener("click", () => {
-        details.toggleClass("is-collapsed", !details.hasClass("is-collapsed"));
-        header.toggleClass("is-open", !header.hasClass("is-open"));
-      });
       for (const match of group.matches) {
-        const card = details.createEl("button", {
-          cls: "novelview-search-v2-card",
-          attr: { type: "button", title: `${group.file.path}:${match.line}` },
-        });
-        card.createDiv({
-          cls: "novelview-search-v2-card-title",
-          text: `第 ${match.line} 行`,
-        });
-        card.createDiv({
-          cls: "novelview-search-v2-card-snippet",
-          text: `${match.before}${match.matchText}${match.after}`,
-        });
-        card.addEventListener("click", () => {
-          void this.plugin.openFileAtLine(group.file, match.line ?? 1);
+        results.push({
+          kind: "file",
+          title: `${group.file.basename} · 第 ${match.line} 行`,
+          detail: `${match.before}${match.matchText}${match.after}`.trim(),
+          path: group.file.path,
+          line: match.line,
         });
       }
     }
-    if (total === 0) {
-      this.resultsEl.createDiv({
-        cls: "novelview-search-v2-empty",
-        text: "没有匹配结果。",
-      });
+    this.resultsEl.createDiv({
+      cls: "novelview-search-v2-empty",
+      text: results.length > 0
+        ? `已在右侧 NovelFinder 结果中显示 ${results.length} 条结果。`
+        : "没有匹配结果。",
+    });
+    await this.plugin.showNovelFinderResults(
+      `${SCOPE_LABELS[this.activeScope]} · ${groupName}`,
+      results,
+    );
+    void total;
+  }
+
+  private async collectSpecialResults(
+    scope: "marks" | "pending" | "keywords",
+    query: string,
+  ): Promise<FinderResult[]> {
+    const needle = query.trim().toLocaleLowerCase();
+    const current = this.plugin.getLastActiveMarkdownFile();
+    const root = current
+      ? this.plugin.findNovelGroupRoot(
+        this.plugin.normalizeFolderPath(current.parent?.path ?? "/"),
+      )
+      : null;
+    if (scope === "keywords") {
+      return this.plugin.getSettingKeywordsForFinder()
+        .filter((entry) => (
+          !needle
+          || entry.keyword.toLocaleLowerCase().includes(needle)
+          || entry.content.toLocaleLowerCase().includes(needle)
+        ))
+        .slice(0, 200)
+        .map((entry) => ({
+          kind: "setting" as const,
+          title: entry.keyword,
+          detail: entry.content || `${entry.group} / ${entry.tag}`,
+          group: entry.group,
+          tag: entry.tag,
+          keyword: entry.keyword,
+        }));
     }
+    if (!root) {
+      return [];
+    }
+    const files = this.plugin.app.vault.getMarkdownFiles().filter((file) => (
+      file.path.startsWith(`${root}/`)
+      && !this.plugin.isSpecialNovelFile(file)
+    ));
+    const results: FinderResult[] = [];
+    for (const file of files) {
+      let text = "";
+      try {
+        text = await this.plugin.app.vault.cachedRead(file);
+      } catch {
+        continue;
+      }
+      if (scope === "pending") {
+        const pattern = /```待修改部分[^\n]*\n([\s\S]*?)```/gu;
+        let match: RegExpExecArray | null;
+        while ((match = pattern.exec(text)) !== null) {
+          const body = match[1].trim();
+          if (needle && !body.toLocaleLowerCase().includes(needle)
+            && !match[0].toLocaleLowerCase().includes(needle)) {
+            continue;
+          }
+          const line = text.slice(0, match.index).split("\n").length;
+          results.push({
+            kind: "file",
+            title: `${file.basename} · 待修改部分`,
+            detail: body.slice(0, 120),
+            path: file.path,
+            line,
+          });
+        }
+        continue;
+      }
+      const frontmatter = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter;
+      const raw = frontmatter?.["novelview-marks"];
+      let marks: Array<{ start: number; end: number; label: string }> = [];
+      if (typeof raw === "string") {
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            marks = parsed.filter((item): item is { start: number; end: number; label: string } => (
+              Boolean(item)
+              && typeof item === "object"
+              && typeof (item as { label?: unknown }).label === "string"
+              && Number.isFinite((item as { start?: unknown }).start)
+              && Number.isFinite((item as { end?: unknown }).end)
+            ));
+          }
+        } catch {
+          marks = [];
+        }
+      }
+      const body = text.replace(/^---[\s\S]*?---\n?/u, "");
+      for (const mark of marks) {
+        const excerpt = body.slice(mark.start, mark.end);
+        if (needle && !mark.label.toLocaleLowerCase().includes(needle)
+          && !excerpt.toLocaleLowerCase().includes(needle)) {
+          continue;
+        }
+        results.push({
+          kind: "file",
+          title: `${file.basename} · ${mark.label}`,
+          detail: excerpt,
+          path: file.path,
+          line: body.slice(0, mark.start).split("\n").length,
+        });
+      }
+    }
+    return results.slice(0, 200);
   }
 
   private async replaceAll(): Promise<void> {
+    if (
+      this.activeScope === "marks"
+      || this.activeScope === "pending"
+      || this.activeScope === "keywords"
+    ) {
+      new Notice("NovelFinder：当前查找范围不支持替换。");
+      return;
+    }
     const options = this.options();
     const compiled = compileSearchExpression(options);
     if (!compiled.regex) {
       return;
     }
-    const files = await this.searchFiles();
+    const files = this.searchFiles();
     let count = 0;
     for (const file of files) {
       try {

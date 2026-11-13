@@ -136,12 +136,12 @@ class PendingHeaderWidget extends WidgetType {
   }
 
   override toDOM(): HTMLElement {
-    const header = document.createElement("div");
+    const header = createDiv();
     header.className = `novelview-pending-header novelview-pending-${this.block.color}`;
-    const emoji = document.createElement("span");
+    const emoji = createSpan();
     emoji.className = "novelview-pending-header-emoji";
     emoji.textContent = this.block.emoji;
-    const title = document.createElement("span");
+    const title = createSpan();
     title.className = "novelview-pending-header-title";
     title.textContent = this.block.title;
     header.append(emoji, title);
@@ -159,7 +159,7 @@ class PendingCloseWidget extends WidgetType {
   }
 
   override toDOM(): HTMLElement {
-    const spacer = document.createElement("div");
+    const spacer = createDiv();
     spacer.className = "novelview-pending-close";
     return spacer;
   }

@@ -2,6 +2,7 @@ import {
   ItemView,
   Menu,
   Notice,
+  TFolder,
   setIcon,
   type WorkspaceLeaf,
 } from "obsidian";
@@ -11,10 +12,12 @@ import {
 } from "./core/setting-collection";
 import {
   SettingConfirmModal,
+  SettingGraphModal,
   SettingGroupModal,
-  SettingRecordModal,
   SettingTagModal,
 } from "./setting-collection-modal";
+import { SettingRecordDetailPanel } from "./setting-record-detail-panel";
+import { SettingRecordEditorPanel } from "./setting-record-editor-panel";
 import type NovelViewPlugin from "./main";
 
 export const SETTING_COLLECTION_VIEW_TYPE = "novelview-setting-collection";
@@ -40,6 +43,8 @@ export class SettingCollectionView extends ItemView {
   private refreshing = false;
   private dragPayload: SettingDragPayload | null = null;
   private dropTarget: SettingDropTarget | null = null;
+  private recordDetailPanel: SettingRecordDetailPanel | null = null;
+  private recordEditorPanel: SettingRecordEditorPanel | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -78,6 +83,15 @@ export class SettingCollectionView extends ItemView {
     await this.refresh();
   }
 
+  protected override async onClose(): Promise<void> {
+    await Promise.resolve();
+    this.recordEditorPanel?.close();
+    this.recordEditorPanel = null;
+    this.recordDetailPanel?.close();
+    this.recordDetailPanel = null;
+    this.contentEl.empty();
+  }
+
   protected override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-setting-collection-view");
@@ -94,13 +108,6 @@ export class SettingCollectionView extends ItemView {
     });
     this.contentEl.addEventListener("dragend", () => {
       this.clearDragState();
-    });
-    this.contentEl.addEventListener("contextmenu", (event) => {
-      if ((event.target as HTMLElement | null)?.closest("button")) {
-        return;
-      }
-      event.preventDefault();
-      this.openBlankMenu(event);
     });
     await this.refresh();
   }
@@ -123,32 +130,23 @@ export class SettingCollectionView extends ItemView {
         cls: "novelview-setting-collection-title",
         text: collectionName,
       });
-      const groupName = this.plugin.getNovelGroupInfo(this.folderPath)?.name ?? "";
-      if (groupName) {
+      const novelRoot = this.plugin.findNovelGroupRoot(this.folderPath)
+        ?? this.folderPath;
+      const novelName = this.plugin.getNovelGroupInfo(novelRoot)?.name ?? "";
+      if (novelName) {
         header.createDiv({
           cls: "novelview-setting-collection-subtitle",
-          text: groupName,
+          text: novelName,
         });
       }
       const toolbar = header.createDiv({
         cls: "novelview-setting-collection-toolbar",
       });
-      this.addHeaderButton(toolbar, "folder-down", "导入设定", () => {
-        void this.importSettings();
-      });
-      this.addHeaderButton(toolbar, "plus", "新建设定分组", () => {
-        this.createGroup();
+      this.addHeaderButton(toolbar, "git-fork", "关系图谱", () => {
+        void this.openGraph();
       });
       this.addHeaderButton(toolbar, "refresh-cw", "刷新设定集", () => {
         void this.refresh();
-      });
-      this.addHeaderButton(toolbar, "folder-open", "打开设定集文件夹", () => {
-        const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
-        if (folder) {
-          this.plugin.revealSettingCollectionFolder(folder);
-        } else {
-          new Notice("Novel View：尚未构建设定集。");
-        }
       });
 
       if (!folder) {
@@ -157,8 +155,14 @@ export class SettingCollectionView extends ItemView {
       }
       const index = await this.plugin.readSettingCollectionIndex(folder.path);
       const groups = Object.entries(index);
+      const groupName = groups[0]?.[0] ?? "";
+      if (groupName) {
+        this.addHeaderButton(toolbar, "tag", "新建标签", () => {
+          this.createTag(groupName);
+        });
+      }
       if (groups.length === 0) {
-        this.renderMessage("index.json 中暂无设定内容。点击左上角 + 新建设定分组。");
+        this.renderMessage("暂无设定内容。可点击顶部标签按钮新建。");
         return;
       }
       const list = this.contentEl.createDiv({
@@ -172,10 +176,41 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  private renderRecordContent(
+    row: HTMLElement,
+    entry: import("./core/setting-collection").SettingCollectionEntry,
+  ): void {
+    row.createDiv({
+      cls: "novelview-setting-collection-content",
+      text: entry.content,
+    });
+  }
+
+  async revealRecordDetail(
+    group: string,
+    tag: string,
+    keyword: string,
+  ): Promise<void> {
+    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
+    if (!folder) {
+      return;
+    }
+    const index = await this.plugin.readSettingCollectionIndex(folder.path);
+    for (const tags of Object.values(index)) {
+      for (const item of tags) {
+        const entry = item.contain.find((record) => record.keyword === keyword);
+        if (entry) {
+          this.openRecordDetail(group, tag || item.tag, entry);
+          return;
+        }
+      }
+    }
+  }
+
   focusRecord(group: string, tag: string, keyword: string): void {
     const selector = [
       `[data-setting-group="${CSS.escape(group)}"]`,
-      `[data-setting-tag="${CSS.escape(tag)}"]`,
+      tag ? `[data-setting-tag="${CSS.escape(tag)}"]` : "",
       `[data-setting-keyword="${CSS.escape(keyword)}"]`,
     ].join("");
     const row = this.contentEl.querySelector<HTMLElement>(selector);
@@ -425,9 +460,11 @@ export class SettingCollectionView extends ItemView {
       targetTags.splice(insertion, 0, tag);
       await this.persistDrop(data.folderPath, index);
       if (payload.group !== target.group) {
+        const novelRoot = this.plugin.findNovelGroupRoot(data.folderPath)
+          ?? data.folderPath;
         for (const keyword of movedKeywords) {
           await this.plugin.moveSettingRecordDetails(
-            this.folderPath,
+            novelRoot,
             payload.group,
             target.group,
             keyword,
@@ -475,8 +512,10 @@ export class SettingCollectionView extends ItemView {
     targetTag.contain.splice(insertion, 0, record);
     await this.persistDrop(data.folderPath, index);
     if (payload.group !== target.group) {
+      const novelRoot = this.plugin.findNovelGroupRoot(data.folderPath)
+        ?? data.folderPath;
       await this.plugin.moveSettingRecordDetails(
-        this.folderPath,
+        novelRoot,
         payload.group,
         target.group,
         record.keyword,
@@ -512,11 +551,20 @@ export class SettingCollectionView extends ItemView {
     button.addEventListener("click", action);
   }
 
-  private async importSettings(): Promise<void> {
-    const result = await this.plugin.importSettingCollection(this.folderPath);
-    if (result) {
-      await this.refresh();
+  private async openGraph(): Promise<void> {
+    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
+    if (!folder) {
+      new Notice("Novel View：尚未打开设定组。");
+      return;
     }
+    const index = await this.plugin.readSettingCollectionIndex(folder.path);
+    const title = folder.name.replace(/^-+/u, "") || "设定组";
+    new SettingGraphModal(
+      this.app,
+      `关系图谱 · ${title}`,
+      index,
+      (keyword) => this.openRecordDetailByKeyword(keyword),
+    ).open();
   }
 
   private renderGroup(
@@ -524,56 +572,18 @@ export class SettingCollectionView extends ItemView {
     group: string,
     tags: SettingCollectionTag[],
   ): void {
-    const card = parent.createDiv({
-      cls: "novelview-setting-collection-group",
-      attr: { "data-setting-drop-group": group },
-    });
-    const heading = card.createDiv({
-      cls: "novelview-setting-collection-group-title",
-    });
-    const titleWrap = heading.createDiv({
-      cls: "novelview-setting-collection-group-title-wrap",
-    });
-    const groupGrip = titleWrap.createSpan({
-      cls: "novelview-setting-collection-drag-grip",
-    });
-    setIcon(groupGrip, "grip-vertical");
-    groupGrip.setAttr("draggable", "true");
-    groupGrip.addEventListener("dragstart", (event) => {
-      this.startDrag(event, { kind: "group", group });
-    });
-    titleWrap.createSpan({ text: group });
-    titleWrap.createSpan({
-      cls: "novelview-setting-collection-count",
-      text: `${tags.reduce((total, tag) => total + tag.contain.length, 0)} 条`,
-    });
-    const actions = heading.createDiv({
-      cls: "novelview-setting-collection-actions",
-    });
-    this.addSmallButton(actions, "tag", "新建标签", () => this.createTag(group));
-    this.addSmallButton(actions, "file-plus", "新建记录", (event) => {
-      this.createRecord(group, undefined, event);
-    });
-    this.addSmallButton(actions, "more-horizontal", "更多", (event) => {
-      this.openGroupMenu(event, group);
-    });
-    card.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.openGroupMenu(event, group);
-    });
-    const body = card.createDiv({
-      cls: "novelview-setting-collection-group-body",
+    const list = parent.createDiv({
+      cls: "novelview-setting-collection-tags",
     });
     if (tags.length === 0) {
-      body.createDiv({
+      list.createDiv({
         cls: "novelview-setting-collection-empty",
-        text: "暂无标签",
+        text: "暂无标签，可点击顶部标签按钮新建。",
       });
       return;
     }
     for (const tag of tags) {
-      this.renderTag(body, group, tag);
+      this.renderTag(list, group, tag);
     }
   }
 
@@ -666,10 +676,7 @@ export class SettingCollectionView extends ItemView {
         text: entry.keyword || "未命名记录",
       });
       if (entry.content) {
-        row.createDiv({
-          cls: "novelview-setting-collection-content",
-          text: entry.content,
-        });
+        this.renderRecordContent(row, entry);
       }
       const recordActions = row.createDiv({
         cls: "novelview-setting-collection-entry-actions",
@@ -680,36 +687,14 @@ export class SettingCollectionView extends ItemView {
       this.addSmallButton(recordActions, "more-horizontal", "更多", (event) => {
         this.openRecordMenu(event, group, tag.tag, entry.keyword);
       });
-      const details = this.plugin.getSettingRecordDetailFiles(
-        this.folderPath,
-        group,
-        entry.keyword,
-      );
-      if (details.length > 0) {
-        const detailList = row.createDiv({
-          cls: "novelview-setting-collection-details",
-        });
-        for (const file of details) {
-          const detail = detailList.createEl("button", {
-            cls: "novelview-setting-collection-detail-file",
-            attr: {
-              type: "button",
-              title: file.path,
-            },
-          });
-          setIcon(detail, "file-text");
-          detail.createSpan({
-            text: this.plugin.getSettingRecordDetailLabel(
-              entry.keyword,
-              file,
-            ),
-          });
-          detail.addEventListener("click", (event) => {
-            event.stopPropagation();
-            void this.app.workspace.getLeaf(false).openFile(file);
-          });
+      row.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement | null)?.closest(
+          "button, .novelview-setting-collection-drag-grip",
+        )) {
+          return;
         }
-      }
+        this.openRecordDetail(group, tag.tag, entry);
+      });
       row.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -733,44 +718,6 @@ export class SettingCollectionView extends ItemView {
       event.stopPropagation();
       action(event);
     });
-  }
-
-  private openBlankMenu(event: MouseEvent): void {
-    const menu = new Menu();
-    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
-    menu.addItem((item) => {
-      item
-        .setTitle(folder ? "新建设定分组" : "构建设定集")
-        .setIcon(folder ? "plus" : "folder-plus")
-        .onClick(() => {
-          if (folder) {
-            this.createGroup();
-          } else {
-            void this.plugin.createSettingGroup(this.folderPath).then(() => {
-              void this.refresh();
-            });
-          }
-        });
-    });
-    menu.showAtMouseEvent(event);
-  }
-
-  private openGroupMenu(event: MouseEvent, group: string): void {
-    const menu = new Menu();
-    menu.addItem((item) => {
-      item.setTitle("新建设定标签").setIcon("tag").onClick(() => this.createTag(group));
-    });
-    menu.addItem((item) => {
-      item.setTitle("新建设定记录").setIcon("file-plus").onClick(() => this.createRecord(group, undefined, event));
-    });
-    menu.addItem((item) => {
-      item.setTitle("重命名设定分组").setIcon("pencil").onClick(() => this.renameGroup(group));
-    });
-    menu.addSeparator();
-    menu.addItem((item) => {
-      item.setTitle("删除设定分组").setIcon("trash").onClick(() => this.deleteGroup(group));
-    });
-    menu.showAtMouseEvent(event);
   }
 
   private openTagMenu(event: MouseEvent, group: string, tag: string): void {
@@ -836,76 +783,6 @@ export class SettingCollectionView extends ItemView {
     }
     const index = await this.plugin.readSettingCollectionIndex(folder.path);
     return { folderPath: folder.path, index };
-  }
-
-  private createGroup(): void {
-    if (!this.plugin.getSettingCollectionFolder(this.folderPath)) {
-      void this.plugin.createSettingGroup(this.folderPath).then(() => this.refresh());
-      return;
-    }
-    new SettingGroupModal(
-      this.app,
-      "新建设定分组",
-      "",
-      async (name, setError) => {
-        const data = await this.getFolder();
-        if (!data) {
-          return false;
-        }
-        if (Object.prototype.hasOwnProperty.call(data.index, name)) {
-          setError("同名设定分组已存在。");
-          return false;
-        }
-        data.index[name] = [];
-        await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
-        await this.refresh();
-        return true;
-      },
-    ).open();
-  }
-
-  private renameGroup(group: string): void {
-    new SettingGroupModal(
-      this.app,
-      "重命名设定分组",
-      group,
-      async (name, setError) => {
-        const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
-        if (!folder) {
-          setError("设定集不存在。");
-          return false;
-        }
-        const error = await this.plugin.renameSettingCollectionGroup(
-          folder.path,
-          group,
-          name,
-        );
-        if (error) {
-          setError(error);
-          return false;
-        }
-        await this.refresh();
-        return true;
-      },
-    ).open();
-  }
-
-  private deleteGroup(group: string): void {
-    new SettingConfirmModal(
-      this.app,
-      "删除设定分组",
-      `删除“${group}”及其所有标签、记录和组文件夹？此操作不可撤销。`,
-      "删除",
-      async () => {
-        const data = await this.getFolder();
-        if (!data) {
-          return;
-        }
-        delete data.index[group];
-        await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
-        await this.refresh();
-      },
-    ).open();
   }
 
   private createTag(group: string): void {
@@ -1047,29 +924,163 @@ export class SettingCollectionView extends ItemView {
     group: string,
     tagName: string,
   ): void {
-    new SettingRecordModal(
-      this.app,
-      "新建设定记录",
-      "",
-      "",
-      async (keyword, content, setError) => {
-        const index = await this.plugin.readSettingCollectionIndex(settingRoot);
-        const tags = index[group];
-        const tag = tags?.find((entry) => entry.tag === tagName);
-        if (!tag) {
-          setError("标签不存在。");
-          return false;
-        }
-        if (tags?.some((entry) => entry.contain.some((row) => row.keyword === keyword))) {
-          setError("同名关键词已存在。");
-          return false;
-        }
-        tag.contain.push({ keyword, content });
-        await this.plugin.writeSettingCollectionIndex(settingRoot, index);
-        await this.refresh();
-        return true;
+    const novelRoot = this.plugin.findNovelGroupRoot(settingRoot)
+      ?? this.folderPath;
+    void this.plugin.getSettingRecordTargets(novelRoot).then((targets) => {
+      const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
+      this.recordEditorPanel ??= new SettingRecordEditorPanel();
+      this.recordEditorPanel.show({
+        title: "新建设定记录",
+        anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
+        initial: {
+          keyword: "",
+          content: "",
+          fields: [],
+          relations: [],
+          marks: [],
+        },
+        targets,
+        onSubmit: async (draft, setError) => {
+          const index = await this.plugin.readSettingCollectionIndex(settingRoot);
+          const tags = index[group];
+          const tag = tags?.find((entry) => entry.tag === tagName);
+          if (!tag) {
+            setError("标签不存在。");
+            return false;
+          }
+          if (
+            draft.keyword
+            && tags?.some((entry) => entry.contain.some((row) => row.keyword === draft.keyword))
+          ) {
+            setError("同名关键词已存在。");
+            return false;
+          }
+          const relations = draft.relations.map((relation) => ({ ...relation }));
+          this.plugin.ensureSettingRelationLinkIds(
+            relations,
+            group,
+            draft.keyword,
+          );
+          tag.contain.push({
+            keyword: draft.keyword,
+            content: draft.content,
+            fields: draft.fields,
+            relations,
+            marks: [],
+          });
+          await this.plugin.writeSettingCollectionIndex(settingRoot, index);
+          await this.plugin.syncSettingRelationLinks(
+            novelRoot,
+            group,
+            "",
+            draft.keyword,
+            [],
+            relations,
+          );
+          await this.refresh();
+          return true;
+        },
+        onClose: () => {
+          this.recordEditorPanel = null;
+        },
+      });
+    });
+  }
+
+  private openRecordDetail(
+    group: string,
+    tag: string,
+    entry: import("./core/setting-collection").SettingCollectionEntry,
+  ): void {
+    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
+    if (!folder) {
+      return;
+    }
+    this.showRecordDetail(folder, group, tag, entry);
+  }
+
+  private showRecordDetail(
+    folder: TFolder,
+    group: string,
+    tag: string,
+    entry: import("./core/setting-collection").SettingCollectionEntry,
+  ): void {
+    const detailFiles = this.plugin.getSettingRecordDetailFiles(
+      folder.path,
+      group,
+      entry.keyword,
+    );
+    const groupName = folder.name.replace(/^-+/u, "") || group;
+    this.recordDetailPanel ??= new SettingRecordDetailPanel();
+    this.recordDetailPanel.show({
+      groupName,
+      tagName: tag,
+      entry,
+      detailFiles,
+      detailLabel: (file) => this.plugin.getSettingRecordDetailLabel(
+        entry.keyword,
+        file,
+      ),
+      onEdit: () => this.editRecordAt(
+        folder.path,
+        group,
+        tag,
+        entry.keyword,
+      ),
+      openFile: (file) => {
+        void this.app.workspace.getLeaf(false).openFile(file);
       },
-    ).open();
+      onOpenRelation: (targetGroup, keyword) => {
+        void this.openRelationTarget(targetGroup, keyword);
+      },
+    });
+  }
+
+  private async openRelationTarget(
+    targetGroup: string,
+    keyword: string,
+  ): Promise<void> {
+    const novelRoot = this.plugin.findNovelGroupRoot(this.folderPath)
+      ?? this.folderPath;
+    const folder = this.plugin.getSettingGroupFolderByName(
+      novelRoot,
+      targetGroup,
+    );
+    if (!folder) {
+      return;
+    }
+    const index = await this.plugin.readSettingCollectionIndex(folder.path);
+    for (const tags of Object.values(index)) {
+      for (const tag of tags) {
+        const entry = tag.contain.find((record) => record.keyword === keyword);
+        if (entry) {
+          this.showRecordDetail(folder, targetGroup, tag.tag, entry);
+          return;
+        }
+      }
+    }
+  }
+
+  private openRecordDetailByKeyword(keyword: string): void {
+    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
+    if (!folder) {
+      return;
+    }
+    void this.plugin.readSettingCollectionIndex(folder.path).then((index) => {
+      for (const tags of Object.values(index)) {
+        for (const tag of tags) {
+          const entry = tag.contain.find((record) => record.keyword === keyword);
+          if (entry) {
+            this.openRecordDetail(
+              Object.keys(index)[0] ?? "",
+              tag.tag,
+              entry,
+            );
+            return;
+          }
+        }
+      }
+    });
   }
 
   private createDetailFile(group: string, keyword: string): void {
@@ -1097,7 +1108,16 @@ export class SettingCollectionView extends ItemView {
   }
 
   private editRecord(group: string, tagName: string, keyword: string): void {
-    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
+    this.editRecordAt(this.folderPath, group, tagName, keyword);
+  }
+
+  private editRecordAt(
+    folderPath: string,
+    group: string,
+    tagName: string,
+    keyword: string,
+  ): void {
+    const folder = this.plugin.getFolder(folderPath);
     if (!folder) {
       return;
     }
@@ -1107,45 +1127,86 @@ export class SettingCollectionView extends ItemView {
       if (!tag || !record) {
         return;
       }
-      new SettingRecordModal(
-        this.app,
-        "编辑设定记录",
-        record.keyword,
-        record.content,
-        async (nextKeyword, content, setError) => {
-          const data = await this.getFolder();
-          if (!data) {
-            return false;
-          }
-          const tags = data.index[group];
-          const currentTag = tags?.find((entry) => entry.tag === tagName);
-          const current = currentTag?.contain.find((entry) => entry.keyword === keyword);
-          if (!currentTag || !current) {
-            setError("记录不存在。");
-            return false;
-          }
-          if (tags?.some((entry) => entry.contain.some((row) => (
-            row.keyword === nextKeyword
-            && !(entry === currentTag && row === current)
-          )))) {
-            setError("同名关键词已存在。");
-            return false;
-          }
-          current.keyword = nextKeyword;
-          current.content = content;
-          await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
-          if (nextKeyword !== keyword) {
-            await this.plugin.renameSettingRecordDetails(
-              this.folderPath,
+      const novelRoot = this.plugin.findNovelGroupRoot(folder.path)
+        ?? folder.path;
+      void this.plugin.getSettingRecordTargets(novelRoot).then((targets) => {
+        const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
+        this.recordEditorPanel ??= new SettingRecordEditorPanel();
+        this.recordEditorPanel.show({
+          title: "编辑设定记录",
+          anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
+          initial: {
+            keyword: record.keyword,
+            content: record.content,
+            fields: record.fields.map((field) => ({ ...field })),
+            relations: record.relations.map((relation) => ({ ...relation })),
+            marks: record.marks.map((mark) => ({ ...mark })),
+          },
+          targets,
+          onSubmit: async (draft, setError) => {
+            const data = {
+              folderPath,
+              index: await this.plugin.readSettingCollectionIndex(folderPath),
+            };
+            const tags = data.index[group];
+            const currentTag = tags?.find((entry) => entry.tag === tagName);
+            const current = currentTag?.contain.find((entry) => entry.keyword === keyword);
+            if (!currentTag || !current) {
+              setError("记录不存在。");
+              return false;
+            }
+            if (
+              draft.keyword
+              && tags?.some((entry) => entry.contain.some((row) => (
+                row.keyword === draft.keyword
+                && !(entry === currentTag && row === current)
+              )))
+            ) {
+              setError("同名关键词已存在。");
+              return false;
+            }
+            const previousRelations = current.relations.map(
+              (relation) => ({ ...relation }),
+            );
+            const relations = draft.relations.map((relation) => ({ ...relation }));
+            this.plugin.ensureSettingRelationLinkIds(
+            relations,
+            group,
+            draft.keyword,
+          );
+            current.keyword = draft.keyword;
+            current.content = draft.content;
+            current.fields = draft.fields;
+            current.relations = relations;
+            current.marks = [];
+            await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
+            if (draft.keyword && draft.keyword !== keyword) {
+              await this.plugin.renameSettingRecordDetails(
+                folderPath,
+                group,
+                keyword,
+                draft.keyword,
+              );
+            }
+            await this.plugin.syncSettingRelationLinks(
+              novelRoot,
               group,
               keyword,
-              nextKeyword,
+              draft.keyword,
+              previousRelations,
+              relations,
             );
-          }
-          await this.refresh();
-          return true;
-        },
-      ).open();
+            await this.refresh();
+            if (this.recordDetailPanel) {
+              this.showRecordDetail(folder, group, tagName, current);
+            }
+            return true;
+          },
+          onClose: () => {
+            this.recordEditorPanel = null;
+          },
+        });
+      });
     });
   }
 

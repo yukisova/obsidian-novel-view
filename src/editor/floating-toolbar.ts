@@ -106,12 +106,12 @@ export class NovelFloatingToolbar {
         this.hideSubmenu();
       }
     };
-    document.addEventListener("pointerdown", this.onDocumentPointerDown, true);
+    activeDocument.addEventListener("pointerdown", this.onDocumentPointerDown, true);
     container.addClass("novelview-toolbar-host");
   }
 
   destroy(): void {
-    document.removeEventListener(
+    activeDocument.removeEventListener(
       "pointerdown",
       this.onDocumentPointerDown,
       true,

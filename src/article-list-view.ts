@@ -10,6 +10,7 @@ import {
 import { CHAPTER_STATUS_LABELS } from "./core/chapter-status";
 import type { NovelGroupInfo } from "./core/novel-config";
 import { ArticleGroupModal } from "./article-group-modal";
+import type { NovelArticleGroup } from "./core/novel-config";
 import type NovelViewPlugin from "./main";
 
 export interface ArticleListTarget {
@@ -127,14 +128,15 @@ export class NovelArticleListView extends ItemView {
   }
 
   protected override async onOpen(): Promise<void> {
+    await Promise.resolve();
     this.contentEl.empty();
     this.contentEl.addClass("novelview-article-list-view");
     this.addAction("arrow-left", "返回", () => {
       void this.plugin.restoreFileExplorer(this.leaf);
     });
 
-    this.registerDomEvent(document, "keydown", (event) => {
-      if (this.app.workspace.activeLeaf !== this.leaf) {
+    this.registerDomEvent(activeDocument, "keydown", (event) => {
+      if (this.app.workspace.getActiveViewOfType(NovelArticleListView) !== this) {
         return;
       }
       if (
@@ -186,7 +188,7 @@ export class NovelArticleListView extends ItemView {
         return;
       }
       const list = this.contentEl.querySelector(".novelview-article-list");
-      if (list instanceof HTMLElement) {
+      if (list?.instanceOf(HTMLElement)) {
         this.startMarquee(event, list);
       }
     });
@@ -243,6 +245,7 @@ export class NovelArticleListView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    await Promise.resolve();
     for (const timer of this.metaRefreshTimers.values()) {
       window.clearTimeout(timer);
     }
@@ -316,7 +319,7 @@ export class NovelArticleListView extends ItemView {
     this.hideGroupTooltip();
     this.hideVolumeTooltip();
     const previousList = this.contentEl.querySelector(".novelview-article-list");
-    const previousScrollTop = previousList instanceof HTMLElement
+    const previousScrollTop = previousList?.instanceOf(HTMLElement)
       ? previousList.scrollTop
       : 0;
     const restoreScroll = this.renderedFolderPath === this.folderPath
@@ -347,7 +350,7 @@ export class NovelArticleListView extends ItemView {
     if (restoreScroll > 0) {
       window.requestAnimationFrame(() => {
         const list = this.contentEl.querySelector(".novelview-article-list");
-        if (list instanceof HTMLElement) {
+        if (list?.instanceOf(HTMLElement)) {
           list.scrollTop = restoreScroll;
         }
       });
@@ -831,12 +834,12 @@ export class NovelArticleListView extends ItemView {
   ): void {
     const groupRoot = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
     const groups = this.plugin.getArticleGroups(groupRoot).filter(
-      (group: any) => group.volume === volumeName,
+      (group) => group.volume === volumeName,
     );
     let index = 0;
     while (index < articles.length) {
       const article = articles[index];
-      const group = groups.find((entry: any) => entry.paths.includes(article.path));
+      const group = groups.find((entry) => entry.paths.includes(article.path));
       if (!group) {
         this.renderArticleRow(parent, article, folderPath);
         index += 1;
@@ -941,7 +944,7 @@ export class NovelArticleListView extends ItemView {
       const content = wrapper.createDiv({ cls: "novelview-article-group-content" });
       while (index < articles.length) {
         const entry = articles[index];
-        const entryGroup = groups.find((item: any) => item.paths.includes(entry.path));
+        const entryGroup = groups.find((item) => item.paths.includes(entry.path));
         if (entryGroup?.id !== group.id) {
           break;
         }
@@ -951,10 +954,9 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
-  private showGroupTooltip(anchor: HTMLElement, group: any): void {
+  private showGroupTooltip(anchor: HTMLElement, group: NovelArticleGroup): void {
     this.hideGroupTooltip();
-    const tooltip = createEl("div", { cls: "novelview-article-group-tooltip" });
-    tooltip.setCssStyles({ visibility: "hidden" });
+    const tooltip = createDiv({ cls: "novelview-article-group-tooltip" });
     tooltip.createDiv({
       cls: "novelview-article-group-tooltip-name",
       text: group.name,
@@ -963,7 +965,7 @@ export class NovelArticleListView extends ItemView {
       cls: "novelview-article-group-tooltip-description",
       text: group.description || "暂无文章组描述",
     });
-    document.body.appendChild(tooltip);
+    activeDocument.body.appendChild(tooltip);
     const rect = anchor.getBoundingClientRect();
     const width = tooltip.offsetWidth;
     const height = tooltip.offsetHeight;
@@ -975,11 +977,11 @@ export class NovelArticleListView extends ItemView {
       Math.max(8, rect.top + rect.height / 2 - height / 2),
       window.innerHeight - height - 8,
     );
-    tooltip.setCssStyles({
+    tooltip.setCssProps({
       left: `${Math.max(8, left)}px`,
       top: `${top}px`,
-      visibility: "visible",
     });
+    tooltip.addClass("is-visible");
     this.groupTooltip = tooltip;
   }
 
@@ -994,8 +996,7 @@ export class NovelArticleListView extends ItemView {
     volume: VolumeEntry,
   ): Promise<void> {
     this.hideVolumeTooltip();
-    const tooltip = createEl("div", { cls: "novelview-volume-tooltip" });
-    tooltip.setCssStyles({ visibility: "hidden" });
+    const tooltip = createDiv({ cls: "novelview-volume-tooltip" });
     tooltip.createDiv({
       cls: "novelview-volume-tooltip-name",
       text: volume.name,
@@ -1003,7 +1004,7 @@ export class NovelArticleListView extends ItemView {
     const body = tooltip.createDiv({ cls: "novelview-volume-tooltip-body" });
     const text = body.createDiv({ cls: "novelview-volume-tooltip-text" });
     const cover = body.createDiv({ cls: "novelview-volume-tooltip-cover" });
-    document.body.appendChild(tooltip);
+    activeDocument.body.appendChild(tooltip);
     this.volumeTooltip = tooltip;
     const root = this.plugin.findNovelGroupRoot(folderPath) ?? folderPath;
     const config = await this.plugin.readNovelConfig(root);
@@ -1032,11 +1033,11 @@ export class NovelArticleListView extends ItemView {
       Math.max(8, rect.top + rect.height / 2 - height / 2),
       window.innerHeight - height - 8,
     );
-    tooltip.setCssStyles({
+    tooltip.setCssProps({
       left: `${Math.max(8, left)}px`,
       top: `${top}px`,
-      visibility: "visible",
     });
+    tooltip.addClass("is-visible");
   }
 
   private hideVolumeTooltip(): void {
@@ -1133,8 +1134,13 @@ export class NovelArticleListView extends ItemView {
       this.focusedFolderPath = folderPath;
       this.focusedKey = articleKey;
       this.focusedTarget = articleTarget;
-      this.plugin.openArticleFromList(article.path, folderPath);
-      this.scheduleRefresh();
+      this.plugin.openArticleFromList(article.path);
+      for (const element of this.contentEl.querySelectorAll<HTMLElement>(
+        ".novelview-article-row.is-focused",
+      )) {
+        element.removeClass("is-focused");
+      }
+      row.addClass("is-focused");
     });
     row.addEventListener("dragstart", (event) => {
       const selectedPaths = [...this.selectedKeys]
@@ -1371,8 +1377,8 @@ export class NovelArticleListView extends ItemView {
     if (this.marquee) {
       return;
     }
-    const box = createEl("div", { cls: "novelview-selection-box" });
-    document.body.appendChild(box);
+    const box = createDiv({ cls: "novelview-selection-box" });
+    activeDocument.body.appendChild(box);
     const additive = event.metaKey || event.ctrlKey;
     const baseSelection = additive
       ? new Set(this.selectedKeys)
@@ -1411,7 +1417,7 @@ export class NovelArticleListView extends ItemView {
       if (width > 3 || height > 3) {
         state.moved = true;
       }
-      state.box.setCssStyles({
+      state.box.setCssProps({
         left: `${left}px`,
         top: `${top}px`,
         width: `${width}px`,

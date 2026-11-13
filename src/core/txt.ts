@@ -4,7 +4,7 @@ export interface ParsedTxtChapter {
   body: string;
 }
 
-const VOLUME_LINE = /^第([0-9一二三四五六七八九十百千万零〇两]+)卷(?:[\s　]+(.*))?$/u;
+const VOLUME_LINE = /^第([0-9一二三四五六七八九十百千万零〇两]+)卷(?:[\s\u3000]+(.*))?$/u;
 
 function trimTrailingBlankLines(lines: string[]): string[] {
   let end = lines.length;

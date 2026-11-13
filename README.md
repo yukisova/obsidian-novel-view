@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.9.12-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.10.3-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.9.12.zip](dist/novel-view-0.9.12.zip)。
+1. 下载 [novel-view-0.10.3.zip](dist/novel-view-0.10.3.zip)。
 2. 解压到：
 
    ```text
@@ -225,77 +225,83 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 ### 设定集
 
-设定集用于整理小说的设定资料，替代原联动库。
+设定组直接放在小说组文件夹下，不再有统一的 `-设定` 容器。
 
-- 在 Obsidian 文件列表右击小说组，可选择 **构建设定集**。
-- 插件会在小说组内创建 `-设定` 文件夹，文件列表显示时忽略开头的 `-`。
-- 小说组在文件列表中强制展开，只显示其下的设定集，且不可折叠。
-- 设定集自身可以正常展开/折叠查看其下文件。
-- 设定集文件不会进入小说章节编辑模式，按普通 Markdown 文件打开。
+- 设定组文件夹使用 `-` 前缀，例如 `-人物`；文件列表显示时隐藏前缀并标记“设定组”。
+- 小说组左侧的展开按钮可展开/折叠，展开后同时显示卷与设定组。
+- 右击小说组选择 **新建设定组**。
+- 在文件列表点击设定组，会在右侧设定集页面打开该组。
+- 点击设定组展开箭头，可查看其下详细文件。
+- 设定组内的 `index.md` 是隐藏数据文件，不在文件列表显示，也不能通过常规打开流程查看。
+- 旧版 `-设定/index.json` 会自动迁移为直接设定组和 `index.md`。
 
-#### index.json
+#### index.md
 
-设定集目录必须包含 `index.json`。文件缺失时插件会自动重建；重建时会优先保留现有组文件夹。
+每个设定组文件夹内有一个隐藏的 `index.md`，正文包含 JSON 数据块：
 
 ```json
 {
-  "人物": [
+  "tags": [
     {
       "tag": "主角",
-      "color": "#ff0000",
+      "color": "#e74c3c",
       "contain": [
         {
-          "keyword": "零一",
-          "content": "主角设定简介"
+          "keyword": "小红",
+          "content": "小红在13岁那年离开旧宅。",
+          "fields": [
+            { "name": "年龄", "value": "16" },
+            { "name": "性别", "value": "女" }
+          ],
+          "relations": [
+            {
+              "targetGroup": "人物",
+              "targetKeyword": "小黄",
+              "type": "兄妹",
+              "direction": "two-way"
+            }
+          ],
+          "marks": [
+            { "start": 3, "end": 7, "attribute": "生平" }
+          ]
         }
       ]
     }
-  ],
-  "地点": []
+  ]
 }
 ```
 
-- 每个顶层键是一个设定分组，值是该组的标签列表。
-- 每个标签包含 `tag`、`color` 和 `contain`。
-- `contain` 中每条记录包含 `keyword` 和 `content`。
-- 插件会根据 index.json 的设定分组名，在设定集目录中自动创建对应文件夹。
-- 设定集目录中不存在于 index.json 的设定分组文件夹会被自动删除，视为外部加入的目录。
-- 在文件列表内重命名设定分组文件夹时，会自动更新 index.json 的分组名；若新名称缺少 `-` 前缀，会自动补回，避免文件夹被目录同步删除。
-- index.json 修改后会自动重新同步文件夹。
-- 文章列表工具栏的“设定集”入口用于查看 index.json 中的组、标签和记录。
-- 设定集完全取代原联动库；联动库视图、links.json 读写和旧关键词高亮代码均已移除。
-- 文章列表工具栏的设定集按钮始终可以打开设定集视图；尚未构建设定集时，视图内提供“构建设定集”按钮。
-- 设定集视图提供“导入设定”按钮：选择一个文件夹后，其一级子文件夹名称会作为新的设定分组，子文件夹内容递归导入到对应的 `-分组名` 文件夹。
-- 设定集标题显示对应设定集文件夹名称（隐藏开头 `-`），副标题显示小说组名。
-- 设定集空白处右击可新建设定分组；尚未构建设定集时该菜单为构建设定集。
-- 设定记录悬停时的详细文件按钮不显示标题，与简介以分隔线隔开，左对齐并每行两个。
-- 设定集视图支持：
-  - 新建、重命名、删除设定分组；
-  - 在分组下新建标签、选择标签颜色；
-  - 在标签下新建、编辑、删除设定记录；
-  - 设定记录包含关键词与简介，关键词在同一分组内唯一。
-- 卡片根据鼠标悬停自动展开、折叠：
-  - 设定分组默认只显示标题，悬停展开标签列表；
-  - 标签默认只显示名称，悬停展开记录；
-  - 记录默认只显示关键词，悬停显示简介；
-  - 鼠标移出后自动折叠，同一时间只展开当前悬停层级。
-- 拖拽操作期间会自动展开所有分组和标签，方便定位放置目标。
-- 从正文关键词跳转时，会强制展开并高亮对应分组、标签和记录。
-- 设定记录的详细文件：
-  - 放在该记录所属设定分组文件夹下；
-  - 文件名以 `关键词-标题.md` 命名，例如 `小王-生平履历.md`；
-  - 设定集视图中悬停记录会列出详细文件，点击打开；
-  - 记录右侧 `+` 或右键可新建详细文件；
-  - 记录重命名时详细文件前缀同步重命名；
-  - 记录或标签跨设定分组移动时，详细文件跟随移动。
-- 设定集支持拖拽移动：
-  - 拖动记录到其他标签：移动记录；
-  - 拖动记录到另一条记录前后：调整记录顺序；
-  - 拖动标签到其他设定分组：移动标签及其记录；
-  - 拖动标签到另一标签前后：调整标签顺序或跨组插入；
-  - 拖动设定分组到另一分组前后：调整分组顺序；
-  - 目标位置出现插入线或高亮边框；
-  - 标签重名或关键词重复时取消移动并提示。
+- `fields` 是用户自定义属性，可填写年龄、性别、时间等任意名称和值。
+- `relations` 用于链接其他设定记录：
+  - `targetGroup`、`targetKeyword` 指定目标；
+  - `direction` 为 `one-way` 或 `two-way`；
+  - 设定集页面顶部按钮打开独立的关系图谱悬浮卡片，显示节点、单向箭头和双向箭头。
+- 标签编辑窗口提供名称、颜色选择器、色值和六色预设圆点，当前颜色带选中圆环。
+- 关系图谱使用终点单箭头表示单向，两端箭头表示双向；左向单向的箭头位于源节点。
+- 工作台小说简介下方只列出小说组根目录下以 `-` 开头的 Markdown 文件，显示时省略 `-` 与 `.md`。
+- 点击这些文件会以普通 MarkdownView 打开，不进入 NovelEditor，也不计入分散卷。
+- 文件行悬停可重命名或删除；重命名会自动保留 `-` 前缀。
+
+#### 设定记录
+
+- 记录可新建、编辑、删除，并支持标签、字段和关系。
+- 记录关键词可留空。
+- 记录字段在编辑窗口中以“属性名 / 值”成对添加和删除，可自由填写年龄、性别、时间等。
+- 关系通过目标设定组、目标记录、关系名称和方向下拉框添加；单向关系可指定左向或右向。
+- 保存关系时会同步写入目标记录的对向关系；两端共享同一个关系值、类型和全局方向，图谱自动去重。
+- 单向关系的反向记录使用相反的左右箭头，例如小红卡片显示 ← 时，旧宅卡片显示 →。
+- 属性可在编辑卡中上移、下移调整顺序；详情卡根据内容长度自动使用并排、单行或标题正文布局。
+- 记录详细文件使用 `关键词-标题.md`，放在所属设定组文件夹内。
+
+#### 演示小说组
+
+主仓库中提供了：
+
+```text
+小说/NovelView 功能演示
+```
+
+包含人物、地点两个设定组，以及字段、兄妹双向关系、关系图谱和详细文件示例。
 
 ### 素材库
 
@@ -310,6 +316,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 小说组内的 Markdown 文件会由独立的 **Novel Editor** 视图打开，不进入原生 MarkdownView，也不复用其渲染逻辑。
 
 - 独立视图使用纯文本编辑器，不解析 Markdown。
+- 所有文章均可通过右键选中文字添加文字标记，标记保存在文章 frontmatter 中；工具栏不再提供文字标记按钮。
 - 正文中的所有字符原样显示，包括 `#`、`**`、`[]()`、列表符号等 Markdown 标记。
 - 标题、加粗、斜体、链接、列表、引用块和代码块不应用 Markdown 视觉格式。
 - YAML 笔记属性不会载入编辑器，既不显示也无法编辑；保存时自动保留原属性。
@@ -417,7 +424,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 - 旧版 `NovelSetting.md` 会在首次加载时自动迁移描述和封面到 `novel.json`；原文件会保留并正常显示，可自行归档或删除。
 - 文章 ID 保存在笔记属性 `novelview-id`。
 - 文章状态保存在 `novelview-state`。
-- 设定集数据保存在小说的 `-设定/index.json`。
+- 每个设定组的数据保存在其文件夹内的隐藏 `index.md`。
 - `history` 由工作台历史记录自动生成，无需手动维护。
 
 ### 快捷键与操作
@@ -486,7 +493,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.9.12.zip](dist/novel-view-0.9.12.zip).
+1. Download [novel-view-0.10.3.zip](dist/novel-view-0.10.3.zip).
 2. Extract it to:
 
    ```text
@@ -664,76 +671,68 @@ Actions:
 
 ### Setting collection
 
-The setting collection organizes worldbuilding reference material and replaces the former linked-file library.
+Setting groups are direct children of the novel group; there is no shared `-设定` container.
 
-- Right-click a novel group in Obsidian's file explorer and choose **Build setting collection**.
-- The plugin creates a `-设定` folder inside the novel group; the leading `-` is hidden in the file explorer.
-- The novel group is forced open and shows only its setting collection, without a collapse control.
-- The setting collection itself expands and collapses normally to show its files.
-- Setting-collection files are not novel chapters and open as normal Markdown files.
+- Setting-group folders use a leading `-`, for example `-人物`; the prefix is hidden in the file explorer and a “设定组” badge is shown.
+- Expand the novel group normally to see volumes and setting groups.
+- Right-click the novel group and choose **New setting group**.
+- Click a setting group in the file explorer to open that group in the setting-collection sidebar.
+- Expand a setting group to see its detail files.
+- Each group contains a hidden `index.md`; it is not shown in the file explorer.
+- Legacy `-设定/index.json` data is migrated automatically.
 
-#### index.json
+#### index.md
 
-The setting-collection folder must contain `index.json`. If it is missing, the plugin recreates it, preserving existing group folders where possible.
+Each group stores tags and records in a JSON block inside `index.md`:
 
 ```json
 {
-  "人物": [
+  "tags": [
     {
       "tag": "主角",
-      "color": "#ff0000",
+      "color": "#e74c3c",
       "contain": [
         {
-          "keyword": "零一",
-          "content": "Protagonist profile"
+          "keyword": "小红",
+          "content": "小红在13岁那年离开旧宅。",
+          "fields": [{ "name": "年龄", "value": "16" }],
+          "relations": [
+            {
+              "targetGroup": "人物",
+              "targetKeyword": "小黄",
+              "type": "兄妹",
+              "direction": "two-way"
+            }
+          ],
+          "marks": [{ "start": 3, "end": 7, "attribute": "生平" }]
         }
       ]
     }
-  ],
-  "地点": []
+  ]
 }
 ```
 
-- Each top-level key is a setting group; its value is a list of tags.
-- Each tag has `tag`, `color`, and `contain`.
-- Each `contain` entry has `keyword` and `content`.
-- The plugin creates one folder under the setting collection for each index group.
-- Folders not present in index.json are automatically deleted as externally added directories.
-- Editing index.json automatically resynchronizes the group folders.
-- The article-list **Setting collection** entry displays groups, tags, and records from index.json.
-- Setting-group folders use a leading `-` (for example `-设定/-人物`) and are kept in sync with index.json.
-- Renaming a group folder in the file explorer updates its index key and restores the leading `-` if omitted.
-- The setting-collection view offers **Import settings**: each direct subfolder becomes a setting group, and its contents are imported recursively.
-- The setting collection fully replaces the old linked-file library, whose code has been removed.
-- The view title shows the setting-collection folder name with its leading `-` hidden; the subtitle shows the novel group.
-- Right-clicking empty space offers “New setting group” (or “Build setting collection” when missing).
-- Record detail buttons are left-aligned, two per row, with no “detail files” heading and separated from the description by a divider.
-- Setting-record keywords are highlighted in the novel editor using their tag color.
-- Hovering a keyword shows a card with the keyword title, tag on the left, setting group on the right, description between dividers, and two-column detail-file buttons.
-- Clicking a keyword opens the setting collection and focuses the matching record.
-- The old article-toolbar “linked-file library” entry now opens the setting collection view.
-- The view supports creating, renaming, and deleting setting groups; creating colored tags; and creating/editing/deleting records with a unique keyword per group.
-- Detail files for setting records:
-  - Live in the record's setting-group folder;
-  - Use `keyword-title.md`, for example `小王-生平履历.md`;
-  - Appear under the record on hover and open on click;
-  - Can be created from the record's `+` button or context menu;
-  - Are renamed with the record keyword and move with the record or tag across groups.
-- Cards expand and collapse on hover:
-  - A group shows only its title until hovered, then reveals its tags;
-  - A tag shows only its name until hovered, then reveals its records;
-  - A record shows only its keyword until hovered, then reveals its description;
-  - Leaving the area collapses it again;
-  - All groups and tags expand while dragging to make drop targets reachable.
-- Keyword navigation forces the matching group, tag, and record open and highlighted.
-- Drag and drop:
-  - Drag a record onto another tag to move it;
-  - Drop a record before or after another record to reorder;
-  - Drag a tag onto another group to move it with its records;
-  - Drop a tag before or after another tag to reorder or insert across groups;
-  - Drop a group before or after another group to reorder groups;
-  - Insertion lines and highlighted drop zones show the target;
-  - Duplicate tag names or record keywords cancel the move with a notice.
+- `fields` stores arbitrary user-editable attributes such as age, gender, or time.
+- `relations` links setting records. `direction` can be `one-way` or `two-way`; the graph opens in a separate floating card.
+
+#### Records
+
+- Records support tags, arbitrary fields, relations, and marked description ranges.
+- Record keywords may be empty.
+- Fields are edited as addable name/value rows.
+- Relations use target-group and target-record dropdowns plus a direction selector.
+- Selected description text can be marked with an attribute such as “生平”.
+- Detail files use `keyword-title.md` inside the owning setting-group folder.
+
+#### Demo novel group
+
+A demo group is included in the vault:
+
+```text
+小说/NovelView 功能演示
+```
+
+It demonstrates character and location groups, custom fields, a two-way sibling relationship, marked attributes, a relationship graph, and detail files.
 
 ### Materials library
 
@@ -857,7 +856,7 @@ Notes:
 - Legacy `NovelSetting.md` files are migrated to `novel.json` on first load. The original Markdown file is kept visible and can be archived or deleted manually.
 - Article IDs are stored in `novelview-id`.
 - Chapter status is stored in `novelview-state`.
-- Setting-collection data is stored in `-设定/index.json` inside the novel group.
+- Each setting group stores data in a hidden `index.md` inside its folder.
 - `history` is maintained automatically by the workbench history card.
 
 ### Shortcuts
@@ -895,3 +894,18 @@ See [docs/DESIGN.md](docs/DESIGN.md) for design notes.
 
 Author: **yukisova**  
 License: [MIT License](LICENSE)
+
+
+## NovelFinder
+
+- 原“高级查找替换”卡片更名为 NovelFinder。
+- 查找结果显示在右侧 NovelFinder 结果侧栏，点击可跳转。
+- 查找范围支持：本章、本卷、全书、文字标记、待修改部分、关键词。
+- 替换输入框单独一行；文字标记、待修改部分和关键词范围不支持替换。
+- 关键词悬浮卡支持一对多分页，点击关键词打开当前页对应的设定记录详情卡。
+
+## NovelEditor
+
+- 章节标题位于编辑器顶部，可直接点击改名；名称不允许以 `-` 开头。
+- 修复标题字段与 Obsidian 视图属性冲突导致 NovelEditor 内容空白的问题。
+- 标题移出 CodeMirror 文档，避免上下方向键和鼠标点击时光标跳转异常。
