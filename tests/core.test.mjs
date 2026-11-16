@@ -13,6 +13,8 @@ import {
 import { compareFilesNaturally } from "../.test-build/format-utils.mjs";
 import {
   HISTORY_RETENTION_MS,
+  groupNovelHistory,
+  historyBucketStart,
   pruneNovelHistory,
 } from "../.test-build/novel-config.mjs";
 import {
@@ -505,6 +507,40 @@ test("history keeps only the last seven days", () => {
   assert.equal(parsed.history[0].path, "近.md");
 });
 
+
+test("history uses four-hour periods today and day periods before today", () => {
+  const now = new Date(2026, 10, 16, 15, 30).getTime();
+  const todayMorning = new Date(2026, 10, 16, 8, 20).getTime();
+  const todayLaterMorning = new Date(2026, 10, 16, 8, 40).getTime();
+  const todayNoon = new Date(2026, 10, 16, 12, 20).getTime();
+  const yesterdayMorning = new Date(2026, 10, 15, 9, 10).getTime();
+  const yesterdayEvening = new Date(2026, 10, 15, 22, 0).getTime();
+
+  assert.equal(
+    new Date(historyBucketStart(todayMorning, now)).getHours(),
+    8,
+  );
+  const yesterdayBucket = new Date(historyBucketStart(yesterdayEvening, now));
+  assert.equal(yesterdayBucket.getDate(), 15);
+  assert.equal(yesterdayBucket.getHours(), 0);
+
+  const groups = groupNovelHistory([
+    { bucketStart: todayMorning, path: "今日.md", name: "今日", delta: 10, updatedAt: todayMorning },
+    { bucketStart: todayLaterMorning, path: "今日.md", name: "今日", delta: 5, updatedAt: todayLaterMorning },
+    { bucketStart: todayNoon, path: "今日.md", name: "今日", delta: 5, updatedAt: todayNoon },
+    { bucketStart: yesterdayMorning, path: "昨日.md", name: "昨日", delta: 20, updatedAt: yesterdayMorning },
+    { bucketStart: yesterdayEvening, path: "昨日.md", name: "昨日", delta: -4, updatedAt: yesterdayEvening },
+  ], now);
+
+  assert.equal(groups.length, 3);
+  assert.equal(groups[0].day, false);
+  assert.equal(groups[0].entries[0].delta, 5);
+  assert.equal(groups[1].day, false);
+  assert.equal(groups[1].entries[0].delta, 15);
+  assert.equal(groups[2].day, true);
+  assert.equal(groups[2].entries.length, 1);
+  assert.equal(groups[2].entries[0].delta, 16);
+});
 
 test("TXT import strips two full-width spaces and splits volumes/chapters", () => {
   const input = [

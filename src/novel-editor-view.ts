@@ -6,9 +6,17 @@ import {
   setIcon,
   type WorkspaceLeaf,
 } from "obsidian";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import {
+  cursorLineDown,
+  cursorLineUp,
+  defaultKeymap,
+  history,
+  historyKeymap,
+} from "@codemirror/commands";
+import {
+  EditorSelection,
   EditorState,
+  Prec,
   RangeSetBuilder,
   StateField,
 } from "@codemirror/state";
@@ -44,7 +52,6 @@ import { settingKeywordExtension } from "./editor/setting-keyword-extension";
 import { TextPromptModal } from "./text-prompt-modal";
 import {
   PENDING_COLOR_OPTIONS,
-  pendingBlockAt,
   pendingBlockExtension,
   pendingBoundaryKeymap,
   pendingFenceProtection,
@@ -57,6 +64,39 @@ import type NovelViewPlugin from "./main";
 export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
 
 const sharedSaveChains = new Map<string, Promise<void>>();
+
+function moveCursorOneLine(view: EditorView, direction: -1 | 1): boolean {
+  const state = view.state;
+  const selection = state.selection.main;
+  const startLine = state.doc.lineAt(selection.head);
+  const goalColumn = selection.goalColumn
+    ?? selection.head - startLine.from;
+  const ran = direction < 0 ? cursorLineUp(view) : cursorLineDown(view);
+  if (!ran) {
+    return false;
+  }
+  const nextState = view.state;
+  const nextSelection = nextState.selection.main;
+  const nextLine = nextState.doc.lineAt(nextSelection.head);
+  const expected = startLine.number + direction;
+  let targetNumber: number | null = null;
+  if (direction < 0 && nextLine.number < expected) {
+    targetNumber = Math.max(1, startLine.number - 1);
+  } else if (direction > 0 && nextLine.number > expected) {
+    targetNumber = Math.min(nextState.doc.lines, startLine.number + 1);
+  }
+  if (targetNumber === null) {
+    return true;
+  }
+  const target = nextState.doc.line(targetNumber);
+  view.dispatch({
+    selection: EditorSelection.cursor(
+      target.from + Math.min(goalColumn, target.length),
+    ),
+    scrollIntoView: true,
+  });
+  return true;
+}
 
 class EditorImageWidget extends WidgetType {
   constructor(
@@ -285,6 +325,14 @@ export class NovelEditorView extends ItemView {
   private saveTimer: number | null = null;
   private loading = false;
   private lastSavedBody = "";
+  private pendingBlocks: PendingBlock[] = [];
+  private pendingBlocksTimer: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private resizeFrame: number | null = null;
+  private measureTimer: number | null = null;
+  private readonly handleWindowResize = (): void => {
+    this.scheduleEditorMeasure();
+  };
   private saveChain: Promise<void> = Promise.resolve();
   private outlineMarksTimer: number | null = null;
 
@@ -307,6 +355,14 @@ export class NovelEditorView extends ItemView {
 
   override getIcon(): string {
     return "book-open";
+  }
+
+  getNovelEditorFile(): TFile | null {
+    if (!this.filePath) {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(this.filePath);
+    return file instanceof TFile ? file : null;
   }
 
   override getState(): Record<string, unknown> {
@@ -541,6 +597,11 @@ export class NovelEditorView extends ItemView {
       window.clearTimeout(this.pendingHideTimer);
       this.pendingHideTimer = null;
     }
+    if (this.pendingBlocksTimer !== null) {
+      window.clearTimeout(this.pendingBlocksTimer);
+      this.pendingBlocksTimer = null;
+    }
+    this.disconnectResizeObserver();
     this.editorView?.destroy();
     this.editorView = null;
     this.editorHost = null;
@@ -601,6 +662,7 @@ export class NovelEditorView extends ItemView {
       return;
     }
     this.loading = true;
+    this.disconnectResizeObserver();
     try {
       const content = await this.app.vault.read(file);
       const { body } = splitFrontmatterContent(content);
@@ -623,9 +685,22 @@ export class NovelEditorView extends ItemView {
           extensions: [
             history(),
             drawSelection(),
+            Prec.highest(keymap.of([
+              {
+                key: "ArrowUp",
+                run: (view) => moveCursorOneLine(view, -1),
+              },
+              {
+                key: "ArrowDown",
+                run: (view) => moveCursorOneLine(view, 1),
+              },
+            ])),
             keymap.of([...defaultKeymap, ...historyKeymap]),
             EditorView.lineWrapping,
             EditorView.updateListener.of((update) => {
+              if (update.docChanged) {
+                this.schedulePendingBlocksRefresh();
+              }
               if (update.docChanged && !this.loading) {
                 this.scheduleSave();
                 this.scheduleOutlineMarksSave();
@@ -668,9 +743,11 @@ export class NovelEditorView extends ItemView {
           ],
         }),
       });
+      this.pendingBlocks = parsePendingBlocks(this.editorView.state);
       this.editorView.dispatch({
         effects: setOutlineMarksEffect.of(outlineMarks),
       });
+      this.observeEditorResize();
       const lineNumber = Math.min(
         Math.max(1, this.pendingLine),
         this.editorView.state.doc.lines,
@@ -790,7 +867,9 @@ export class NovelEditorView extends ItemView {
     }
     const marks = getOutlineMarks(this.editorView.state);
     try {
-      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      await this.app.fileManager.processFrontMatter(file, (
+        frontmatter: Record<string, unknown>,
+      ) => {
         if (marks.length > 0) {
           frontmatter[OUTLINE_MARKS_PROPERTY] = serializeOutlineMarks(marks);
         } else {
@@ -844,6 +923,56 @@ export class NovelEditorView extends ItemView {
     this.plugin.refreshArticleListViews();
     this.containerEl.querySelector<HTMLElement>(".view-header-title")
       ?.setText(base);
+  }
+
+  private observeEditorResize(): void {
+    if (!this.editorHost) {
+      return;
+    }
+    this.resizeObserver = new ResizeObserver(() => {
+      this.scheduleEditorMeasure();
+    });
+    this.resizeObserver.observe(this.editorHost);
+    if (this.editorView) {
+      this.resizeObserver.observe(this.editorView.scrollDOM);
+    }
+    window.addEventListener("resize", this.handleWindowResize);
+    window.addEventListener("orientationchange", this.handleWindowResize);
+    window.visualViewport?.addEventListener("resize", this.handleWindowResize);
+  }
+
+  private scheduleEditorMeasure(): void {
+    this.editorView?.requestMeasure();
+    if (this.resizeFrame !== null) {
+      window.cancelAnimationFrame(this.resizeFrame);
+    }
+    this.resizeFrame = window.requestAnimationFrame(() => {
+      this.resizeFrame = null;
+      this.editorView?.requestMeasure();
+    });
+    if (this.measureTimer !== null) {
+      window.clearTimeout(this.measureTimer);
+    }
+    this.measureTimer = window.setTimeout(() => {
+      this.measureTimer = null;
+      this.editorView?.requestMeasure();
+    }, 120);
+  }
+
+  private disconnectResizeObserver(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    window.removeEventListener("resize", this.handleWindowResize);
+    window.removeEventListener("orientationchange", this.handleWindowResize);
+    window.visualViewport?.removeEventListener("resize", this.handleWindowResize);
+    if (this.resizeFrame !== null) {
+      window.cancelAnimationFrame(this.resizeFrame);
+      this.resizeFrame = null;
+    }
+    if (this.measureTimer !== null) {
+      window.clearTimeout(this.measureTimer);
+      this.measureTimer = null;
+    }
   }
 
   private scheduleTocRefresh(): void {
@@ -1040,12 +1169,46 @@ export class NovelEditorView extends ItemView {
     }, 160);
   }
 
+  private schedulePendingBlocksRefresh(): void {
+    if (this.pendingBlocksTimer !== null) {
+      window.clearTimeout(this.pendingBlocksTimer);
+    }
+    this.pendingBlocksTimer = window.setTimeout(() => {
+      this.pendingBlocksTimer = null;
+      if (!this.editorView) {
+        return;
+      }
+      this.pendingBlocks = parsePendingBlocks(this.editorView.state);
+      this.updatePendingUi();
+    }, 120);
+  }
+
+  private pendingBlockAt(position: number): PendingBlock | null {
+    if (!this.editorView || this.pendingBlocks.length === 0) {
+      return null;
+    }
+    const doc = this.editorView.state.doc;
+    for (const block of this.pendingBlocks) {
+      const first = block.contentStartLine <= doc.lines
+        ? doc.line(block.contentStartLine).from
+        : block.openTo;
+      const last = block.contentEndLine >= block.contentStartLine
+        && block.contentEndLine <= doc.lines
+        ? doc.line(block.contentEndLine).to
+        : block.openTo;
+      if (position >= first && position <= last) {
+        return block;
+      }
+    }
+    return null;
+  }
+
   private updatePendingUi(): void {
     if (!this.editorView || !this.pendingButton || !this.pendingPanel) {
       return;
     }
     const selection = this.editorView.state.selection.main;
-    const block = pendingBlockAt(this.editorView.state, selection.head);
+    const block = this.pendingBlockAt(selection.head);
     const panelFocused = Boolean(
       this.pendingPanel.contains(activeDocument.activeElement),
     );

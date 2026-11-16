@@ -216,7 +216,18 @@ function buildPendingDecorations(state: EditorState): DecorationSet {
 export const pendingBlockExtension = StateField.define<DecorationSet>({
   create: buildPendingDecorations,
   update(value, transaction) {
-    return transaction.docChanged ? buildPendingDecorations(transaction.state) : value;
+    if (!transaction.docChanged) {
+      return value;
+    }
+    let structural = false;
+    transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+      const removed = transaction.startState.doc.sliceString(fromA, toA);
+      const added = inserted.toString();
+      if (/[`\n]|待修改部分/u.test(removed) || /[`\n]|待修改部分/u.test(added)) {
+        structural = true;
+      }
+    });
+    return structural ? buildPendingDecorations(transaction.state) : value.map(transaction.changes);
   },
   provide: (field) => EditorView.decorations.from(field),
 });
@@ -224,6 +235,17 @@ export const pendingBlockExtension = StateField.define<DecorationSet>({
 export function pendingFenceProtection(isAllowed: () => boolean) {
   return EditorState.transactionFilter.of((transaction) => {
     if (!transaction.docChanged || isAllowed()) {
+      return transaction;
+    }
+    let needsCheck = false;
+    transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+      const removed = transaction.startState.doc.sliceString(fromA, toA);
+      const added = inserted.toString();
+      if (/[`\n]/u.test(removed) || /[`\n]/u.test(added)) {
+        needsCheck = true;
+      }
+    });
+    if (!needsCheck) {
       return transaction;
     }
     const blocks = parsePendingBlocks(transaction.startState);

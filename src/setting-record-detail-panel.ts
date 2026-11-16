@@ -1,5 +1,6 @@
 import { setIcon, TFile } from "obsidian";
 import type { SettingCollectionEntry } from "./core/setting-collection";
+import { parseSettingIcon } from "./core/setting-icons";
 
 export interface SettingRecordDetailData {
   groupName: string;
@@ -7,6 +8,7 @@ export interface SettingRecordDetailData {
   entry: SettingCollectionEntry;
   detailFiles: TFile[];
   detailLabel: (file: TFile) => string;
+  iconUrl: (icon: string) => string | null;
   onEdit: (() => void) | null;
   openFile: (file: TFile) => void;
   onOpenRelation: (group: string, keyword: string) => void;
@@ -18,12 +20,43 @@ export class SettingRecordDetailPanel {
   private body: HTMLElement | null = null;
   private title: HTMLElement | null = null;
   private meta: HTMLElement | null = null;
+  private iconEl: HTMLElement | null = null;
   private data: SettingRecordDetailData | null = null;
   private dragStart: { x: number; y: number; left: number; top: number } | null = null;
   private positioned = false;
+  private moveListener: ((dx: number, dy: number) => void) | null = null;
 
   get element(): HTMLElement | null {
     return this.root;
+  }
+
+  setMoveListener(listener: (dx: number, dy: number) => void): void {
+    this.moveListener = listener;
+  }
+
+  setPosition(left: number, top: number): void {
+    if (!this.root) {
+      return;
+    }
+    this.root.setCssProps({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      right: "auto",
+    });
+    this.positioned = true;
+  }
+
+  moveBy(dx: number, dy: number): void {
+    if (!this.root || (dx === 0 && dy === 0)) {
+      return;
+    }
+    const rect = this.root.getBoundingClientRect();
+    this.root.setCssProps({
+      left: `${rect.left + dx}px`,
+      top: `${rect.top + dy}px`,
+      right: "auto",
+    });
+    this.positioned = true;
   }
 
   show(data: SettingRecordDetailData): void {
@@ -41,6 +74,7 @@ export class SettingRecordDetailPanel {
     this.body = null;
     this.title = null;
     this.meta = null;
+    this.iconEl = null;
     this.data = null;
     this.positioned = false;
   }
@@ -52,6 +86,9 @@ export class SettingRecordDetailPanel {
       cls: "novelview-setting-record-detail-panel-header",
     });
     this.header = header;
+    this.iconEl = header.createDiv({
+      cls: "novelview-setting-record-detail-panel-icon",
+    });
     const title = header.createDiv({
       cls: "novelview-setting-record-detail-panel-title",
     });
@@ -114,12 +151,35 @@ export class SettingRecordDetailPanel {
     const tagIcon = tagMeta.createSpan();
     setIcon(tagIcon, "tag");
     tagMeta.createSpan({ text: tagName || "未分类" });
+    const parsedIcon = parseSettingIcon(entry.icon);
+    const imageUrl = parsedIcon?.kind === "image"
+      ? this.data?.iconUrl(entry.icon ?? "") ?? null
+      : null;
+    if (this.iconEl) {
+      this.iconEl.empty();
+      const showHeaderIcon = parsedIcon?.kind === "lucide";
+      this.iconEl.toggleClass("is-empty", !showHeaderIcon);
+      if (showHeaderIcon && parsedIcon) {
+        setIcon(this.iconEl, parsedIcon.value);
+      }
+    }
     this.body.empty();
-    if (entry.content) {
+    if (entry.content || imageUrl) {
       const content = this.body.createDiv({
         cls: "novelview-setting-record-detail-content",
       });
-      content.appendText(entry.content);
+      if (imageUrl) {
+        content.createEl("img", {
+          cls: "novelview-setting-record-detail-content-image",
+          attr: {
+            src: imageUrl,
+            alt: entry.keyword || "设定图标",
+          },
+        });
+      }
+      if (entry.content) {
+        content.appendText(entry.content);
+      }
     }
     if (entry.fields.length > 0) {
       const section = this.body.createDiv({
@@ -259,14 +319,21 @@ export class SettingRecordDetailPanel {
     };
     this.root.addClass("is-dragging");
     this.header.setPointerCapture(event.pointerId);
+    let lastLeft = rect.left;
+    let lastTop = rect.top;
     const move = (moveEvent: PointerEvent): void => {
       if (!this.root || !this.dragStart) {
         return;
       }
+      const nextLeft = this.dragStart.left + moveEvent.clientX - this.dragStart.x;
+      const nextTop = this.dragStart.top + moveEvent.clientY - this.dragStart.y;
       this.root.setCssProps({
-        left: `${this.dragStart.left + moveEvent.clientX - this.dragStart.x}px`,
-        top: `${this.dragStart.top + moveEvent.clientY - this.dragStart.y}px`,
+        left: `${nextLeft}px`,
+        top: `${nextTop}px`,
       });
+      this.moveListener?.(nextLeft - lastLeft, nextTop - lastTop);
+      lastLeft = nextLeft;
+      lastTop = nextTop;
     };
     const up = (): void => {
       this.root?.removeClass("is-dragging");

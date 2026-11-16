@@ -201,6 +201,7 @@ export class SettingTagModal extends Modal {
 export interface SettingRecordDraft {
   keyword: string;
   content: string;
+  icon: string;
   fields: SettingField[];
   relations: SettingRelation[];
   marks: SettingMark[];
@@ -338,6 +339,7 @@ export class SettingGraphModal extends Modal {
     const arrow = marker.createSvg("path");
     arrow.setAttr("d", "M 0 0 L 10 5 L 0 10 z");
     arrow.addClass("novelview-setting-graph-arrow");
+    const viewport = svg.createSvg("g");
     const seenEdges = new Set<string>();
     for (const edge of edges) {
       const edgeKey = edge.linkId
@@ -359,7 +361,7 @@ export class SettingGraphModal extends Modal {
       const y1 = from.y + (distance > 0 ? (dy / distance) * nodeGap : 0);
       const x2 = to.x - (distance > 0 ? (dx / distance) * nodeGap : 0);
       const y2 = to.y - (distance > 0 ? (dy / distance) * nodeGap : 0);
-      const line = svg.createSvg("line");
+      const line = viewport.createSvg("line");
       line.setAttr("x1", String(x1));
       line.setAttr("y1", String(y1));
       line.setAttr("x2", String(x2));
@@ -373,7 +375,7 @@ export class SettingGraphModal extends Modal {
         line.setAttr("marker-end", "url(#novelview-setting-graph-arrow)");
       }
       line.addClass("novelview-setting-graph-edge");
-      const label = svg.createSvg("text");
+      const label = viewport.createSvg("text");
       label.setAttr("x", String((x1 + x2) / 2));
       label.setAttr("y", String((y1 + y2) / 2 - 4));
       label.addClass("novelview-setting-graph-edge-label");
@@ -387,7 +389,7 @@ export class SettingGraphModal extends Modal {
       if (!position) {
         continue;
       }
-      const node = svg.createSvg("g");
+      const node = viewport.createSvg("g");
       node.addClass("novelview-setting-graph-node");
       if (!recordNames.has(name)) {
         node.addClass("is-external");
@@ -406,6 +408,73 @@ export class SettingGraphModal extends Modal {
       text.setAttr("text-anchor", "middle");
       text.textContent = name;
     }
+
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    const applyViewport = (): void => {
+      viewport.setAttr(
+        "transform",
+        `translate(${panX} ${panY}) scale(${scale})`,
+      );
+    };
+    const pointerScale = (
+      event: MouseEvent | PointerEvent,
+    ): { x: number; y: number } => {
+      const rect = svg.getBoundingClientRect();
+      return {
+        x: ((event.clientX - rect.left) / Math.max(1, rect.width)) * width,
+        y: ((event.clientY - rect.top) / Math.max(1, rect.height)) * height,
+      };
+    };
+    svg.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const point = pointerScale(event);
+      const nextScale = Math.min(
+        4,
+        Math.max(0.35, scale * (event.deltaY < 0 ? 1.12 : 0.89)),
+      );
+      const ratio = nextScale / scale;
+      panX = point.x - (point.x - panX) * ratio;
+      panY = point.y - (point.y - panY) * ratio;
+      scale = nextScale;
+      applyViewport();
+    }, { passive: false });
+    let panning = false;
+    let panOrigin = { x: 0, y: 0 };
+    let startPan = { x: 0, y: 0 };
+    svg.addEventListener("pointerdown", (event) => {
+      if (event.button !== 1) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      panning = true;
+      panOrigin = pointerScale(event);
+      startPan = { x: panX, y: panY };
+      graph.addClass("is-panning");
+      svg.setPointerCapture(event.pointerId);
+    });
+    svg.addEventListener("pointermove", (event) => {
+      if (!panning) {
+        return;
+      }
+      const point = pointerScale(event);
+      panX = startPan.x + point.x - panOrigin.x;
+      panY = startPan.y + point.y - panOrigin.y;
+      applyViewport();
+    });
+    const endPan = (): void => {
+      panning = false;
+      graph.removeClass("is-panning");
+    };
+    svg.addEventListener("pointerup", endPan);
+    svg.addEventListener("pointercancel", endPan);
+    svg.addEventListener("auxclick", (event) => {
+      if (event.button === 1) {
+        event.preventDefault();
+      }
+    });
   }
 
   onClose(): void {

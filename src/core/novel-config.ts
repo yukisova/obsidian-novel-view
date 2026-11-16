@@ -9,6 +9,90 @@ export function pruneNovelHistory<T extends { bucketStart: number }>(
   const cutoff = now - HISTORY_RETENTION_MS;
   return history.filter((entry) => entry.bucketStart >= cutoff);
 }
+
+function isSameLocalDay(left: Date, right: Date): boolean {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+/**
+ * Today uses four-hour writing periods. Earlier days use one period per day.
+ * `now` defaults to the entry time so old stored entries normalize to day starts.
+ */
+export function historyBucketStart(
+  timestamp: number,
+  now = timestamp,
+): number {
+  const date = new Date(timestamp);
+  const reference = new Date(now);
+  if (isSameLocalDay(date, reference)) {
+    date.setHours(Math.floor(date.getHours() / 4) * 4, 0, 0, 0);
+  } else {
+    date.setHours(0, 0, 0, 0);
+  }
+  return date.getTime();
+}
+
+export interface NovelHistoryPeriodGroup {
+  bucketStart: number;
+  day: boolean;
+  entries: NovelHistoryEntry[];
+}
+
+/**
+ * Group history for the workbench. Today is split into four-hour periods;
+ * every earlier calendar day is aggregated into a single period.
+ */
+export function groupNovelHistory(
+  history: NovelHistoryEntry[],
+  now = Date.now(),
+): NovelHistoryPeriodGroup[] {
+  const nowDate = new Date(now);
+  const groups = new Map<string, {
+    bucketStart: number;
+    day: boolean;
+    entries: Map<string, NovelHistoryEntry>;
+  }>();
+  for (const entry of history) {
+    const date = new Date(entry.bucketStart);
+    const day = !isSameLocalDay(date, nowDate);
+    const start = new Date(date);
+    if (day) {
+      start.setHours(0, 0, 0, 0);
+    } else {
+      start.setHours(Math.floor(date.getHours() / 4) * 4, 0, 0, 0);
+    }
+    const bucketStart = start.getTime();
+    const key = `${day ? "day" : "hour"}:${bucketStart}`;
+    const group = groups.get(key) ?? {
+      bucketStart,
+      day,
+      entries: new Map<string, NovelHistoryEntry>(),
+    };
+    const existing = group.entries.get(entry.path);
+    if (existing) {
+      existing.delta += entry.delta;
+      existing.updatedAt = Math.max(existing.updatedAt, entry.updatedAt);
+      if (entry.updatedAt >= existing.updatedAt) {
+        existing.name = entry.name;
+      }
+    } else {
+      group.entries.set(entry.path, { ...entry });
+    }
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      bucketStart: group.bucketStart,
+      day: group.day,
+      entries: [...group.entries.values()]
+        .filter((entry) => entry.delta !== 0)
+        .sort((left, right) => right.updatedAt - left.updatedAt),
+    }))
+    .filter((group) => group.entries.length > 0)
+    .sort((left, right) => right.bucketStart - left.bucketStart);
+}
 export const LEGACY_NOVEL_SETTING_FILENAME = "NovelSetting.md";
 
 export interface NovelVolumeMeta {

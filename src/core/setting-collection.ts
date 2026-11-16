@@ -28,6 +28,7 @@ export interface SettingMark {
 export interface SettingCollectionEntry {
   keyword: string;
   content: string;
+  icon?: string;
   fields: SettingField[];
   relations: SettingRelation[];
   marks: SettingMark[];
@@ -166,13 +167,20 @@ function parseTags(rawTags: unknown): SettingCollectionTag[] {
         if (!keyword && !content) {
           continue;
         }
-        contain.push({
+        const icon = typeof rawEntry.icon === "string"
+          ? rawEntry.icon.trim()
+          : "";
+        const entry: SettingCollectionEntry = {
           keyword,
           content,
           fields: parseFields(rawEntry.fields),
           relations: parseRelations(rawEntry.relations),
           marks: parseMarks(rawEntry.marks),
-        });
+        };
+        if (icon) {
+          entry.icon = icon;
+        }
+        contain.push(entry);
       }
     }
     tags.push({ tag, color: normalizeColor(rawTag.color), contain });

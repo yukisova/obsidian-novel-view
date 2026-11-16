@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import { confirmAction } from "./confirm-modal";
 import { SettingGroupModal } from "./setting-collection-modal";
+import { groupNovelHistory } from "./core/novel-config";
 import type NovelViewPlugin from "./main";
 
 export const WORKBENCH_VIEW_TYPE = "novelview-workbench";
@@ -332,24 +333,30 @@ export class NovelWorkbenchView extends ItemView {
     const config = this.plugin.getNovelConfig(folderPath);
     const section = this.contentEl.createDiv({ cls: "novelview-history" });
     section.createDiv({ cls: "novelview-history-title", text: "历史记录" });
-    if (config.history.length === 0) {
+    const history = config.history.filter(
+      (entry) => !this.plugin.isSettingCollectionIndexPath(entry.path),
+    );
+    if (history.length === 0) {
       section.createDiv({
         cls: "novelview-history-empty",
         text: "暂无历史记录。",
       });
       return;
     }
-    const buckets = new Map<number, typeof config.history>();
-    for (const entry of config.history) {
-      const list = buckets.get(entry.bucketStart) ?? [];
-      list.push(entry);
-      buckets.set(entry.bucketStart, list);
+    const groups = groupNovelHistory(history);
+    if (groups.length === 0) {
+      section.createDiv({
+        cls: "novelview-history-empty",
+        text: "暂无历史记录。",
+      });
+      return;
     }
     const blocks = section.createDiv({ cls: "novelview-history-blocks" });
-    const ordered = [...buckets.entries()].sort(([left], [right]) => right - left);
-    for (const [bucketStart, entries] of ordered) {
-      const date = new Date(bucketStart);
-      const block = blocks.createDiv({ cls: "novelview-history-bucket" });
+    for (const group of groups) {
+      const date = new Date(group.bucketStart);
+      const block = blocks.createDiv({
+        cls: `novelview-history-bucket${group.day ? " is-day" : ""}`,
+      });
       block.createDiv({
         cls: "novelview-history-date",
         text: `${date.getFullYear()}.${date.getMonth() + 1}.${date.getDate()}`,
@@ -357,10 +364,12 @@ export class NovelWorkbenchView extends ItemView {
       const startHour = date.getHours();
       block.createDiv({
         cls: "novelview-history-time",
-        text: `${String(startHour).padStart(2, "0")}:00 - ${String(startHour + 4).padStart(2, "0")}:00`,
+        text: group.day
+          ? "全天"
+          : `${String(startHour).padStart(2, "0")}:00 - ${String(startHour + 4).padStart(2, "0")}:00`,
       });
       const list = block.createDiv({ cls: "novelview-history-entries" });
-      for (const entry of [...entries].sort((left, right) => right.updatedAt - left.updatedAt)) {
+      for (const entry of group.entries) {
         const file = this.app.vault.getAbstractFileByPath(entry.path);
         const name = file instanceof TFile ? file.basename : entry.name;
         const row = list.createDiv({ cls: "novelview-history-entry" });

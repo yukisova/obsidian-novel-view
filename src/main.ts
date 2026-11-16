@@ -13,6 +13,7 @@ import {
   TAbstractFile,
   TFile,
   TFolder,
+  type PluginSettingTab,
   type ViewCreator,
   type WorkspaceLeaf,
 } from "obsidian";
@@ -55,6 +56,7 @@ import {
 import {
   createNovelConfigContent,
   getNovelConfigPath,
+  historyBucketStart,
   isNovelConfigFile,
   joinVaultPath,
   pruneNovelHistory,
@@ -93,6 +95,7 @@ import {
 import { ModeSettingsPanel } from "./mode-settings-panel";
 import {
   SearchPanelV2,
+  type FinderContext,
   type FinderResult,
 } from "./search-panel-v2";
 import {
@@ -131,7 +134,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private readonly historyTimers = new Map<string, number>();
   private readonly settingGroups = new Map<string, string>();
   private readonly settingCollectionTimers = new Map<string, number>();
-  private readonly ensuringSettingCollections = new Set<string>();
+  private readonly ensuringSettingCollections = new Map<
+    string,
+    Promise<SettingCollectionIndex>
+  >();
   private suppressSettingGroupFolderRename = false;
   private readonly forcingSourceLeaves = new WeakSet<WorkspaceLeaf>();
   private readonly sourceModeAttempts = new WeakMap<WorkspaceLeaf, number>();
@@ -144,6 +150,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private articleDropHeader: HTMLElement | null = null;
   private articleDropHandled = false;
   private modeSettingsPanel: ModeSettingsPanel | null = null;
+
+  override addSettingTab(_tab: PluginSettingTab): void {
+    // Settings UI now lives in the in-product panels; no plugin tab is needed.
+  }
 
   async onload(): Promise<void> {
     const originalRegisterView = this.registerView.bind(this);
@@ -222,7 +232,16 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       const active = leaf?.view;
       if (active instanceof NovelEditorView) {
         active.activate();
+        this.searchPanelV2?.refreshForActiveEditor();
         return;
+      }
+      const inSidebar = Boolean(
+        leaf?.view.containerEl.closest(
+          ".workspace-split.mod-left-split, .workspace-split.mod-right-split",
+        ),
+      );
+      if (!inSidebar) {
+        this.closeNovelFinder();
       }
       if (active instanceof MarkdownView && active.file) {
         this.routeNovelFileOpen(active.file);
@@ -275,6 +294,9 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerEvent(this.app.vault.on("delete", (file) => {
       void this.handleArticlePathDeleted(file.path);
     }));
+    this.registerDomEvent(activeDocument, "click", (event) => {
+      this.handleSettingGroupFolderClickFallback(event);
+    }, true);
     this.registerDomEvent(activeDocument, "mouseover", (event) => {
       const target = (event.target as HTMLElement | null)?.closest<HTMLElement>(
         ".novelview-setting-keyword",
@@ -628,10 +650,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   async showNovelFinderResults(
-    heading: string,
+    context: FinderContext,
     results: FinderResult[],
   ): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(NOVEL_FINDER_VIEW_TYPE)[0];
+    if (existing?.view instanceof NovelFinderView) {
+      existing.view.setResults(context, results);
+      return;
+    }
     const leaf = existing
       ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true);
@@ -640,10 +666,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
     await leaf.setViewState({
       type: NOVEL_FINDER_VIEW_TYPE,
-      active: true,
+      active: false,
     });
     if (leaf.view instanceof NovelFinderView) {
-      leaf.view.setResults(heading, results);
+      leaf.view.setResults(context, results);
     }
     await this.app.workspace.revealLeaf(leaf);
   }
@@ -670,11 +696,23 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
+  private closeNovelFinder(): void {
+    this.searchPanelV2?.close();
+    for (const leaf of this.app.workspace.getLeavesOfType(NOVEL_FINDER_VIEW_TYPE)) {
+      leaf.detach();
+    }
+  }
+
   openAdvancedSearch(): void {
+    if (!this.app.workspace.getActiveViewOfType(NovelEditorView)) {
+      this.closeNovelFinder();
+      new Notice("Novel View：请先打开 NovelEditor 后再使用 NovelFinder。");
+      return;
+    }
     if (!this.searchPanelV2) {
       this.searchPanelV2 = new SearchPanelV2(this);
     }
-    this.searchPanelV2.open(this.getActiveMarkdownView() ?? undefined);
+    this.searchPanelV2.open();
   }
 
   openModeSettings(): void {
@@ -1127,7 +1165,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   private async recordFileHistory(file: TFile, root: string): Promise<void> {
-    if (!(this.app.vault.getAbstractFileByPath(file.path) instanceof TFile)) {
+    if (
+      !(this.app.vault.getAbstractFileByPath(file.path) instanceof TFile)
+      || this.isSettingCollectionIndexPath(file.path)
+    ) {
       return;
     }
     let content = "";
@@ -1574,8 +1615,20 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return used;
   }
 
+  isSettingCollectionIndexPath(path: string): boolean {
+    const normalized = this.normalizeFolderPath(path);
+    if (!normalized.endsWith(`/${SETTING_COLLECTION_INDEX}`)) {
+      return false;
+    }
+    const parent = this.normalizeFolderPath(
+      normalized.split("/").slice(0, -1).join("/"),
+    );
+    return this.settingRootForPath(parent) !== null;
+  }
+
   isSpecialNovelFile(file: TFile): boolean {
-    return isNovelConfigFile(file);
+    return isNovelConfigFile(file)
+      || this.isSettingCollectionIndexPath(file.path);
   }
 
   async readNovelConfig(folderPath: string): Promise<NovelConfig> {
@@ -2122,7 +2175,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (result?.canceled || !filePath) {
       return;
     }
-    const text = readFileSync(filePath, "utf8");
+    const text = readFileSync(filePath, "utf8") as string;
     const chapters = parseNovelTxt(text);
     const target = this.getFolder(folderPath);
     if (!target) {
@@ -2446,8 +2499,28 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       this.scheduleSettingCollection(root);
     }
     await this.normalizeExistingRelationLinks();
+    await this.cleanupSettingIndexHistory();
     this.refreshSettingCollectionViews();
     void this.refreshSettingKeywordIndex();
+  }
+
+  private async cleanupSettingIndexHistory(): Promise<void> {
+    for (const root of this.novelRoots()) {
+      const config = await this.readNovelConfig(root);
+      const history = config.history.filter(
+        (entry) => !this.isSettingCollectionIndexPath(entry.path),
+      );
+      if (history.length !== config.history.length) {
+        config.history = history;
+        await this.writeNovelConfig(root, config);
+      }
+      for (const path of [...this.wordCountBaselines.keys()]) {
+        if (this.isSettingCollectionIndexPath(path)) {
+          this.wordCountBaselines.delete(path);
+        }
+      }
+    }
+    this.refreshWorkbenchViews();
   }
 
   private async normalizeExistingRelationLinks(): Promise<void> {
@@ -2558,8 +2631,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return folder.children.filter((child): child is TFolder => (
       child instanceof TFolder
       && child.name.startsWith("-")
-      && this.settingGroupNameFromFolder(child) !== "設定"
-      && this.settingGroupNameFromFolder(child) !== "设定"
     ));
   }
 
@@ -2585,22 +2656,29 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         if (!(legacy instanceof TFolder) || legacy.name !== "-设定") {
           continue;
         }
-        let index: SettingCollectionIndex = {};
         const jsonFile = this.app.vault.getAbstractFileByPath(
           joinVaultPath(legacy.path, "index.json"),
         );
-        if (jsonFile instanceof TFile) {
-          try {
-            index = parseSettingCollectionIndex(
-              JSON.parse(await this.app.vault.cachedRead(jsonFile)) as unknown,
-            );
-          } catch (error) {
-            console.debug("Novel View: legacy setting index read skipped", error);
-          }
+        const indexMarkdown = this.app.vault.getAbstractFileByPath(
+          joinVaultPath(legacy.path, SETTING_COLLECTION_INDEX),
+        );
+        if (!(jsonFile instanceof TFile) || indexMarkdown instanceof TFile) {
+          continue;
+        }
+        let index: SettingCollectionIndex = {};
+        try {
+          index = parseSettingCollectionIndex(
+            JSON.parse(await this.app.vault.cachedRead(jsonFile)) as unknown,
+          );
+        } catch (error) {
+          console.debug("Novel View: legacy setting index read skipped", error);
         }
         const groupFolders = legacy.children.filter(
           (child): child is TFolder => child instanceof TFolder,
         );
+        if (groupFolders.length === 0 && Object.keys(index).length === 0) {
+          continue;
+        }
         for (const child of groupFolders) {
           const groupName = this.settingGroupNameFromFolder(child);
           if (!groupName) {
@@ -2641,7 +2719,20 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
             await this.ensureGroupIndexMarkdown(created, tags);
           }
         }
-        await this.app.fileManager.trashFile(legacy);
+        const remaining = legacy.children.filter((child) => !(
+          child instanceof TFile && child.name === "index.json"
+        ));
+        if (remaining.length > 0) {
+          console.warn(
+            "Novel View: legacy setting container was not removed because it still contains files",
+            legacy.path,
+          );
+          new Notice(
+            "Novel View：旧设定容器仍包含未迁移文件，已保留该文件夹。",
+          );
+        } else {
+          await this.app.fileManager.trashFile(legacy);
+        }
       }
       for (const group of this.settingGroupsForNovel(novelRoot)) {
         const indexMd = this.app.vault.getAbstractFileByPath(
@@ -2690,7 +2781,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         if (
           child instanceof TFolder
           && child.name.startsWith("-")
-          && child.name !== "-设定"
         ) {
           this.settingGroups.set(
             this.normalizeFolderPath(child.path),
@@ -2808,8 +2898,8 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
     let entries: Dirent[];
     try {
-      entries = readdirSync(sourceDir, { withFileTypes: true });
-    } catch (error) {
+      entries = readdirSync(sourceDir, { withFileTypes: true }) as Dirent[];
+    } catch (error: unknown) {
       console.error("Novel View: setting import folder read failed", error);
       new Notice("Novel View：无法读取导入文件夹。");
       return null;
@@ -2856,8 +2946,8 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     let count = 0;
     let entries: Dirent[];
     try {
-      entries = readdirSync(sourcePath, { withFileTypes: true });
-    } catch (error) {
+      entries = readdirSync(sourcePath, { withFileTypes: true }) as Dirent[];
+    } catch (error: unknown) {
       console.debug("Novel View: setting import directory skipped", error);
       return 0;
     }
@@ -2879,14 +2969,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       }
       try {
         const targetPath = this.getUniqueFilePath(targetFolder, entry.name);
-        const data = readFileSync(entryPath);
+        const data = readFileSync(entryPath) as Buffer;
         const buffer = data.buffer.slice(
           data.byteOffset,
           data.byteOffset + data.byteLength,
-        );
+        ) as ArrayBuffer;
         await this.app.vault.createBinary(targetPath, buffer);
         count += 1;
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`Novel View: setting import file failed: ${entryPath}`, error);
       }
     }
@@ -2918,6 +3008,82 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       left.group.localeCompare(right.group, "zh-CN", { numeric: true })
       || left.keyword.localeCompare(right.keyword, "zh-CN", { numeric: true })
     ));
+  }
+
+  async replaceNovelKeyword(
+    novelRoot: string,
+    oldKeyword: string,
+    newKeyword: string,
+  ): Promise<{ records: number; relations: number; files: number } | null> {
+    const root = this.normalizeFolderPath(novelRoot);
+    const oldValue = oldKeyword.trim();
+    const newValue = newKeyword.trim();
+    if (!oldValue || !newValue || oldValue === newValue) {
+      return null;
+    }
+    const groups = this.settingGroupsForNovel(root);
+    for (const group of groups) {
+      const index = await this.readSettingCollectionIndex(group.path);
+      for (const tags of Object.values(index)) {
+        for (const tag of tags) {
+          if (tag.contain.some((record) => record.keyword === newValue)) {
+            return null;
+          }
+        }
+      }
+    }
+    let records = 0;
+    let relations = 0;
+    for (const group of groups) {
+      const index = await this.readSettingCollectionIndex(group.path);
+      let changed = false;
+      for (const tags of Object.values(index)) {
+        for (const tag of tags) {
+          for (const record of tag.contain) {
+            if (record.keyword === oldValue) {
+              record.keyword = newValue;
+              records += 1;
+              changed = true;
+            }
+            for (const relation of record.relations) {
+              if (relation.targetKeyword === oldValue) {
+                relation.targetKeyword = newValue;
+                relations += 1;
+                changed = true;
+              }
+            }
+          }
+        }
+      }
+      if (changed) {
+        await this.writeSettingCollectionIndex(group.path, index);
+      }
+    }
+    let files = 0;
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (
+        !file.path.startsWith(`${root}/`)
+        || this.isSpecialNovelFile(file)
+      ) {
+        continue;
+      }
+      let changed = false;
+      await this.app.vault.process(file, (text) => {
+        if (!text.includes(oldValue)) {
+          return text;
+        }
+        changed = true;
+        return text.split(oldValue).join(newValue);
+      });
+      if (changed) {
+        files += 1;
+      }
+    }
+    await this.refreshSettingKeywordIndex();
+    this.refreshSettingCollectionViews();
+    this.refreshOpenViews();
+    this.refreshArticleListViews();
+    return { records, relations, files };
   }
 
   ensureSettingRelationLinkIds(
@@ -3409,11 +3575,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       return {};
     }
     this.settingGroups.set(normalized, novelRoot);
-    if (this.ensuringSettingCollections.has(normalized)) {
-      return {};
+    const pending = this.ensuringSettingCollections.get(normalized);
+    if (pending) {
+      return pending;
     }
-    this.ensuringSettingCollections.add(normalized);
-    try {
+    const task = (async (): Promise<SettingCollectionIndex> => {
       const indexJson = this.app.vault.getAbstractFileByPath(
         joinVaultPath(normalized, "index.json"),
       );
@@ -3449,8 +3615,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       );
       const groupName = this.settingGroupNameFromFolder(folder);
       return { [groupName]: tags };
+    })();
+    this.ensuringSettingCollections.set(normalized, task);
+    try {
+      return await task;
     } finally {
-      this.ensuringSettingCollections.delete(normalized);
+      if (this.ensuringSettingCollections.get(normalized) === task) {
+        this.ensuringSettingCollections.delete(normalized);
+      }
     }
   }
 
@@ -3516,20 +3688,20 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   private isSettingGroupFolderPath(newPath: string, oldPath: string): boolean {
-    const settingRoot = this.settingRootForPath(oldPath);
-    if (!settingRoot || this.settingRootForPath(newPath) !== settingRoot) {
+    const oldGroupPath = this.settingGroups.has(oldPath)
+      ? oldPath
+      : this.settingRootForPath(oldPath);
+    if (!oldGroupPath) {
       return false;
     }
-    if (oldPath === settingRoot || newPath === settingRoot) {
+    const novelRoot = this.settingGroups.get(oldGroupPath)
+      ?? this.settingRootForPath(oldPath);
+    if (!novelRoot) {
       return false;
     }
-    if (dirname(oldPath) !== settingRoot) {
-      return false;
-    }
-    if (dirname(newPath) !== settingRoot) {
-      return false;
-    }
-    return this.getFolder(newPath) instanceof TFolder;
+    return dirname(oldPath) === novelRoot
+      && dirname(newPath) === novelRoot
+      && this.getFolder(newPath) instanceof TFolder;
   }
 
   private async handleSettingGroupFolderRename(
@@ -3544,9 +3716,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (!newFolder) {
       return;
     }
+    const oldName = this.normalizeFolderPath(oldPath)
+      .split("/").pop()?.replace(/^-+/u, "").trim() ?? "";
     const newName = this.settingGroupNameFromFolder(newFolder);
     if (!newName) {
-      await this.revertSettingGroupFolder(newPath, settingRoot, "");
+      await this.revertSettingGroupFolder(newPath, settingRoot, oldName);
       return;
     }
     const desiredPath = joinVaultPath(
@@ -3556,7 +3730,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (newFolder.path !== desiredPath) {
       if (this.app.vault.getAbstractFileByPath(desiredPath)) {
         new Notice(`Novel View：设定组“${newName}”已存在。`);
-        await this.revertSettingGroupFolder(newPath, settingRoot, "");
+        await this.revertSettingGroupFolder(newPath, settingRoot, oldName);
         return;
       }
       this.suppressSettingGroupFolderRename = true;
@@ -3564,6 +3738,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         await this.app.fileManager.renameFile(newFolder, desiredPath);
       } catch (error) {
         console.error("Novel View: setting group prefix failed", error);
+        await this.revertSettingGroupFolder(newPath, settingRoot, oldName);
         return;
       } finally {
         this.suppressSettingGroupFolderRename = false;
@@ -3574,6 +3749,28 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (moved) {
       this.settingGroups.set(moved.path, settingRoot);
       await this.ensureGroupIndexMarkdown(moved);
+      for (const leaf of this.app.workspace.getLeavesOfType(
+        SETTING_COLLECTION_VIEW_TYPE,
+      )) {
+        if (leaf.view instanceof SettingCollectionView) {
+          const state = leaf.getViewState().state as { folderPath?: unknown };
+          const current = typeof state.folderPath === "string"
+            ? state.folderPath
+            : "";
+          if (
+            current === oldPath
+            || current.startsWith(`${oldPath}/`)
+          ) {
+            await leaf.setViewState({
+              type: SETTING_COLLECTION_VIEW_TYPE,
+              state: {
+                folderPath: moved.path + current.slice(oldPath.length),
+              },
+              active: false,
+            });
+          }
+        }
+      }
     }
     this.scheduleNovelFolderDecoration();
   }
@@ -3687,7 +3884,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   isReservedNovelFolder(name: string): boolean {
     return name.startsWith("-")
-      || /^(src|设定|伏笔|人物|时间线|分散卷)$/iu.test(name);
+      || /^(src|分散卷)$/iu.test(name);
   }
 
   async exportNovelGroup(folderPath: string): Promise<void> {
@@ -3969,6 +4166,35 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     menu.showAtMouseEvent(event);
   }
 
+  private handleSettingGroupFolderClickFallback(event: MouseEvent): void {
+    if (event.defaultPrevented) {
+      return;
+    }
+    const target = event.target as HTMLElement | null;
+    if (!target || target.closest(".nav-folder-collapse-indicator, .collapse-icon")) {
+      return;
+    }
+    const folderTitle = target.closest<HTMLElement>(".nav-folder-title");
+    const path = folderTitle?.dataset.path;
+    if (!folderTitle || !path) {
+      return;
+    }
+    const folder = this.app.vault.getAbstractFileByPath(path);
+    if (
+      !(folder instanceof TFolder)
+      || !folder.name.startsWith("-")
+    ) {
+      return;
+    }
+    const parent = this.normalizeFolderPath(folder.parent?.path ?? "/");
+    if (this.findNovelGroupRoot(parent) !== parent) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    void this.openSettingCollection(folder.path);
+  }
+
   handleNovelFolderClick(event: MouseEvent): void {
     const target = event.target as HTMLElement | null;
     if (!target) {
@@ -4098,6 +4324,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
+  getActiveNovelEditorFile(): TFile | null {
+    const view = this.app.workspace.getActiveViewOfType(NovelEditorView);
+    return view?.getNovelEditorFile() ?? null;
+  }
+
   setNovelEditorFile(file: TFile): void {
     this.lastActiveMarkdownPath = file.path;
     const root = this.findNovelGroupRoot(
@@ -4198,10 +4429,12 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       return;
     }
     await this.ensureSettingCollection(settingFolder.path);
-    const existing = this.app.workspace.getLeavesOfType(
+    const rightLeaf = this.app.workspace.getLeavesOfType(
       SETTING_COLLECTION_VIEW_TYPE,
-    )[0];
-    const leaf = existing
+    ).find((candidate) => Boolean(
+      candidate.view.containerEl.closest(".workspace-split.mod-right-split"),
+    ));
+    const leaf = rightLeaf
       ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true);
     if (!leaf) {
@@ -4308,9 +4541,3 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
 }
 
-
-function historyBucketStart(timestamp: number): number {
-  const date = new Date(timestamp);
-  date.setHours(Math.floor(date.getHours() / 4) * 4, 0, 0, 0);
-  return date.getTime();
-}

@@ -2,6 +2,7 @@ import {
   ItemView,
   Menu,
   Notice,
+  TFile,
   TFolder,
   setIcon,
   type WorkspaceLeaf,
@@ -10,6 +11,7 @@ import {
   type SettingCollectionIndex,
   type SettingCollectionTag,
 } from "./core/setting-collection";
+import { parseSettingIcon } from "./core/setting-icons";
 import {
   SettingConfirmModal,
   SettingGraphModal,
@@ -45,6 +47,9 @@ export class SettingCollectionView extends ItemView {
   private dropTarget: SettingDropTarget | null = null;
   private recordDetailPanel: SettingRecordDetailPanel | null = null;
   private recordEditorPanel: SettingRecordEditorPanel | null = null;
+  private focusedTagKey: string | null = null;
+  private recordPreview: HTMLElement | null = null;
+  private recordDragActive = false;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -89,6 +94,7 @@ export class SettingCollectionView extends ItemView {
     this.recordEditorPanel = null;
     this.recordDetailPanel?.close();
     this.recordDetailPanel = null;
+    this.hideRecordPreview();
     this.contentEl.empty();
   }
 
@@ -119,6 +125,7 @@ export class SettingCollectionView extends ItemView {
     this.refreshing = true;
     try {
       this.contentEl.empty();
+      this.hideRecordPreview();
       const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
       const collectionName = folder
         ? folder.name.replace(/^-+/u, "") || "设定集"
@@ -176,14 +183,60 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
-  private renderRecordContent(
-    row: HTMLElement,
-    entry: import("./core/setting-collection").SettingCollectionEntry,
-  ): void {
-    row.createDiv({
-      cls: "novelview-setting-collection-content",
-      text: entry.content,
+  private tagStateKey(group: string, tag: string): string {
+    return `${group}\u0000${tag}`;
+  }
+
+  private updateFocusedTags(): void {
+    for (const element of this.contentEl.querySelectorAll<HTMLElement>(
+      ".novelview-setting-collection-tag.is-active",
+    )) {
+      element.removeClass("is-active");
+    }
+    if (!this.focusedTagKey) {
+      return;
+    }
+    const [group = "", tag = ""] = this.focusedTagKey.split("\u0000");
+    const element = this.contentEl.querySelector<HTMLElement>(
+      `.novelview-setting-collection-tag[data-setting-group="${
+        CSS.escape(group)
+      }"][data-setting-drop-tag="${CSS.escape(tag)}"]`,
+    );
+    element?.addClass("is-active");
+  }
+
+  private showRecordPreview(row: HTMLElement, entry: import("./core/setting-collection").SettingCollectionEntry): void {
+    if (this.dragPayload) {
+      return;
+    }
+    this.hideRecordPreview();
+    const preview = createDiv({
+      cls: "novelview-setting-record-preview",
     });
+    preview.createDiv({
+      cls: "novelview-setting-record-preview-title",
+      text: entry.keyword || "未命名记录",
+    });
+    preview.createDiv({
+      cls: "novelview-setting-record-preview-content",
+      text: entry.content || "暂无简介",
+    });
+    activeDocument.body.appendChild(preview);
+    const rect = row.getBoundingClientRect();
+    const width = preview.offsetWidth || 220;
+    const height = preview.offsetHeight || 90;
+    const left = Math.max(8, rect.left - width - 8);
+    const top = Math.min(
+      Math.max(8, rect.top),
+      Math.max(8, window.innerHeight - height - 8),
+    );
+    preview.setCssProps({ left: `${left}px`, top: `${top}px` });
+    this.recordPreview = preview;
+  }
+
+  private hideRecordPreview(): void {
+    this.recordPreview?.remove();
+    this.recordPreview = null;
   }
 
   async revealRecordDetail(
@@ -217,6 +270,8 @@ export class SettingCollectionView extends ItemView {
     if (!row) {
       return;
     }
+    this.focusedTagKey = this.tagStateKey(group, tag);
+    this.updateFocusedTags();
     const focused = [
       row.closest<HTMLElement>(".novelview-setting-collection-group"),
       row.closest<HTMLElement>(".novelview-setting-collection-tag"),
@@ -231,6 +286,157 @@ export class SettingCollectionView extends ItemView {
         element.removeClass("is-focused");
       }
     }, 1600);
+  }
+
+  private attachRecordPointerDrag(
+    row: HTMLElement,
+    payload: SettingDragPayload,
+    tagKey: string,
+  ): void {
+    row.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      if ((event.target as HTMLElement | null)?.closest("button")) {
+        return;
+      }
+      const startX = event.clientX;
+      const startY = event.clientY;
+      let moved = false;
+      let dropTarget: SettingDropTarget | null = null;
+      const move = (moveEvent: PointerEvent): void => {
+        if (moveEvent.pointerId !== event.pointerId) {
+          return;
+        }
+        if (
+          !moved
+          && Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) < 6
+        ) {
+          return;
+        }
+        if (!moved) {
+          moved = true;
+          this.updateFocusedTags();
+          this.hideRecordPreview();
+          this.dragPayload = payload;
+          this.contentEl.addClass("is-setting-dragging");
+          row.addClass("is-dragging");
+        }
+        const under = moveEvent.target as HTMLElement | null;
+        dropTarget = under
+          ? this.resolveRecordPointerDropTarget(under, moveEvent.clientY)
+          : null;
+        this.applyRecordPointerDropTarget(dropTarget);
+        moveEvent.preventDefault();
+      };
+      const finish = (): void => {
+        const doc = row.ownerDocument;
+        doc.removeEventListener("pointermove", move, true);
+        doc.removeEventListener("pointerup", finish, true);
+        doc.removeEventListener("pointercancel", finish, true);
+        if (!moved) {
+          return;
+        }
+        const target = dropTarget;
+        this.recordDragActive = true;
+        this.clearDragState();
+        window.setTimeout(() => {
+          this.recordDragActive = false;
+        }, 160);
+        if (target) {
+          void this.performSettingDrop(payload, target);
+        }
+      };
+      const doc = row.ownerDocument;
+      doc.addEventListener("pointermove", move, true);
+      doc.addEventListener("pointerup", finish, true);
+      doc.addEventListener("pointercancel", finish, true);
+    });
+  }
+
+  private applyRecordPointerDropTarget(
+    target: SettingDropTarget | null,
+  ): void {
+    if (target) {
+      if (
+        this.dropTarget?.element === target.element
+        && this.dropTarget.mode === target.mode
+      ) {
+        return;
+      }
+      this.dropTarget?.element.removeClass(
+        "is-drop-before",
+        "is-drop-after",
+        "is-drop-inside",
+      );
+      target.element.addClass(`is-drop-${target.mode}`);
+      this.dropTarget = target;
+      return;
+    }
+    this.dropTarget?.element.removeClass(
+      "is-drop-before",
+      "is-drop-after",
+      "is-drop-inside",
+    );
+    this.dropTarget = null;
+  }
+
+  private resolveRecordPointerDropTarget(
+    element: HTMLElement,
+    clientY: number,
+  ): SettingDropTarget | null {
+    if (!this.dragPayload) {
+      return null;
+    }
+    const record = element.closest<HTMLElement>("[data-setting-drop-record]");
+    if (record) {
+      const tag = record.closest<HTMLElement>("[data-setting-drop-tag]");
+      const group = record.closest<HTMLElement>("[data-setting-drop-group]");
+      const groupName = group?.dataset.settingDropGroup
+        ?? tag?.dataset.settingGroup
+        ?? "";
+      if (!tag || !groupName) {
+        return null;
+      }
+      const rect = record.getBoundingClientRect();
+      return {
+        element: record,
+        mode: clientY < rect.top + rect.height / 2 ? "before" : "after",
+        group: groupName,
+        tag: tag.dataset.settingDropTag ?? "",
+        keyword: record.dataset.settingDropRecord ?? "",
+      };
+    }
+    const tag = element.closest<HTMLElement>("[data-setting-drop-tag]");
+    if (tag) {
+      const group = tag.closest<HTMLElement>("[data-setting-drop-group]");
+      const groupName = group?.dataset.settingDropGroup
+        ?? tag.dataset.settingGroup
+        ?? "";
+      if (!groupName) {
+        return null;
+      }
+      return {
+        element: tag,
+        mode: "inside",
+        group: groupName,
+        tag: tag.dataset.settingDropTag ?? "",
+      };
+    }
+    const group = element.closest<HTMLElement>("[data-setting-drop-group]");
+    if (!group) {
+      return null;
+    }
+    const firstTag = group.querySelector<HTMLElement>("[data-setting-drop-tag]");
+    if (!firstTag) {
+      return null;
+    }
+    return {
+      element: firstTag,
+      mode: "inside",
+      group: group.dataset.settingDropGroup ?? "",
+      tag: firstTag.dataset.settingDropTag ?? "",
+    };
   }
 
   private startDrag(
@@ -300,14 +506,17 @@ export class SettingCollectionView extends ItemView {
     if (record) {
       const tag = record.closest<HTMLElement>("[data-setting-drop-tag]");
       const group = record.closest<HTMLElement>("[data-setting-drop-group]");
-      if (!tag || !group) {
+      const groupName = group?.dataset.settingDropGroup
+        ?? tag?.dataset.settingGroup
+        ?? "";
+      if (!tag || !groupName) {
         return null;
       }
       if (payload.kind === "record") {
         return {
           element: record,
           mode: this.dropMode(record, event),
-          group: group.dataset.settingDropGroup ?? "",
+          group: groupName,
           tag: tag.dataset.settingDropTag ?? "",
           keyword: record.dataset.settingDropRecord ?? "",
         };
@@ -316,7 +525,7 @@ export class SettingCollectionView extends ItemView {
         return {
           element: tag,
           mode: this.dropMode(tag, event),
-          group: group.dataset.settingDropGroup ?? "",
+          group: groupName,
           tag: tag.dataset.settingDropTag ?? "",
         };
       }
@@ -324,7 +533,10 @@ export class SettingCollectionView extends ItemView {
     const tag = target.closest<HTMLElement>("[data-setting-drop-tag]");
     if (tag) {
       const group = tag.closest<HTMLElement>("[data-setting-drop-group]");
-      if (!group) {
+      const groupName = group?.dataset.settingDropGroup
+        ?? tag.dataset.settingGroup
+        ?? "";
+      if (!groupName) {
         return null;
       }
       return {
@@ -332,7 +544,7 @@ export class SettingCollectionView extends ItemView {
         mode: payload.kind === "record"
           ? "inside"
           : this.dropMode(tag, event),
-        group: group.dataset.settingDropGroup ?? "",
+        group: groupName,
         tag: tag.dataset.settingDropTag ?? "",
       };
     }
@@ -592,12 +804,22 @@ export class SettingCollectionView extends ItemView {
     group: string,
     tag: SettingCollectionTag,
   ): void {
+    const tagKey = this.tagStateKey(group, tag.tag);
     const tagCard = parent.createDiv({
-      cls: "novelview-setting-collection-tag",
+      cls: `novelview-setting-collection-tag${
+        this.focusedTagKey === tagKey ? " is-active" : ""
+      }`,
       attr: {
         "data-setting-drop-tag": tag.tag,
         "data-setting-group": group,
       },
+    });
+    tagCard.addEventListener("click", (event) => {
+      if ((event.target as HTMLElement | null)?.closest("button")) {
+        return;
+      }
+      this.focusedTagKey = tagKey;
+      this.updateFocusedTags();
     });
     const heading = tagCard.createDiv({
       cls: "novelview-setting-collection-tag-title",
@@ -662,22 +884,14 @@ export class SettingCollectionView extends ItemView {
         cls: "novelview-setting-collection-drag-grip",
       });
       setIcon(recordGrip, "grip-vertical");
-      recordGrip.setAttr("draggable", "true");
-      recordGrip.addEventListener("dragstart", (event) => {
-        this.startDrag(event, {
-          kind: "record",
-          group,
-          tag: tag.tag,
-          keyword: entry.keyword,
-        });
+      const recordIcon = row.createSpan({
+        cls: "novelview-setting-collection-entry-icon",
       });
+      this.renderSettingIcon(recordIcon, entry.icon ?? "");
       row.createDiv({
         cls: "novelview-setting-collection-keyword",
         text: entry.keyword || "未命名记录",
       });
-      if (entry.content) {
-        this.renderRecordContent(row, entry);
-      }
       const recordActions = row.createDiv({
         cls: "novelview-setting-collection-entry-actions",
       });
@@ -688,18 +902,35 @@ export class SettingCollectionView extends ItemView {
         this.openRecordMenu(event, group, tag.tag, entry.keyword);
       });
       row.addEventListener("click", (event) => {
+        if (this.recordDragActive) {
+          return;
+        }
         if ((event.target as HTMLElement | null)?.closest(
           "button, .novelview-setting-collection-drag-grip",
         )) {
           return;
         }
+        this.hideRecordPreview();
         this.openRecordDetail(group, tag.tag, entry);
+      });
+      row.addEventListener("mouseenter", () => {
+        this.showRecordPreview(row, entry);
+      });
+      row.addEventListener("mouseleave", () => {
+        this.hideRecordPreview();
       });
       row.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         event.stopPropagation();
         this.openRecordMenu(event, group, tag.tag, entry.keyword);
       });
+      this.attachRecordPointerDrag(row, {
+        kind: "record",
+        group,
+        tag: tag.tag,
+        keyword: entry.keyword,
+      }, tagKey);
+
     }
   }
 
@@ -935,11 +1166,17 @@ export class SettingCollectionView extends ItemView {
         initial: {
           keyword: "",
           content: "",
+          icon: "",
           fields: [],
           relations: [],
           marks: [],
         },
         targets,
+        iconUrl: (icon) => this.resolveSettingIconUrl(icon),
+        onUploadIcon: (file) => this.uploadSettingRecordIcon(
+          file,
+          settingRoot,
+        ),
         onSubmit: async (draft, setError) => {
           const index = await this.plugin.readSettingCollectionIndex(settingRoot);
           const tags = index[group];
@@ -964,6 +1201,7 @@ export class SettingCollectionView extends ItemView {
           tag.contain.push({
             keyword: draft.keyword,
             content: draft.content,
+            icon: draft.icon,
             fields: draft.fields,
             relations,
             marks: [],
@@ -984,6 +1222,7 @@ export class SettingCollectionView extends ItemView {
           this.recordEditorPanel = null;
         },
       });
+      this.bindRecordPanels();
     });
   }
 
@@ -997,6 +1236,92 @@ export class SettingCollectionView extends ItemView {
       return;
     }
     this.showRecordDetail(folder, group, tag, entry);
+  }
+
+  private resolveSettingIconUrl(icon: string): string | null {
+    const parsed = parseSettingIcon(icon);
+    if (!parsed || parsed.kind !== "image") {
+      return null;
+    }
+    const file = this.app.vault.getAbstractFileByPath(parsed.value);
+    return file instanceof TFile
+      ? this.app.vault.getResourcePath(file)
+      : null;
+  }
+
+  private renderSettingIcon(container: HTMLElement, icon: string): void {
+    const parsed = parseSettingIcon(icon);
+    if (!parsed) {
+      return;
+    }
+    if (parsed.kind === "lucide") {
+      setIcon(container, parsed.value);
+      return;
+    }
+    const url = this.resolveSettingIconUrl(icon);
+    if (url) {
+      container.createEl("img", {
+        attr: { src: url, alt: "设定图标" },
+      });
+    }
+  }
+
+  async uploadSettingRecordIcon(
+    file: File,
+    folderPath: string,
+  ): Promise<string | null> {
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!["svg", "png", "jpg", "jpeg", "webp"].includes(extension)) {
+      return null;
+    }
+    const novelRoot = this.plugin.findNovelGroupRoot(folderPath)
+      ?? this.folderPath;
+    const iconFolder = await this.plugin.ensureFolder(
+      `${novelRoot}/src/icons`,
+    );
+    if (!iconFolder) {
+      return null;
+    }
+    const base = this.plugin.sanitizeFileBase(
+      file.name.replace(/\.[^.]+$/u, ""),
+      "icon",
+    );
+    const path = this.plugin.getUniqueFilePath(
+      iconFolder.path,
+      `${base}.${extension}`,
+    );
+    await this.app.vault.createBinary(path, await file.arrayBuffer());
+    return `image:${path}`;
+  }
+
+  private bindRecordPanels(): void {
+    this.recordDetailPanel?.setMoveListener((dx, dy) => {
+      this.recordEditorPanel?.moveBy(dx, dy);
+    });
+    this.recordEditorPanel?.setMoveListener((dx, dy) => {
+      this.recordDetailPanel?.moveBy(dx, dy);
+    });
+    this.arrangeRecordPanels();
+  }
+
+  private arrangeRecordPanels(): void {
+    const detail = this.recordDetailPanel?.element;
+    const editor = this.recordEditorPanel?.element;
+    if (!detail || !editor) {
+      return;
+    }
+    const detailRect = detail.getBoundingClientRect();
+    const editorRect = editor.getBoundingClientRect();
+    const gap = 12;
+    const width = editorRect.width || 430;
+    let editorLeft = detailRect.left - width - gap;
+    let detailLeft = detailRect.left;
+    if (editorLeft < 8) {
+      editorLeft = 8;
+      detailLeft = editorLeft + width + gap;
+      this.recordDetailPanel?.setPosition(detailLeft, detailRect.top);
+    }
+    this.recordEditorPanel?.setPosition(editorLeft, detailRect.top);
   }
 
   private showRecordDetail(
@@ -1021,6 +1346,7 @@ export class SettingCollectionView extends ItemView {
         entry.keyword,
         file,
       ),
+      iconUrl: (icon) => this.resolveSettingIconUrl(icon),
       onEdit: () => this.editRecordAt(
         folder.path,
         group,
@@ -1034,6 +1360,7 @@ export class SettingCollectionView extends ItemView {
         void this.openRelationTarget(targetGroup, keyword);
       },
     });
+    this.bindRecordPanels();
   }
 
   private async openRelationTarget(
@@ -1138,11 +1465,17 @@ export class SettingCollectionView extends ItemView {
           initial: {
             keyword: record.keyword,
             content: record.content,
+            icon: record.icon ?? "",
             fields: record.fields.map((field) => ({ ...field })),
             relations: record.relations.map((relation) => ({ ...relation })),
             marks: record.marks.map((mark) => ({ ...mark })),
           },
           targets,
+          iconUrl: (icon) => this.resolveSettingIconUrl(icon),
+          onUploadIcon: (file) => this.uploadSettingRecordIcon(
+            file,
+            folder.path,
+          ),
           onSubmit: async (draft, setError) => {
             const data = {
               folderPath,
@@ -1176,6 +1509,7 @@ export class SettingCollectionView extends ItemView {
           );
             current.keyword = draft.keyword;
             current.content = draft.content;
+            current.icon = draft.icon || undefined;
             current.fields = draft.fields;
             current.relations = relations;
             current.marks = [];
@@ -1206,6 +1540,7 @@ export class SettingCollectionView extends ItemView {
             this.recordEditorPanel = null;
           },
         });
+        this.bindRecordPanels();
       });
     });
   }

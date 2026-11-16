@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.10.3-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.11.0-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.10.3.zip](dist/novel-view-0.10.3.zip)。
+1. 下载 [novel-view-0.11.0.zip](dist/novel-view-0.11.0.zip)。
 2. 解压到：
 
    ```text
@@ -228,6 +228,10 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 设定组直接放在小说组文件夹下，不再有统一的 `-设定` 容器。
 
 - 设定组文件夹使用 `-` 前缀，例如 `-人物`；文件列表显示时隐藏前缀并标记“设定组”。
+- 点击设定组文件夹会在右侧设定集叶中刷新对应设定组；优先使用右侧边栏已有的设定集视图。
+- 重命名设定组文件夹时会自动补回 `-` 前缀，并同步更新已打开的设定集页面路径。
+- 卷名不再排除“设定、伏笔、人物、时间线”，仅保留 `src`、`分散卷` 和 `-` 前缀作为保留名。
+- 设定组名可以正常使用“设定”；旧版容器迁移只在存在 `index.json` 且没有 `index.md` 时执行，并保留仍有未迁移文件的文件夹。
 - 小说组左侧的展开按钮可展开/折叠，展开后同时显示卷与设定组。
 - 右击小说组选择 **新建设定组**。
 - 在文件列表点击设定组，会在右侧设定集页面打开该组。
@@ -278,6 +282,8 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
   - 设定集页面顶部按钮打开独立的关系图谱悬浮卡片，显示节点、单向箭头和双向箭头。
 - 标签编辑窗口提供名称、颜色选择器、色值和六色预设圆点，当前颜色带选中圆环。
 - 关系图谱使用终点单箭头表示单向，两端箭头表示双向；左向单向的箭头位于源节点。
+- 关系图谱支持鼠标中键拖动平移，滚轮以光标为中心缩放。
+- 设定组内的 `index.md` 不进入字数历史，也不会出现在历史记录中。
 - 工作台小说简介下方只列出小说组根目录下以 `-` 开头的 Markdown 文件，显示时省略 `-` 与 `.md`。
 - 点击这些文件会以普通 MarkdownView 打开，不进入 NovelEditor，也不计入分散卷。
 - 文件行悬停可重命名或删除；重命名会自动保留 `-` 前缀。
@@ -493,7 +499,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.10.3.zip](dist/novel-view-0.10.3.zip).
+1. Download [novel-view-0.11.0.zip](dist/novel-view-0.11.0.zip).
 2. Extract it to:
 
    ```text
@@ -899,9 +905,10 @@ License: [MIT License](LICENSE)
 ## NovelFinder
 
 - 原“高级查找替换”卡片更名为 NovelFinder。
-- 查找结果显示在右侧 NovelFinder 结果侧栏，点击可跳转。
-- 查找范围支持：本章、本卷、全书、文字标记、待修改部分、关键词。
-- 替换输入框单独一行；文字标记、待修改部分和关键词范围不支持替换。
+- 卡片标题下显示当前小说组；顶部显示查找范围与当前章节名；查找结果显示在右侧 NovelFinder 结果侧栏，点击可跳转。
+- 查找范围支持：本章、本卷、全书、文字标记、待修改部分、关键词；每种范围使用不同的结果排版。
+- 结果侧栏显示小说组、搜索模式、搜索词以及大小写/全词/正则的启用状态。
+- 替换功能移入 NovelFinder 右侧的 NovelReplacer 卡片，通过底部小箭头折叠/展开；替换卡片包含“替换”和“全部替换”。
 - 关键词悬浮卡支持一对多分页，点击关键词打开当前页对应的设定记录详情卡。
 
 ## NovelEditor
@@ -909,3 +916,10 @@ License: [MIT License](LICENSE)
 - 章节标题位于编辑器顶部，可直接点击改名；名称不允许以 `-` 开头。
 - 修复标题字段与 Obsidian 视图属性冲突导致 NovelEditor 内容空白的问题。
 - 标题移出 CodeMirror 文档，避免上下方向键和鼠标点击时光标跳转异常。
+
+
+## NovelReplacer
+
+- 点击 NovelFinder 底部入口打开独立替换浮层。
+- 浮层包含替换输入框与全部替换按钮，不占用 NovelFinder 主卡片空间。
+- 输入查找内容时结果更新不会抢走 NovelFinder 输入焦点。

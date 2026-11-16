@@ -3,6 +3,10 @@ import type {
   SettingField,
   SettingRelation,
 } from "./core/setting-collection";
+import {
+  SETTING_ICON_PRESETS,
+  parseSettingIcon,
+} from "./core/setting-icons";
 import type {
   SettingRecordDraft,
   SettingRecordTarget,
@@ -13,6 +17,8 @@ export interface SettingRecordEditorData {
   anchor?: { left: number; top: number };
   initial: SettingRecordDraft;
   targets: SettingRecordTarget[];
+  iconUrl: (icon: string) => string | null;
+  onUploadIcon: (file: File) => Promise<string | null>;
   onSubmit: (draft: SettingRecordDraft, setError: (message: string) => void) => Promise<boolean>;
   onClose?: () => void;
 }
@@ -25,9 +31,39 @@ export class SettingRecordEditorPanel {
   private data: SettingRecordEditorData | null = null;
   private positioned = false;
   private dragging = false;
+  private moveListener: ((dx: number, dy: number) => void) | null = null;
 
   get element(): HTMLElement | null {
     return this.root;
+  }
+
+  setMoveListener(listener: (dx: number, dy: number) => void): void {
+    this.moveListener = listener;
+  }
+
+  setPosition(left: number, top: number): void {
+    if (!this.root) {
+      return;
+    }
+    this.root.setCssProps({
+      left: `${Math.round(left)}px`,
+      top: `${Math.round(top)}px`,
+      right: "auto",
+    });
+    this.positioned = true;
+  }
+
+  moveBy(dx: number, dy: number): void {
+    if (!this.root || (dx === 0 && dy === 0)) {
+      return;
+    }
+    const rect = this.root.getBoundingClientRect();
+    this.root.setCssProps({
+      left: `${rect.left + dx}px`,
+      top: `${rect.top + dy}px`,
+      right: "auto",
+    });
+    this.positioned = true;
   }
 
   show(data: SettingRecordEditorData): void {
@@ -91,6 +127,7 @@ export class SettingRecordEditorPanel {
     this.body.empty();
     const fields: SettingField[] = data.initial.fields.map((field) => ({ ...field }));
     const relations: SettingRelation[] = data.initial.relations.map((relation) => ({ ...relation }));
+    let iconValue = data.initial.icon ?? "";
 
     const keyword = this.body.createEl("input", {
       cls: "novelview-setting-editor-input",
@@ -108,6 +145,104 @@ export class SettingRecordEditorPanel {
     const error = this.body.createDiv({
       cls: "novelview-setting-editor-error",
     });
+
+    const iconSection = this.body.createDiv({
+      cls: "novelview-setting-editor-icon-section",
+    });
+    iconSection.createDiv({
+      cls: "novelview-setting-editor-icon-label",
+      text: "记录图标",
+    });
+    const iconRow = iconSection.createDiv({
+      cls: "novelview-setting-editor-icon-row",
+    });
+    const iconPreview = iconRow.createDiv({
+      cls: "novelview-setting-editor-icon-preview",
+    });
+    const iconControls = iconRow.createDiv({
+      cls: "novelview-setting-editor-icon-controls",
+    });
+    const renderIconPreview = (): void => {
+      iconPreview.empty();
+      const parsed = parseSettingIcon(iconValue);
+      if (!parsed) {
+        iconPreview.createSpan({ text: "无" });
+        return;
+      }
+      if (parsed.kind === "image") {
+        const url = data.iconUrl(iconValue);
+        if (url) {
+          iconPreview.createEl("img", {
+            attr: { src: url, alt: "记录图标" },
+          });
+        } else {
+          iconPreview.createSpan({ text: "?" });
+        }
+        return;
+      }
+      setIcon(iconPreview, parsed.value);
+    };
+    const presetGrid = iconSection.createDiv({
+      cls: "novelview-setting-editor-icon-presets",
+    });
+    const renderPresets = (): void => {
+      presetGrid.empty();
+      for (const preset of SETTING_ICON_PRESETS) {
+        const button = presetGrid.createEl("button", {
+          cls: "novelview-setting-editor-icon-preset",
+          attr: {
+            type: "button",
+            "aria-label": preset.label,
+            title: preset.label,
+          },
+        });
+        setIcon(button, preset.value.replace(/^lucide:/u, ""));
+        button.toggleClass("is-selected", iconValue === preset.value);
+        button.addEventListener("click", () => {
+          iconValue = preset.value;
+          renderPresets();
+          renderIconPreview();
+        });
+      }
+    };
+    const uploadInput = iconControls.createEl("input", {
+      cls: "novelview-setting-editor-icon-upload",
+      attr: {
+        type: "file",
+        accept: ".svg,image/svg+xml,image/png,image/jpeg,image/webp",
+      },
+    });
+    uploadInput.addClass("is-hidden");
+    iconControls.createEl("button", {
+      text: "上传 SVG / PNG / JPG",
+      attr: { type: "button" },
+    }).addEventListener("click", () => uploadInput.click());
+    iconControls.createEl("button", {
+      text: "清除图标",
+      attr: { type: "button" },
+    }).addEventListener("click", () => {
+      iconValue = "";
+      renderPresets();
+      renderIconPreview();
+    });
+    uploadInput.addEventListener("change", () => {
+      const file = uploadInput.files?.[0];
+      if (!file) {
+        return;
+      }
+      void data.onUploadIcon(file).then((stored) => {
+        if (!stored) {
+          error.setText("图标上传失败。");
+          return;
+        }
+        iconValue = stored;
+        renderPresets();
+        renderIconPreview();
+      });
+      uploadInput.value = "";
+    });
+    renderPresets();
+    renderIconPreview();
 
     const fieldsSection = this.body.createDiv({
       cls: "novelview-setting-editor-section",
@@ -356,6 +491,7 @@ export class SettingRecordEditorPanel {
         {
           keyword: keyword.value.trim(),
           content: content.value,
+          icon: iconValue,
           fields: fields
             .map((field) => ({ name: field.name.trim(), value: field.value.trim() }))
             .filter((field) => field.name.length > 0),
@@ -423,14 +559,21 @@ export class SettingRecordEditorPanel {
     const startLeft = rect.left;
     const startTop = rect.top;
     this.header.setPointerCapture(event.pointerId);
+    let lastLeft = rect.left;
+    let lastTop = rect.top;
     const move = (moveEvent: PointerEvent): void => {
       if (!this.root || !this.dragging) {
         return;
       }
+      const nextLeft = startLeft + moveEvent.clientX - startX;
+      const nextTop = startTop + moveEvent.clientY - startY;
       this.root.setCssProps({
-        left: `${startLeft + moveEvent.clientX - startX}px`,
-        top: `${startTop + moveEvent.clientY - startY}px`,
+        left: `${nextLeft}px`,
+        top: `${nextTop}px`,
       });
+      this.moveListener?.(nextLeft - lastLeft, nextTop - lastTop);
+      lastLeft = nextLeft;
+      lastTop = nextTop;
     };
     const up = (): void => {
       this.dragging = false;
