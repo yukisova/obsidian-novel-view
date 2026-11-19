@@ -19,6 +19,8 @@ try {
       "format-utils": "src/core/format-utils.ts",
       "txt": "src/core/txt.ts",
       "setting-collection": "src/core/setting-collection.ts",
+      "setting-special-data": "src/core/setting-special-data.ts",
+      "graph-relations": "src/core/graph-relations.ts",
       "novel-config": "src/core/novel-config.ts",
       "status": "src/core/status.ts",
       "chapter-status": "src/core/chapter-status.ts",

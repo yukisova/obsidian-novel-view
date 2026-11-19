@@ -1,22 +1,17 @@
 import { setIcon } from "obsidian";
-import type {
-  SettingField,
-  SettingRelation,
-} from "./core/setting-collection";
+import type { SettingField } from "./core/setting-collection";
 import {
   SETTING_ICON_PRESETS,
   parseSettingIcon,
 } from "./core/setting-icons";
 import type {
   SettingRecordDraft,
-  SettingRecordTarget,
 } from "./setting-collection-modal";
 
 export interface SettingRecordEditorData {
   title: string;
   anchor?: { left: number; top: number };
   initial: SettingRecordDraft;
-  targets: SettingRecordTarget[];
   iconUrl: (icon: string) => string | null;
   onUploadIcon: (file: File) => Promise<string | null>;
   onSubmit: (draft: SettingRecordDraft, setError: (message: string) => void) => Promise<boolean>;
@@ -126,7 +121,6 @@ export class SettingRecordEditorPanel {
     this.headerTitle?.setText(data.title);
     this.body.empty();
     const fields: SettingField[] = data.initial.fields.map((field) => ({ ...field }));
-    const relations: SettingRelation[] = data.initial.relations.map((relation) => ({ ...relation }));
     let iconValue = data.initial.icon ?? "";
 
     const keyword = this.body.createEl("input", {
@@ -321,161 +315,6 @@ export class SettingRecordEditorPanel {
       renderFields();
     });
 
-    const relationsSection = this.body.createDiv({
-      cls: "novelview-setting-editor-section",
-    });
-    relationsSection.createDiv({
-      cls: "novelview-setting-editor-section-title",
-      text: "关系",
-    });
-    const relationsEl = relationsSection.createDiv({
-      cls: "novelview-setting-record-relations",
-    });
-    const groupNames = [...new Set([
-      ...data.targets.map((target) => target.group),
-      ...relations.map((relation) => relation.targetGroup),
-    ].filter(Boolean))];
-    const renderRelations = (): void => {
-      relationsEl.empty();
-      for (const [index, relation] of relations.entries()) {
-        const card = relationsEl.createDiv({
-          cls: "novelview-setting-relation-editor-card",
-        });
-        const header = card.createDiv({
-          cls: "novelview-setting-relation-editor-header",
-        });
-        header.createSpan({ text: `关系 ${index + 1}` });
-        const remove = header.createEl("button", {
-          attr: { type: "button", "aria-label": "删除关系", title: "删除关系" },
-        });
-        setIcon(remove, "trash-2");
-        remove.addEventListener("click", () => {
-          relations.splice(index, 1);
-          renderRelations();
-        });
-
-        const grid = card.createDiv({
-          cls: "novelview-setting-relation-editor-grid",
-        });
-        const addField = (
-          label: string,
-          control: HTMLElement,
-        ): void => {
-          const field = grid.createDiv({
-            cls: "novelview-setting-relation-editor-field",
-          });
-          field.createDiv({
-            cls: "novelview-setting-relation-editor-label",
-            text: label,
-          });
-          field.appendChild(control);
-        };
-
-        const group = createEl("select");
-        for (const name of groupNames) {
-          group.createEl("option", { text: name, attr: { value: name } });
-        }
-        if (relation.targetGroup && !groupNames.includes(relation.targetGroup)) {
-          group.createEl("option", {
-            text: relation.targetGroup,
-            attr: { value: relation.targetGroup },
-          });
-        }
-        group.value = relation.targetGroup || groupNames[0] || "";
-        relation.targetGroup = group.value;
-        group.addEventListener("change", () => {
-          relation.targetGroup = group.value;
-          const first = data.targets.find((target) => target.group === relation.targetGroup);
-          relation.targetKeyword = first?.keyword ?? "";
-          renderRelations();
-        });
-        addField("设定组", group);
-
-        const target = createEl("select");
-        const candidates = data.targets.filter((item) => item.group === relation.targetGroup);
-        for (const item of candidates) {
-          target.createEl("option", { text: item.keyword, attr: { value: item.keyword } });
-        }
-        if (relation.targetKeyword && !candidates.some((item) => item.keyword === relation.targetKeyword)) {
-          target.createEl("option", {
-            text: relation.targetKeyword,
-            attr: { value: relation.targetKeyword },
-          });
-        }
-        target.value = relation.targetKeyword || candidates[0]?.keyword || "";
-        relation.targetKeyword = target.value;
-        target.addEventListener("change", () => {
-          relation.targetKeyword = target.value;
-        });
-        addField("设定记录", target);
-
-        const type = createEl("input");
-        type.type = "text";
-        type.placeholder = "例如：兄妹、居住";
-        type.value = relation.type;
-        type.addEventListener("input", () => {
-          relation.type = type.value;
-        });
-        addField("关系信息", type);
-
-        const directionWrap = createDiv({
-          cls: "novelview-setting-relation-editor-direction",
-        });
-        const directions = [
-          { value: "left", icon: "arrow-left", label: "左向单向" },
-          { value: "right", icon: "arrow-right", label: "右向单向" },
-          { value: "two-way", icon: "arrow-left-right", label: "双向" },
-        ] as const;
-        const renderDirection = (): void => {
-          directionWrap.empty();
-          for (const option of directions) {
-            const button = directionWrap.createEl("button", {
-              cls: "novelview-setting-relation-direction-button",
-              attr: {
-                type: "button",
-                "aria-label": option.label,
-                title: option.label,
-              },
-            });
-            setIcon(button, option.icon);
-            const active = relation.direction === "two-way"
-              ? option.value === "two-way"
-              : relation.side === "left"
-                ? option.value === "left"
-                : option.value === "right";
-            button.toggleClass("is-active", active);
-            button.addEventListener("click", () => {
-              if (option.value === "two-way") {
-                relation.direction = "two-way";
-              } else {
-                relation.direction = "one-way";
-                relation.side = option.value;
-              }
-              renderDirection();
-            });
-          }
-        };
-        renderDirection();
-        addField("方向", directionWrap);
-      }
-    };
-    renderRelations();
-    relationsSection.createEl("button", {
-      cls: "novelview-setting-row-add",
-      text: "+ 添加关系",
-      attr: { type: "button" },
-    }).addEventListener("click", () => {
-      const first = data.targets[0];
-      relations.push({
-        targetGroup: first?.group ?? "",
-        targetKeyword: first?.keyword ?? "",
-        type: "",
-        direction: "one-way",
-        side: "right",
-      });
-      renderRelations();
-    });
-
     const actions = this.body.createDiv({
       cls: "novelview-setting-editor-actions",
     });
@@ -495,9 +334,6 @@ export class SettingRecordEditorPanel {
           fields: fields
             .map((field) => ({ name: field.name.trim(), value: field.value.trim() }))
             .filter((field) => field.name.length > 0),
-          relations: relations.filter((relation) => (
-            relation.targetGroup.length > 0 && relation.targetKeyword.length > 0
-          )),
           marks: [],
         },
         error,

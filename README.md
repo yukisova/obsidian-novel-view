@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="version" src="https://img.shields.io/badge/version-0.11.0-9a5a2d">
+  <img alt="version" src="https://img.shields.io/badge/version-0.11.26-9a5a2d">
   <img alt="Obsidian" src="https://img.shields.io/badge/Obsidian-%E2%89%A51.7.2-7c3aed">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-4d7c56">
   <img alt="author" src="https://img.shields.io/badge/author-yukisova-356c9a">
@@ -47,7 +47,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 手动安装：
 
-1. 下载 [novel-view-0.11.0.zip](dist/novel-view-0.11.0.zip)。
+1. 下载 [novel-view-0.11.26.zip](dist/novel-view-0.11.26.zip)。
 2. 解压到：
 
    ```text
@@ -227,15 +227,13 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 
 设定组直接放在小说组文件夹下，不再有统一的 `-设定` 容器。
 
-- 设定组文件夹使用 `-` 前缀，例如 `-人物`；文件列表显示时隐藏前缀并标记“设定组”。
-- 点击设定组文件夹会在右侧设定集叶中刷新对应设定组；优先使用右侧边栏已有的设定集视图。
+- 设定组文件夹使用 `-` 前缀，例如 `-人物`，但不再显示在文件列表中。
+- 小说组在文件列表中作为入口，不再展开；点击小说组标题会打开文章列表。
+- 设定组与设定记录通过文章列表工具栏的 **设定集** 进入设定集列表管理。
 - 重命名设定组文件夹时会自动补回 `-` 前缀，并同步更新已打开的设定集页面路径。
 - 卷名不再排除“设定、伏笔、人物、时间线”，仅保留 `src`、`分散卷` 和 `-` 前缀作为保留名。
 - 设定组名可以正常使用“设定”；旧版容器迁移只在存在 `index.json` 且没有 `index.md` 时执行，并保留仍有未迁移文件的文件夹。
-- 小说组左侧的展开按钮可展开/折叠，展开后同时显示卷与设定组。
 - 右击小说组选择 **新建设定组**。
-- 在文件列表点击设定组，会在右侧设定集页面打开该组。
-- 点击设定组展开箭头，可查看其下详细文件。
 - 设定组内的 `index.md` 是隐藏数据文件，不在文件列表显示，也不能通过常规打开流程查看。
 - 旧版 `-设定/index.json` 会自动迁移为直接设定组和 `index.md`。
 
@@ -257,14 +255,6 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
             { "name": "年龄", "value": "16" },
             { "name": "性别", "value": "女" }
           ],
-          "relations": [
-            {
-              "targetGroup": "人物",
-              "targetKeyword": "小黄",
-              "type": "兄妹",
-              "direction": "two-way"
-            }
-          ],
           "marks": [
             { "start": 3, "end": 7, "attribute": "生平" }
           ]
@@ -276,26 +266,17 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 ```
 
 - `fields` 是用户自定义属性，可填写年龄、性别、时间等任意名称和值。
-- `relations` 用于链接其他设定记录：
-  - `targetGroup`、`targetKeyword` 指定目标；
-  - `direction` 为 `one-way` 或 `two-way`；
-  - 设定集页面顶部按钮打开独立的关系图谱悬浮卡片，显示节点、单向箭头和双向箭头。
 - 标签编辑窗口提供名称、颜色选择器、色值和六色预设圆点，当前颜色带选中圆环。
-- 关系图谱使用终点单箭头表示单向，两端箭头表示双向；左向单向的箭头位于源节点。
-- 关系图谱支持鼠标中键拖动平移，滚轮以光标为中心缩放。
 - 设定组内的 `index.md` 不进入字数历史，也不会出现在历史记录中。
-- 工作台小说简介下方只列出小说组根目录下以 `-` 开头的 Markdown 文件，显示时省略 `-` 与 `.md`。
-- 点击这些文件会以普通 MarkdownView 打开，不进入 NovelEditor，也不计入分散卷。
-- 文件行悬停可重命名或删除；重命名会自动保留 `-` 前缀。
+- 小说组根目录下以 `.detail.md`、`.graph.md`、`.line.md`、`.branch.md` 结尾的文件是特殊设定文件。
+- 这些文件不进入文章列表，使用各自的 CodeMirror 显示/数据界面打开。
+- 设定集列表在设定组之后用类型图标列出这些特殊文件。
 
 #### 设定记录
 
-- 记录可新建、编辑、删除，并支持标签、字段和关系。
+- 记录可新建、编辑、删除，并支持标签、字段和标记。
 - 记录关键词可留空。
 - 记录字段在编辑窗口中以“属性名 / 值”成对添加和删除，可自由填写年龄、性别、时间等。
-- 关系通过目标设定组、目标记录、关系名称和方向下拉框添加；单向关系可指定左向或右向。
-- 保存关系时会同步写入目标记录的对向关系；两端共享同一个关系值、类型和全局方向，图谱自动去重。
-- 单向关系的反向记录使用相反的左右箭头，例如小红卡片显示 ← 时，旧宅卡片显示 →。
 - 属性可在编辑卡中上移、下移调整顺序；详情卡根据内容长度自动使用并排、单行或标题正文布局。
 - 记录详细文件使用 `关键词-标题.md`，放在所属设定组文件夹内。
 
@@ -307,7 +288,7 @@ Novel View is a novel-writing workflow for Obsidian. It keeps the native Markdow
 小说/NovelView 功能演示
 ```
 
-包含人物、地点两个设定组，以及字段、兄妹双向关系、关系图谱和详细文件示例。
+包含人物、地点两个设定组，以及字段、标记和特殊设定文件示例。
 
 ### 素材库
 
@@ -499,7 +480,7 @@ Requirements:
 
 Manual installation:
 
-1. Download [novel-view-0.11.0.zip](dist/novel-view-0.11.0.zip).
+1. Download [novel-view-0.11.26.zip](dist/novel-view-0.11.26.zip).
 2. Extract it to:
 
    ```text
@@ -679,11 +660,10 @@ Actions:
 
 Setting groups are direct children of the novel group; there is no shared `-设定` container.
 
-- Setting-group folders use a leading `-`, for example `-人物`; the prefix is hidden in the file explorer and a “设定组” badge is shown.
-- Expand the novel group normally to see volumes and setting groups.
+- Setting-group folders use a leading `-`, for example `-人物`, but are hidden from the file explorer.
+- Novel groups no longer expand; clicking a novel group opens its article list.
+- Use the article-list **Setting collections** button to open the setting-collection list.
 - Right-click the novel group and choose **New setting group**.
-- Click a setting group in the file explorer to open that group in the setting-collection sidebar.
-- Expand a setting group to see its detail files.
 - Each group contains a hidden `index.md`; it is not shown in the file explorer.
 - Legacy `-设定/index.json` data is migrated automatically.
 
@@ -702,14 +682,6 @@ Each group stores tags and records in a JSON block inside `index.md`:
           "keyword": "小红",
           "content": "小红在13岁那年离开旧宅。",
           "fields": [{ "name": "年龄", "value": "16" }],
-          "relations": [
-            {
-              "targetGroup": "人物",
-              "targetKeyword": "小黄",
-              "type": "兄妹",
-              "direction": "two-way"
-            }
-          ],
           "marks": [{ "start": 3, "end": 7, "attribute": "生平" }]
         }
       ]
@@ -719,14 +691,13 @@ Each group stores tags and records in a JSON block inside `index.md`:
 ```
 
 - `fields` stores arbitrary user-editable attributes such as age, gender, or time.
-- `relations` links setting records. `direction` can be `one-way` or `two-way`; the graph opens in a separate floating card.
+- Root special files ending in `.detail.md`, `.graph.md`, `.line.md`, or `.branch.md` are excluded from normal articles and opened in dedicated CodeMirror editors.
 
 #### Records
 
-- Records support tags, arbitrary fields, relations, and marked description ranges.
+- Records support tags, arbitrary fields, and marked description ranges.
 - Record keywords may be empty.
 - Fields are edited as addable name/value rows.
-- Relations use target-group and target-record dropdowns plus a direction selector.
 - Selected description text can be marked with an attribute such as “生平”.
 - Detail files use `keyword-title.md` inside the owning setting-group folder.
 
@@ -738,7 +709,7 @@ A demo group is included in the vault:
 小说/NovelView 功能演示
 ```
 
-It demonstrates character and location groups, custom fields, a two-way sibling relationship, marked attributes, a relationship graph, and detail files.
+It demonstrates character and location groups, custom fields, marked attributes, special setting files, and detail files.
 
 ### Materials library
 

@@ -388,15 +388,6 @@ export class NovelArticleListView extends ItemView {
 
     this.createToolbarButton(
       toolbar,
-      "library",
-      "设定集",
-      () => {
-        void this.plugin.openSettingCollection(model.folderPath);
-      },
-    );
-
-    this.createToolbarButton(
-      toolbar,
       "image",
       "素材库",
       () => {
@@ -424,6 +415,20 @@ export class NovelArticleListView extends ItemView {
         });
       });
       menu.showAtMouseEvent(event);
+    });
+
+    const settingsButton = this.createToolbarButton(
+      toolbar,
+      "library",
+      "设定集",
+      () => {
+        void this.plugin.openSettingCollectionList(model.folderPath, this.leaf);
+      },
+    );
+    settingsButton.addClass("novelview-article-toolbar-settings");
+    settingsButton.createSpan({
+      cls: "novelview-article-toolbar-settings-label",
+      text: "设定集",
     });
   }
 

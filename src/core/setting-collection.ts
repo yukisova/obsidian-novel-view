@@ -6,19 +6,6 @@ export interface SettingField {
   value: string;
 }
 
-export type SettingRelationDirection = "one-way" | "two-way";
-
-export interface SettingRelation {
-  targetGroup: string;
-  targetKeyword: string;
-  type: string;
-  direction: SettingRelationDirection;
-  side?: "left" | "right";
-  linkId?: string;
-  linkSourceGroup?: string;
-  linkSourceKeyword?: string;
-}
-
 export interface SettingMark {
   start: number;
   end: number;
@@ -30,7 +17,6 @@ export interface SettingCollectionEntry {
   content: string;
   icon?: string;
   fields: SettingField[];
-  relations: SettingRelation[];
   marks: SettingMark[];
 }
 
@@ -74,51 +60,6 @@ function parseFields(value: unknown): SettingField[] {
     }
   }
   return fields;
-}
-
-function parseRelations(value: unknown): SettingRelation[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  const relations: SettingRelation[] = [];
-  for (const item of value) {
-    if (!isRecord(item)) {
-      continue;
-    }
-    const targetGroup = typeof item.targetGroup === "string"
-      ? item.targetGroup.trim()
-      : "";
-    const targetKeyword = typeof item.targetKeyword === "string"
-      ? item.targetKeyword.trim()
-      : "";
-    const type = typeof item.type === "string" ? item.type.trim() : "";
-    const direction = item.direction === "two-way" ? "two-way" : "one-way";
-    const side = item.side === "left" ? "left" : item.side === "right" ? "right" : undefined;
-    const linkId = typeof item.linkId === "string" && item.linkId.trim()
-      ? item.linkId.trim()
-      : undefined;
-    const linkSourceGroup = typeof item.linkSourceGroup === "string"
-      ? item.linkSourceGroup.trim()
-      : undefined;
-    const linkSourceKeyword = typeof item.linkSourceKeyword === "string"
-      ? item.linkSourceKeyword.trim()
-      : undefined;
-    if (targetGroup && targetKeyword) {
-      const relation: SettingRelation = { targetGroup, targetKeyword, type, direction };
-      if (side) {
-        relation.side = side;
-      }
-      if (linkId) {
-        relation.linkId = linkId;
-      }
-      if (linkSourceGroup && linkSourceKeyword) {
-        relation.linkSourceGroup = linkSourceGroup;
-        relation.linkSourceKeyword = linkSourceKeyword;
-      }
-      relations.push(relation);
-    }
-  }
-  return relations;
 }
 
 function parseMarks(value: unknown): SettingMark[] {
@@ -174,7 +115,6 @@ function parseTags(rawTags: unknown): SettingCollectionTag[] {
           keyword,
           content,
           fields: parseFields(rawEntry.fields),
-          relations: parseRelations(rawEntry.relations),
           marks: parseMarks(rawEntry.marks),
         };
         if (icon) {
@@ -372,4 +312,58 @@ export function findSettingKeywordMatches(
     }
   }
   return matches;
+}
+
+
+export type SettingSpecialFileKind = "detail" | "graph" | "line" | "branch";
+
+export const SETTING_SPECIAL_FILE_LABELS: Record<
+  SettingSpecialFileKind,
+  string
+> = {
+  detail: "详细设定",
+  graph: "图谱",
+  line: "轴",
+  branch: "分支树",
+};
+
+export const SETTING_SPECIAL_FILE_SUFFIXES: Record<
+  SettingSpecialFileKind,
+  string
+> = {
+  detail: ".detail.md",
+  graph: ".graph.md",
+  line: ".line.md",
+  branch: ".branch.md",
+};
+
+export function settingSpecialFileSuffix(kind: SettingSpecialFileKind): string {
+  return SETTING_SPECIAL_FILE_SUFFIXES[kind];
+}
+
+export function settingSpecialFileKind(
+  name: string,
+): SettingSpecialFileKind | null {
+  const lower = name.toLocaleLowerCase();
+  for (const [kind, suffix] of Object.entries(
+    SETTING_SPECIAL_FILE_SUFFIXES,
+  ) as Array<[SettingSpecialFileKind, string]>) {
+    if (lower.endsWith(suffix)) {
+      return kind;
+    }
+  }
+  return null;
+}
+
+export function isSettingSpecialFileName(name: string): boolean {
+  return settingSpecialFileKind(name) !== null;
+}
+
+export function settingSpecialFileDisplayName(name: string): string {
+  const kind = settingSpecialFileKind(name);
+  if (!kind) {
+    return name.replace(/\.md$/iu, "");
+  }
+  const suffix = SETTING_SPECIAL_FILE_SUFFIXES[kind];
+  return name.slice(0, -suffix.length) || name.replace(/\.md$/iu, "");
 }

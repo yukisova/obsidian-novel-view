@@ -226,8 +226,7 @@ export class NovelWorkbenchView extends ItemView {
       .filter((file) => (
         file.extension === "md"
         && file.parent?.path === folderPath
-        && file.basename.startsWith("-")
-        && !this.plugin.isSpecialNovelFile(file)
+        && this.plugin.isSpecialSettingFile(file)
       ))
       .sort((left, right) => left.basename.localeCompare(
         right.basename,
@@ -254,13 +253,13 @@ export class NovelWorkbenchView extends ItemView {
       setIcon(icon, "file-text");
       row.createSpan({
         cls: "novelview-workbench-root-file-name",
-        text: file.basename.replace(/^-+/u, ""),
+        text: file.basename,
       });
       row.addEventListener("click", (event) => {
         if ((event.target as HTMLElement | null)?.closest("button")) {
           return;
         }
-        void this.app.workspace.getLeaf(false).openFile(file);
+        void this.plugin.openSettingSpecialFile(file);
       });
       const actions = row.createDiv({
         cls: "novelview-workbench-root-file-actions",

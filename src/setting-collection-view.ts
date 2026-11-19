@@ -14,22 +14,29 @@ import {
 import { parseSettingIcon } from "./core/setting-icons";
 import {
   SettingConfirmModal,
-  SettingGraphModal,
   SettingGroupModal,
   SettingTagModal,
 } from "./setting-collection-modal";
+import {
+  SETTING_DRAG_MIME,
+  SETTING_RECORD_DROP_EVENT,
+} from "./core/setting-drag";
 import { SettingRecordDetailPanel } from "./setting-record-detail-panel";
 import { SettingRecordEditorPanel } from "./setting-record-editor-panel";
 import type NovelViewPlugin from "./main";
 
 export const SETTING_COLLECTION_VIEW_TYPE = "novelview-setting-collection";
 
-const SETTING_DRAG_MIME = "application/x-novelview-setting-drag";
-
 type SettingDragPayload =
   | { kind: "group"; group: string }
   | { kind: "tag"; group: string; tag: string }
-  | { kind: "record"; group: string; tag: string; keyword: string };
+  | {
+    kind: "record";
+    group: string;
+    tag: string;
+    keyword: string;
+    content?: string;
+  };
 
 interface SettingDropTarget {
   element: HTMLElement;
@@ -43,6 +50,12 @@ export class SettingCollectionView extends ItemView {
   private readonly plugin: NovelViewPlugin;
   private folderPath = "";
   private refreshing = false;
+  private detailSelection: {
+    folder: TFolder;
+    group: string;
+    tag: string;
+    entry: import("./core/setting-collection").SettingCollectionEntry;
+  } | null = null;
   private dragPayload: SettingDragPayload | null = null;
   private dropTarget: SettingDropTarget | null = null;
   private recordDetailPanel: SettingRecordDetailPanel | null = null;
@@ -115,6 +128,34 @@ export class SettingCollectionView extends ItemView {
     this.contentEl.addEventListener("dragend", () => {
       this.clearDragState();
     });
+    const relationChanged = (event: Event): void => {
+      const selection = this.detailSelection;
+      if (!selection) {
+        return;
+      }
+      const root = this.plugin.findNovelGroupRoot(selection.folder.path)
+        ?? this.folderPath;
+      const changedRoot = (event as CustomEvent<{ novelRoot?: string }>)
+        .detail?.novelRoot;
+      if (changedRoot === root) {
+        void this.showRecordDetail(
+          selection.folder,
+          selection.group,
+          selection.tag,
+          selection.entry,
+        );
+      }
+    };
+    activeDocument.addEventListener(
+      "novelview-graph-relations-changed",
+      relationChanged,
+    );
+    this.register(() => {
+      activeDocument.removeEventListener(
+        "novelview-graph-relations-changed",
+        relationChanged,
+      );
+    });
     await this.refresh();
   }
 
@@ -149,13 +190,9 @@ export class SettingCollectionView extends ItemView {
       const toolbar = header.createDiv({
         cls: "novelview-setting-collection-toolbar",
       });
-      this.addHeaderButton(toolbar, "git-fork", "关系图谱", () => {
-        void this.openGraph();
-      });
       this.addHeaderButton(toolbar, "refresh-cw", "刷新设定集", () => {
         void this.refresh();
       });
-
       if (!folder) {
         this.renderMissingCollection();
         return;
@@ -329,7 +366,7 @@ export class SettingCollectionView extends ItemView {
         this.applyRecordPointerDropTarget(dropTarget);
         moveEvent.preventDefault();
       };
-      const finish = (): void => {
+      const finish = (finishEvent: PointerEvent): void => {
         const doc = row.ownerDocument;
         doc.removeEventListener("pointermove", move, true);
         doc.removeEventListener("pointerup", finish, true);
@@ -345,7 +382,16 @@ export class SettingCollectionView extends ItemView {
         }, 160);
         if (target) {
           void this.performSettingDrop(payload, target);
+          return;
         }
+        const finishTarget = finishEvent.target as HTMLElement | null;
+        const editor = finishTarget?.closest<HTMLElement>(
+          ".novelview-special-editor-view",
+        );
+        editor?.dispatchEvent(new CustomEvent(SETTING_RECORD_DROP_EVENT, {
+          bubbles: true,
+          detail: payload,
+        }));
       };
       const doc = row.ownerDocument;
       doc.addEventListener("pointermove", move, true);
@@ -754,29 +800,14 @@ export class SettingCollectionView extends ItemView {
     icon: string,
     label: string,
     action: () => void,
-  ): void {
+  ): HTMLButtonElement {
     const button = parent.createEl("button", {
       cls: "novelview-setting-collection-button",
       attr: { type: "button", "aria-label": label, title: label },
     });
     setIcon(button, icon);
     button.addEventListener("click", action);
-  }
-
-  private async openGraph(): Promise<void> {
-    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
-    if (!folder) {
-      new Notice("Novel View：尚未打开设定组。");
-      return;
-    }
-    const index = await this.plugin.readSettingCollectionIndex(folder.path);
-    const title = folder.name.replace(/^-+/u, "") || "设定组";
-    new SettingGraphModal(
-      this.app,
-      `关系图谱 · ${title}`,
-      index,
-      (keyword) => this.openRecordDetailByKeyword(keyword),
-    ).open();
+    return button;
   }
 
   private renderGroup(
@@ -929,6 +960,7 @@ export class SettingCollectionView extends ItemView {
         group,
         tag: tag.tag,
         keyword: entry.keyword,
+        content: entry.content,
       }, tagKey);
 
     }
@@ -1155,75 +1187,53 @@ export class SettingCollectionView extends ItemView {
     group: string,
     tagName: string,
   ): void {
-    const novelRoot = this.plugin.findNovelGroupRoot(settingRoot)
-      ?? this.folderPath;
-    void this.plugin.getSettingRecordTargets(novelRoot).then((targets) => {
-      const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
-      this.recordEditorPanel ??= new SettingRecordEditorPanel();
-      this.recordEditorPanel.show({
-        title: "新建设定记录",
-        anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
-        initial: {
-          keyword: "",
-          content: "",
-          icon: "",
-          fields: [],
-          relations: [],
+    const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
+    this.recordEditorPanel ??= new SettingRecordEditorPanel();
+    this.recordEditorPanel.show({
+      title: "新建设定记录",
+      anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
+      initial: {
+        keyword: "",
+        content: "",
+        icon: "",
+        fields: [],
+        marks: [],
+      },
+      iconUrl: (icon) => this.resolveSettingIconUrl(icon),
+      onUploadIcon: (file) => this.uploadSettingRecordIcon(file, settingRoot),
+      onSubmit: async (draft, setError) => {
+        const index = await this.plugin.readSettingCollectionIndex(settingRoot);
+        const tags = index[group];
+        const tag = tags?.find((entry) => entry.tag === tagName);
+        if (!tag) {
+          setError("标签不存在。");
+          return false;
+        }
+        if (
+          draft.keyword
+          && tags?.some((entry) => entry.contain.some((row) => (
+            row.keyword === draft.keyword
+          )))
+        ) {
+          setError("同名关键词已存在。");
+          return false;
+        }
+        tag.contain.push({
+          keyword: draft.keyword,
+          content: draft.content,
+          icon: draft.icon,
+          fields: draft.fields,
           marks: [],
-        },
-        targets,
-        iconUrl: (icon) => this.resolveSettingIconUrl(icon),
-        onUploadIcon: (file) => this.uploadSettingRecordIcon(
-          file,
-          settingRoot,
-        ),
-        onSubmit: async (draft, setError) => {
-          const index = await this.plugin.readSettingCollectionIndex(settingRoot);
-          const tags = index[group];
-          const tag = tags?.find((entry) => entry.tag === tagName);
-          if (!tag) {
-            setError("标签不存在。");
-            return false;
-          }
-          if (
-            draft.keyword
-            && tags?.some((entry) => entry.contain.some((row) => row.keyword === draft.keyword))
-          ) {
-            setError("同名关键词已存在。");
-            return false;
-          }
-          const relations = draft.relations.map((relation) => ({ ...relation }));
-          this.plugin.ensureSettingRelationLinkIds(
-            relations,
-            group,
-            draft.keyword,
-          );
-          tag.contain.push({
-            keyword: draft.keyword,
-            content: draft.content,
-            icon: draft.icon,
-            fields: draft.fields,
-            relations,
-            marks: [],
-          });
-          await this.plugin.writeSettingCollectionIndex(settingRoot, index);
-          await this.plugin.syncSettingRelationLinks(
-            novelRoot,
-            group,
-            "",
-            draft.keyword,
-            [],
-            relations,
-          );
-          await this.refresh();
-          return true;
-        },
-        onClose: () => {
-          this.recordEditorPanel = null;
-        },
-      });
-      this.bindRecordPanels();
+        });
+        await this.plugin.writeSettingCollectionIndex(settingRoot, index);
+        await this.refresh();
+        return true;
+      },
+      onClose: () => {
+        this.recordEditorPanel = null;
+      },
     });
+    this.bindRecordPanels();
   }
 
   private openRecordDetail(
@@ -1324,12 +1334,19 @@ export class SettingCollectionView extends ItemView {
     this.recordEditorPanel?.setPosition(editorLeft, detailRect.top);
   }
 
-  private showRecordDetail(
+  private async showRecordDetail(
     folder: TFolder,
     group: string,
     tag: string,
     entry: import("./core/setting-collection").SettingCollectionEntry,
-  ): void {
+  ): Promise<void> {
+    const novelRoot = this.plugin.findNovelGroupRoot(folder.path)
+      ?? this.folderPath;
+    const relations = await this.plugin.getGraphRelationsForKeyword(
+      novelRoot,
+      entry.keyword,
+    );
+    this.detailSelection = { folder, group, tag, entry };
     const detailFiles = this.plugin.getSettingRecordDetailFiles(
       folder.path,
       group,
@@ -1356,58 +1373,12 @@ export class SettingCollectionView extends ItemView {
       openFile: (file) => {
         void this.app.workspace.getLeaf(false).openFile(file);
       },
-      onOpenRelation: (targetGroup, keyword) => {
-        void this.openRelationTarget(targetGroup, keyword);
+      relations,
+      onOpenRelation: (target) => {
+        void this.plugin.openSettingRecordForNovelKeyword(novelRoot, target);
       },
     });
     this.bindRecordPanels();
-  }
-
-  private async openRelationTarget(
-    targetGroup: string,
-    keyword: string,
-  ): Promise<void> {
-    const novelRoot = this.plugin.findNovelGroupRoot(this.folderPath)
-      ?? this.folderPath;
-    const folder = this.plugin.getSettingGroupFolderByName(
-      novelRoot,
-      targetGroup,
-    );
-    if (!folder) {
-      return;
-    }
-    const index = await this.plugin.readSettingCollectionIndex(folder.path);
-    for (const tags of Object.values(index)) {
-      for (const tag of tags) {
-        const entry = tag.contain.find((record) => record.keyword === keyword);
-        if (entry) {
-          this.showRecordDetail(folder, targetGroup, tag.tag, entry);
-          return;
-        }
-      }
-    }
-  }
-
-  private openRecordDetailByKeyword(keyword: string): void {
-    const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
-    if (!folder) {
-      return;
-    }
-    void this.plugin.readSettingCollectionIndex(folder.path).then((index) => {
-      for (const tags of Object.values(index)) {
-        for (const tag of tags) {
-          const entry = tag.contain.find((record) => record.keyword === keyword);
-          if (entry) {
-            this.openRecordDetail(
-              Object.keys(index)[0] ?? "",
-              tag.tag,
-              entry,
-            );
-            return;
-          }
-        }
-      }
-    });
   }
 
   private createDetailFile(group: string, keyword: string): void {
@@ -1454,94 +1425,72 @@ export class SettingCollectionView extends ItemView {
       if (!tag || !record) {
         return;
       }
-      const novelRoot = this.plugin.findNovelGroupRoot(folder.path)
-        ?? folder.path;
-      void this.plugin.getSettingRecordTargets(novelRoot).then((targets) => {
-        const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
-        this.recordEditorPanel ??= new SettingRecordEditorPanel();
-        this.recordEditorPanel.show({
-          title: "编辑设定记录",
-          anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
-          initial: {
-            keyword: record.keyword,
-            content: record.content,
-            icon: record.icon ?? "",
-            fields: record.fields.map((field) => ({ ...field })),
-            relations: record.relations.map((relation) => ({ ...relation })),
-            marks: record.marks.map((mark) => ({ ...mark })),
-          },
-          targets,
-          iconUrl: (icon) => this.resolveSettingIconUrl(icon),
-          onUploadIcon: (file) => this.uploadSettingRecordIcon(
-            file,
-            folder.path,
-          ),
-          onSubmit: async (draft, setError) => {
-            const data = {
-              folderPath,
-              index: await this.plugin.readSettingCollectionIndex(folderPath),
-            };
-            const tags = data.index[group];
-            const currentTag = tags?.find((entry) => entry.tag === tagName);
-            const current = currentTag?.contain.find((entry) => entry.keyword === keyword);
-            if (!currentTag || !current) {
-              setError("记录不存在。");
-              return false;
-            }
-            if (
-              draft.keyword
-              && tags?.some((entry) => entry.contain.some((row) => (
-                row.keyword === draft.keyword
-                && !(entry === currentTag && row === current)
-              )))
-            ) {
-              setError("同名关键词已存在。");
-              return false;
-            }
-            const previousRelations = current.relations.map(
-              (relation) => ({ ...relation }),
-            );
-            const relations = draft.relations.map((relation) => ({ ...relation }));
-            this.plugin.ensureSettingRelationLinkIds(
-            relations,
-            group,
-            draft.keyword,
+      const anchor = this.recordDetailPanel?.element?.getBoundingClientRect();
+      this.recordEditorPanel ??= new SettingRecordEditorPanel();
+      this.recordEditorPanel.show({
+        title: "编辑设定记录",
+        anchor: anchor ? { left: anchor.left, top: anchor.top } : undefined,
+        initial: {
+          keyword: record.keyword,
+          content: record.content,
+          icon: record.icon ?? "",
+          fields: record.fields.map((field) => ({ ...field })),
+          marks: record.marks.map((mark) => ({ ...mark })),
+        },
+        iconUrl: (icon) => this.resolveSettingIconUrl(icon),
+        onUploadIcon: (file) => this.uploadSettingRecordIcon(file, folder.path),
+        onSubmit: async (draft, setError) => {
+          const data = {
+            folderPath,
+            index: await this.plugin.readSettingCollectionIndex(folderPath),
+          };
+          const tags = data.index[group];
+          const currentTag = tags?.find((entry) => entry.tag === tagName);
+          const current = currentTag?.contain.find((entry) => (
+            entry.keyword === keyword
+          ));
+          if (!currentTag || !current) {
+            setError("记录不存在。");
+            return false;
+          }
+          if (
+            draft.keyword
+            && tags?.some((entry) => entry.contain.some((row) => (
+              row.keyword === draft.keyword
+              && !(entry === currentTag && row === current)
+            )))
+          ) {
+            setError("同名关键词已存在。");
+            return false;
+          }
+          current.keyword = draft.keyword;
+          current.content = draft.content;
+          current.icon = draft.icon || undefined;
+          current.fields = draft.fields;
+          current.marks = [];
+          await this.plugin.writeSettingCollectionIndex(
+            data.folderPath,
+            data.index,
           );
-            current.keyword = draft.keyword;
-            current.content = draft.content;
-            current.icon = draft.icon || undefined;
-            current.fields = draft.fields;
-            current.relations = relations;
-            current.marks = [];
-            await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
-            if (draft.keyword && draft.keyword !== keyword) {
-              await this.plugin.renameSettingRecordDetails(
-                folderPath,
-                group,
-                keyword,
-                draft.keyword,
-              );
-            }
-            await this.plugin.syncSettingRelationLinks(
-              novelRoot,
+          if (draft.keyword && draft.keyword !== keyword) {
+            await this.plugin.renameSettingRecordDetails(
+              folderPath,
               group,
               keyword,
               draft.keyword,
-              previousRelations,
-              relations,
             );
-            await this.refresh();
-            if (this.recordDetailPanel) {
-              this.showRecordDetail(folder, group, tagName, current);
-            }
-            return true;
-          },
-          onClose: () => {
-            this.recordEditorPanel = null;
-          },
-        });
-        this.bindRecordPanels();
+          }
+          await this.refresh();
+          if (this.recordDetailPanel) {
+            this.showRecordDetail(folder, group, tagName, current);
+          }
+          return true;
+        },
+        onClose: () => {
+          this.recordEditorPanel = null;
+        },
       });
+      this.bindRecordPanels();
     });
   }
 

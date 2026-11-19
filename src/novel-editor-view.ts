@@ -18,6 +18,7 @@ import {
   EditorState,
   Prec,
   RangeSetBuilder,
+  StateEffect,
   StateField,
 } from "@codemirror/state";
 import {
@@ -284,6 +285,74 @@ function buildProseDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
+function buildImmersiveLineDecorations(view: EditorView): DecorationSet {
+  const head = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(head);
+  return Decoration.set([
+    Decoration.line({ class: "novelview-editor-current-line" }).range(line.from),
+  ]);
+}
+
+class ImmersiveLinePlugin {
+  decorations: DecorationSet;
+
+  constructor(view: EditorView) {
+    this.decorations = buildImmersiveLineDecorations(view);
+  }
+
+  update(update: ViewUpdate): void {
+    if (update.selectionSet || update.docChanged) {
+      this.decorations = buildImmersiveLineDecorations(update.view);
+    }
+  }
+}
+
+const immersiveLineExtension = ViewPlugin.fromClass(ImmersiveLinePlugin, {
+  decorations: (plugin) => plugin.decorations,
+});
+
+export interface NovelSearchHighlightRange {
+  from: number;
+  to: number;
+}
+
+const setNovelSearchHighlightsEffect = StateEffect.define<{
+  ranges: NovelSearchHighlightRange[];
+  active: number;
+}>();
+
+const novelSearchHighlightsField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    let next = value.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (!effect.is(setNovelSearchHighlightsEffect)) {
+        continue;
+      }
+      const builder = new RangeSetBuilder<Decoration>();
+      effect.value.ranges.forEach((range, index) => {
+        const from = Math.max(0, Math.min(range.from, transaction.state.doc.length));
+        const to = Math.max(from, Math.min(range.to, transaction.state.doc.length));
+        if (to <= from) {
+          return;
+        }
+        builder.add(
+          from,
+          to,
+          Decoration.mark({
+            class: index === effect.value.active
+              ? "novelview-search-highlight is-active"
+              : "novelview-search-highlight",
+          }),
+        );
+      });
+      next = builder.finish();
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 class ProseDecorationPlugin {
   decorations: DecorationSet;
 
@@ -335,6 +404,14 @@ export class NovelEditorView extends ItemView {
   };
   private saveChain: Promise<void> = Promise.resolve();
   private outlineMarksTimer: number | null = null;
+  private immersiveMode = false;
+  private immersiveButton: HTMLButtonElement | null = null;
+  private immersiveScrollFrame: number | null = null;
+  private immersiveCenterFrame: number | null = null;
+  private immersiveProgrammaticScrollTop: number | null = null;
+  private immersiveSyncing = false;
+  private searchHighlightRanges: NovelSearchHighlightRange[] = [];
+  private activeSearchHighlight = -1;
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -406,6 +483,14 @@ export class NovelEditorView extends ItemView {
     this.addToolbarButton(toolbar, "settings-2", "格式设置", () => {
       this.plugin.openModeSettings();
     });
+    this.immersiveButton = this.addToolbarButton(
+      toolbar,
+      "focus",
+      "沉浸模式",
+      () => this.setImmersiveMode(!this.immersiveMode),
+    );
+    this.immersiveButton.toggleClass("is-active", this.immersiveMode);
+    this.immersiveButton.setAttr("aria-pressed", String(this.immersiveMode));
     this.chapterTitleEl = this.contentEl.createDiv({
       cls: "novelview-editor-title is-editable",
       attr: {
@@ -602,6 +687,8 @@ export class NovelEditorView extends ItemView {
       this.pendingBlocksTimer = null;
     }
     this.disconnectResizeObserver();
+    this.clearImmersiveScrollFrame();
+    this.clearImmersiveCenterFrame();
     this.editorView?.destroy();
     this.editorView = null;
     this.editorHost = null;
@@ -615,6 +702,107 @@ export class NovelEditorView extends ItemView {
       this.plugin.setNovelEditorFile(file);
       void this.syncFromDisk();
     }
+  }
+
+  setSearchHighlights(ranges: NovelSearchHighlightRange[]): void {
+    this.searchHighlightRanges = ranges
+      .map((range) => ({
+        from: Math.max(0, range.from),
+        to: Math.max(range.from, range.to),
+      }))
+      .filter((range) => range.to > range.from)
+      .sort((left, right) => left.from - right.from);
+    this.activeSearchHighlight = -1;
+    this.applySearchHighlights();
+  }
+
+  alignSearchHighlightTo(anchorY: number): void {
+    const view = this.editorView;
+    if (!view) {
+      return;
+    }
+    const start = view.state.selection.main.head;
+    const caret = view.coordsAtPos(start);
+    if (!caret) {
+      return;
+    }
+    view.scrollDOM.scrollTop = Math.max(
+      0,
+      view.scrollDOM.scrollTop + caret.top - anchorY,
+    );
+  }
+
+  clearSearchHighlights(): void {
+    this.searchHighlightRanges = [];
+    this.activeSearchHighlight = -1;
+    this.applySearchHighlights();
+  }
+
+  revealSearchHighlight(from: number, to: number): void {
+    this.showSearchHighlight(from, to, true, true);
+  }
+
+  showSearchHighlight(
+    from: number,
+    to: number,
+    scroll = true,
+    focus = true,
+    anchorY?: number,
+  ): void {
+    const view = this.editorView;
+    if (!view) {
+      return;
+    }
+    const start = Math.max(0, Math.min(from, view.state.doc.length));
+    const end = Math.max(start, Math.min(to, view.state.doc.length));
+    this.searchHighlightRanges = [{ from: start, to: end }];
+    this.activeSearchHighlight = 0;
+    this.applySearchHighlights();
+    view.dispatch({
+      selection: EditorSelection.cursor(start),
+      effects: scroll && anchorY === undefined
+        ? EditorView.scrollIntoView(start, { y: "center" })
+        : [],
+    });
+    if (focus) {
+      view.focus();
+    }
+    if (scroll && anchorY !== undefined) {
+      window.requestAnimationFrame(() => {
+        if (this.editorView !== view) {
+          return;
+        }
+        const caret = view.coordsAtPos(start);
+        if (!caret) {
+          return;
+        }
+        view.scrollDOM.scrollTop = Math.max(
+          0,
+          view.scrollDOM.scrollTop + caret.top - anchorY,
+        );
+      });
+    }
+  }
+
+  private applySearchHighlights(): void {
+    this.editorView?.dispatch({
+      effects: setNovelSearchHighlightsEffect.of({
+        ranges: this.searchHighlightRanges,
+        active: this.activeSearchHighlight,
+      }),
+    });
+  }
+
+  isEditorReady(): boolean {
+    return this.editorView !== null;
+  }
+
+  getScrollViewportRect(): DOMRect | null {
+    return this.editorView?.scrollDOM.getBoundingClientRect() ?? null;
+  }
+
+  getEditorText(): string {
+    return this.editorView?.state.doc.toString() ?? "";
   }
 
   applySettings(): void {
@@ -662,6 +850,8 @@ export class NovelEditorView extends ItemView {
       return;
     }
     this.loading = true;
+    this.searchHighlightRanges = [];
+    this.activeSearchHighlight = -1;
     this.disconnectResizeObserver();
     try {
       const content = await this.app.vault.read(file);
@@ -709,7 +899,16 @@ export class NovelEditorView extends ItemView {
               if (update.docChanged || update.selectionSet) {
                 this.updatePendingUi();
               }
+              if (
+                this.immersiveMode
+                && !this.immersiveSyncing
+                && (update.docChanged || update.selectionSet)
+              ) {
+                this.scheduleImmersiveCenter();
+              }
             }),
+            immersiveLineExtension,
+            novelSearchHighlightsField,
             settingKeywordExtension,
             imageExtension(this.app, () => this.filePath),
             hrDecorationExtension,
@@ -761,7 +960,12 @@ export class NovelEditorView extends ItemView {
       this.editorView.scrollDOM.addEventListener("scroll", () => {
         this.updateTocVisibility();
         this.updatePendingUi();
+        this.handleImmersiveScroll();
       });
+      this.applyImmersiveLayout();
+      if (this.immersiveMode) {
+        this.setImmersiveMode(true);
+      }
       this.editorView.focus();
       this.plugin.setNovelEditorFile(file);
       void this.plugin.refreshSettingKeywordIndex();
@@ -792,6 +996,13 @@ export class NovelEditorView extends ItemView {
       return;
     }
     const { from, to } = selection;
+    const overlap = getOutlineMarks(this.editorView.state).find((mark) => (
+      from < mark.end && to > mark.start
+    ));
+    if (overlap) {
+      new Notice("Novel View：该范围与已有文字标记重叠，不能重复标记。");
+      return;
+    }
     new TextPromptModal(this.app, {
       title: "添加文字标记",
       description: "为选中的大纲文字添加一个标记名称。",
@@ -865,7 +1076,17 @@ export class NovelEditorView extends ItemView {
     if (!(file instanceof TFile)) {
       return;
     }
-    const marks = getOutlineMarks(this.editorView.state);
+    const state = this.editorView.state;
+    const allMarks = getOutlineMarks(state);
+    const marks = allMarks.filter((mark) => (
+      mark.end > mark.start
+      && Boolean(state.doc.sliceString(mark.start, mark.end).trim())
+    ));
+    if (marks.length !== allMarks.length) {
+      this.editorView.dispatch({
+        effects: setOutlineMarksEffect.of(marks),
+      });
+    }
     try {
       await this.app.fileManager.processFrontMatter(file, (
         frontmatter: Record<string, unknown>,
@@ -941,7 +1162,161 @@ export class NovelEditorView extends ItemView {
     window.visualViewport?.addEventListener("resize", this.handleWindowResize);
   }
 
+  exitImmersiveMode(): void {
+    if (this.immersiveMode) {
+      this.setImmersiveMode(false);
+    }
+  }
+
+  private setImmersiveMode(enabled: boolean): void {
+    if (enabled && this.plugin.isNovelFinderOpen()) {
+      new Notice("Novel View：NovelFinder 打开时无法进入沉浸模式。");
+      return;
+    }
+    this.immersiveMode = enabled;
+    this.contentEl.toggleClass("is-immersive", enabled);
+    this.immersiveButton?.toggleClass("is-active", enabled);
+    this.immersiveButton?.setAttr("aria-pressed", String(enabled));
+    this.applyImmersiveLayout();
+    this.scheduleEditorMeasure();
+    if (enabled) {
+      this.scheduleImmersiveCenter();
+      this.editorView?.focus();
+    } else {
+      this.clearImmersiveScrollFrame();
+      this.clearImmersiveCenterFrame();
+      this.immersiveProgrammaticScrollTop = null;
+      if (this.editorView) {
+        const head = this.editorView.state.selection.main.head;
+        this.editorView.dispatch({
+          effects: EditorView.scrollIntoView(head, { y: "center" }),
+        });
+      }
+    }
+  }
+
+  private applyImmersiveLayout(): void {
+    const view = this.editorView;
+    if (!view) {
+      return;
+    }
+    if (!this.immersiveMode) {
+      view.contentDOM.style.paddingTop = "";
+      view.contentDOM.style.paddingBottom = "";
+      return;
+    }
+    const pad = Math.max(80, Math.ceil(view.scrollDOM.clientHeight / 2));
+    view.contentDOM.style.paddingTop = `${pad}px`;
+    view.contentDOM.style.paddingBottom = `${pad}px`;
+    this.scheduleEditorMeasure();
+  }
+
+  private scheduleImmersiveCenter(): void {
+    if (!this.immersiveMode || this.immersiveCenterFrame !== null) {
+      return;
+    }
+    this.immersiveCenterFrame = window.requestAnimationFrame(() => {
+      this.immersiveCenterFrame = null;
+      this.centerImmersiveCursor();
+    });
+  }
+
+  private centerImmersiveCursor(): void {
+    const view = this.editorView;
+    if (!this.immersiveMode || !view) {
+      return;
+    }
+    const head = view.state.selection.main.head;
+    const caret = view.coordsAtPos(head);
+    if (!caret) {
+      return;
+    }
+    const scroller = view.scrollDOM;
+    const rect = scroller.getBoundingClientRect();
+    const target = scroller.scrollTop
+      + (caret.top + caret.bottom) / 2
+      - (rect.top + rect.height / 2);
+    if (Math.abs(scroller.scrollTop - target) > 2) {
+      const next = Math.max(0, target);
+      this.immersiveProgrammaticScrollTop = next;
+      scroller.scrollTop = next;
+    }
+  }
+
+  private handleImmersiveScroll(): void {
+    if (!this.immersiveMode || !this.editorView) {
+      return;
+    }
+    if (this.immersiveProgrammaticScrollTop !== null) {
+      const current = this.editorView.scrollDOM.scrollTop;
+      if (Math.abs(current - this.immersiveProgrammaticScrollTop) <= 2) {
+        this.immersiveProgrammaticScrollTop = null;
+        return;
+      }
+      this.immersiveProgrammaticScrollTop = null;
+    }
+    if (this.immersiveScrollFrame !== null) {
+      return;
+    }
+    this.immersiveScrollFrame = window.requestAnimationFrame(() => {
+      this.immersiveScrollFrame = null;
+      this.syncCursorToImmersiveCenter();
+    });
+  }
+
+  private syncCursorToImmersiveCenter(): void {
+    const view = this.editorView;
+    if (!this.immersiveMode || !view) {
+      return;
+    }
+    const scroller = view.scrollDOM;
+    const rect = scroller.getBoundingClientRect();
+    const pos = view.posAtCoords({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+    if (pos === null) {
+      return;
+    }
+    const selection = view.state.selection.main;
+    if (pos === selection.head) {
+      return;
+    }
+    this.immersiveSyncing = true;
+    try {
+      view.dispatch({
+        selection: { anchor: pos },
+      });
+    } finally {
+      this.immersiveSyncing = false;
+    }
+    this.centerImmersiveCursor();
+  }
+
+  private clearImmersiveScrollFrame(): void {
+    if (this.immersiveScrollFrame !== null) {
+      window.cancelAnimationFrame(this.immersiveScrollFrame);
+      this.immersiveScrollFrame = null;
+    }
+  }
+
+  private clearImmersiveCenterFrame(): void {
+    if (this.immersiveCenterFrame !== null) {
+      window.cancelAnimationFrame(this.immersiveCenterFrame);
+      this.immersiveCenterFrame = null;
+    }
+  }
+
   private scheduleEditorMeasure(): void {
+    if (this.immersiveMode) {
+      const pad = Math.max(80, Math.ceil(
+        (this.editorView?.scrollDOM.clientHeight ?? 0) / 2,
+      ));
+      if (this.editorView) {
+        this.editorView.contentDOM.style.paddingTop = `${pad}px`;
+        this.editorView.contentDOM.style.paddingBottom = `${pad}px`;
+      }
+    }
     this.editorView?.requestMeasure();
     if (this.resizeFrame !== null) {
       window.cancelAnimationFrame(this.resizeFrame);
@@ -956,6 +1331,9 @@ export class NovelEditorView extends ItemView {
     this.measureTimer = window.setTimeout(() => {
       this.measureTimer = null;
       this.editorView?.requestMeasure();
+      if (this.immersiveMode) {
+        this.scheduleImmersiveCenter();
+      }
     }, 120);
   }
 

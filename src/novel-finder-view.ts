@@ -151,60 +151,28 @@ export class NovelFinderView extends ItemView {
     }
     for (const results of groups.values()) {
       const first = results[0];
-      const fileGroup = list.createDiv({
-        cls: "novelview-finder-file-group",
+      const row = list.createEl("button", {
+        cls: "novelview-finder-chapter-row",
+        attr: {
+          type: "button",
+          title: first.path ?? first.title,
+        },
       });
-      const fileHeader = fileGroup.createDiv({
-        cls: "novelview-finder-file-header",
+      const icon = row.createSpan({
+        cls: "novelview-finder-chapter-icon",
       });
-      const fileIcon = fileHeader.createSpan({
-        cls: "novelview-finder-file-icon",
-      });
-      setIcon(fileIcon, context.scope === "chapter" ? "file-text" : "book-open");
-      fileHeader.createSpan({
-        cls: "novelview-finder-file-name",
+      setIcon(icon, "file-text");
+      row.createSpan({
+        cls: "novelview-finder-chapter-name",
         text: first.path?.split("/").pop()?.replace(/\.md$/u, "") ?? first.title,
       });
-      fileHeader.createSpan({
-        cls: "novelview-finder-file-count",
+      row.createSpan({
+        cls: "novelview-finder-chapter-count",
         text: `${results.length} 处`,
       });
-      if (first.path && context.scope === "book") {
-        fileGroup.createDiv({
-          cls: "novelview-finder-file-path",
-          text: first.path,
-        });
-      }
-      for (const result of results) {
-        const card = fileGroup.createEl("button", {
-          cls: "novelview-finder-match",
-          attr: {
-            type: "button",
-            title: result.title,
-          },
-        });
-        card.createSpan({
-          cls: "novelview-finder-line",
-          text: `L${result.line ?? 1}`,
-        });
-        const snippet = card.createSpan({
-          cls: "novelview-finder-snippet",
-        });
-        if (
-          result.before !== undefined
-          && result.matchText !== undefined
-          && result.after !== undefined
-        ) {
-          snippet.createSpan({ text: result.before });
-          snippet.createEl("mark", { text: result.matchText });
-          snippet.appendText(result.after);
-        } else {
-          snippet.appendText(result.detail);
-        }
-        card.addEventListener("click", () => {
-          void this.plugin.openNovelFinderResult(result);
-        });
-      }
+      row.addEventListener("click", () => {
+        void this.plugin.openNovelFinderResult(first, context.scope);
+      });
     }
   }
 
@@ -233,7 +201,7 @@ export class NovelFinderView extends ItemView {
         text: result.detail || "（空标记）",
       });
       card.addEventListener("click", () => {
-        void this.plugin.openNovelFinderResult(result);
+        void this.plugin.openNovelFinderResult(result, this.context?.scope);
       });
     }
   }
@@ -263,7 +231,7 @@ export class NovelFinderView extends ItemView {
         text: result.detail || "（空内容）",
       });
       card.addEventListener("click", () => {
-        void this.plugin.openNovelFinderResult(result);
+        void this.plugin.openNovelFinderResult(result, this.context?.scope);
       });
     }
   }
@@ -304,7 +272,7 @@ export class NovelFinderView extends ItemView {
         text: result.detail || "（无简介）",
       });
       card.addEventListener("click", () => {
-        void this.plugin.openNovelFinderResult(result);
+        void this.plugin.openNovelFinderResult(result, this.context?.scope);
       });
     }
   }

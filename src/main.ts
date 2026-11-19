@@ -42,8 +42,12 @@ import {
   getAllSettingKeywordEntries,
   getSettingKeywordEntries,
   settingGroupFolderName,
+  isSettingSpecialFileName,
+  settingSpecialFileKind,
+  settingSpecialFileSuffix,
   type SettingCollectionIndex,
   type SettingGroupTags,
+  type SettingSpecialFileKind,
 } from "./core/setting-collection";
 import { countNovelCharacters } from "./core/status";
 import { findFrontmatterEnd } from "./core/paragraphs";
@@ -83,6 +87,21 @@ import {
   frontmatterCompartment,
   setFrontmatterProtection,
 } from "./editor/frontmatter-hide-extension";
+import {
+  parseGraphNodes,
+  parseGraphSource,
+  removeGraphRelation,
+  settingSpecialTemplate,
+  type GraphRelation,
+} from "./core/setting-special-data";
+import {
+  GRAPH_RELATION_INDEX,
+  appendGraphRelationLine,
+  canonicalRelationKey,
+  mergeCanonicalRelations,
+  parseCanonicalRelations,
+  renameGraphNodeInSource,
+} from "./core/graph-relations";
 import { NovelFloatingToolbar } from "./editor/floating-toolbar";
 import {
   NOVEL_EDITOR_VIEW_TYPE,
@@ -92,11 +111,37 @@ import {
   SETTING_COLLECTION_VIEW_TYPE,
   SettingCollectionView,
 } from "./setting-collection-view";
+import {
+  NovelSettingListView,
+  SETTING_LIST_VIEW_TYPE,
+} from "./setting-list-view";
+import {
+  TEXT_MARKS_VIEW_TYPE,
+  TextMarkCollectionView,
+  collectTextMarks,
+} from "./mark-collection-view";
+import {
+  TimelineEditorView,
+  TIMELINE_EDITOR_VIEW_TYPE,
+} from "./special-editors/timeline-editor-view";
+import {
+  GraphEditorView,
+  GRAPH_EDITOR_VIEW_TYPE,
+} from "./special-editors/graph-editor-view";
+import {
+  BranchEditorView,
+  BRANCH_EDITOR_VIEW_TYPE,
+} from "./special-editors/branch-editor-view";
+import {
+  DetailEditorView,
+  DETAIL_EDITOR_VIEW_TYPE,
+} from "./special-editors/detail-editor-view";
 import { ModeSettingsPanel } from "./mode-settings-panel";
 import {
   SearchPanelV2,
   type FinderContext,
   type FinderResult,
+  type SearchScope,
 } from "./search-panel-v2";
 import {
   NOVEL_FINDER_VIEW_TYPE,
@@ -125,6 +170,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private readonly chapterMetaCache = new Map<string, ChapterMeta>();
   private settingKeywordEntries: import("./core/setting-collection").SettingKeywordEntry[] = [];
   private readonly settingKeywordPage = new Map<string, number>();
+  private readonly graphRelationCache = new Map<string, GraphRelation[]>();
+  private readonly graphRelationSyncChains = new Map<string, Promise<void>>();
+  private readonly graphRelationWriteGuards = new Set<string>();
+  private graphRelationSyncTimer: number | null = null;
   private readonly articleUndoStack: Array<() => Promise<void>> = [];
   private readonly novelConfigs = new Map<string, NovelConfig>();
   private searchPanelV2: SearchPanelV2 | null = null;
@@ -142,6 +191,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private readonly forcingSourceLeaves = new WeakSet<WorkspaceLeaf>();
   private readonly sourceModeAttempts = new WeakMap<WorkspaceLeaf, number>();
   private routingNovelFile = false;
+  private finderNavigationUntil = 0;
   private historySaveChain: Promise<void> = Promise.resolve();
   private articleDragPaths: string[] = [];
   private articleDragCancelled = false;
@@ -203,6 +253,55 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerView(SETTING_COLLECTION_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
       new SettingCollectionView(leaf, this)
     ));
+    this.registerView(SETTING_LIST_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new NovelSettingListView(leaf, this)
+    ));
+    this.registerView(TEXT_MARKS_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new TextMarkCollectionView(leaf, this)
+    ));
+    this.registerView(TIMELINE_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new TimelineEditorView(leaf, this)
+    ));
+    this.registerView(GRAPH_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new GraphEditorView(leaf, this)
+    ));
+    this.registerView(BRANCH_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new BranchEditorView(leaf, this)
+    ));
+    this.registerView(DETAIL_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new DetailEditorView(leaf, this)
+    ));
+    this.app.workspace.onLayoutReady(() => {
+      const types = [
+        TIMELINE_EDITOR_VIEW_TYPE,
+        GRAPH_EDITOR_VIEW_TYPE,
+        BRANCH_EDITOR_VIEW_TYPE,
+        DETAIL_EDITOR_VIEW_TYPE,
+      ];
+      for (const type of types) {
+        for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+          const state = leaf.getViewState().state as { file?: unknown } | null;
+          const path = typeof state?.file === "string" ? state.file : "";
+          if (!path || !this.app.vault.getAbstractFileByPath(path)) {
+            leaf.detach();
+          }
+        }
+      }
+      for (const leaf of this.app.workspace.getLeavesOfType(
+        TEXT_MARKS_VIEW_TYPE,
+      )) {
+        if (!this.isRightSidebarLeaf(leaf)) {
+          leaf.detach();
+        }
+      }
+      for (const leaf of this.app.workspace.getLeavesOfType(
+        SETTING_LIST_VIEW_TYPE,
+      )) {
+        if (!this.isLeftSidebarLeaf(leaf)) {
+          leaf.detach();
+        }
+      }
+    });
     this.registerView(NOVEL_FINDER_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
       new NovelFinderView(leaf, this)
     ));
@@ -232,7 +331,9 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       const active = leaf?.view;
       if (active instanceof NovelEditorView) {
         active.activate();
-        this.searchPanelV2?.refreshForActiveEditor();
+        if (performance.now() >= this.finderNavigationUntil) {
+          this.searchPanelV2?.refreshForActiveEditor();
+        }
         return;
       }
       const inSidebar = Boolean(
@@ -269,6 +370,17 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         return;
       }
       this.scheduleHistoryCheck(file);
+      if (
+        file.name.endsWith(".graph.md")
+        && !this.graphRelationWriteGuards.has(file.path)
+      ) {
+        const graphRoot = this.findNovelGroupRoot(
+          this.normalizeFolderPath(file.parent?.path ?? "/"),
+        );
+        if (graphRoot) {
+          this.scheduleGraphRelationSync(graphRoot);
+        }
+      }
       if (file.name === SETTING_COLLECTION_INDEX) {
         const root = this.settingRootForPath(
           this.normalizeFolderPath(file.parent?.path ?? "/"),
@@ -654,6 +766,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     results: FinderResult[],
   ): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(NOVEL_FINDER_VIEW_TYPE)[0];
+    if (context.scope === "chapter") {
+      // Whole-chapter results stay in the NovelFinder card. Only update an
+      // already-open sidebar; never open it as a side effect of searching.
+      if (existing?.view instanceof NovelFinderView) {
+        existing.view.setResults(context, results);
+      }
+      return;
+    }
     if (existing?.view instanceof NovelFinderView) {
       existing.view.setResults(context, results);
       return;
@@ -674,7 +794,99 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     await this.app.workspace.revealLeaf(leaf);
   }
 
-  async openNovelFinderResult(result: FinderResult): Promise<void> {
+  clearNovelFinderHighlights(): void {
+    const file = this.getLastActiveMarkdownFile();
+    const view = file ? this.findNovelEditorView(file.path) : null;
+    view?.clearSearchHighlights();
+  }
+
+  private getNovelFinderAnchorY(): number | undefined {
+    const card = this.searchPanelV2?.getCardRect();
+    if (!card) {
+      return undefined;
+    }
+    const file = this.getLastActiveMarkdownFile();
+    const view = file ? this.findNovelEditorView(file.path) : null;
+    const viewport = view?.getScrollViewportRect();
+    if (!viewport || viewport.height <= 0) {
+      return undefined;
+    }
+    const spaceAbove = card.top - viewport.top;
+    const spaceBelow = viewport.bottom - card.bottom;
+    if (spaceAbove >= 120) {
+      return Math.max(viewport.top + 40, card.top - 40);
+    }
+    if (spaceBelow >= 60) {
+      return Math.min(viewport.bottom - 24, card.bottom + 28);
+    }
+    return undefined;
+  }
+
+  async focusNovelFinderResult(
+    result: FinderResult,
+    scope: SearchScope,
+    options: {
+      openChapter?: boolean;
+      scroll?: boolean;
+      focus?: boolean;
+    } = {},
+  ): Promise<boolean> {
+    if (
+      !result.path
+      || result.offset === undefined
+      || result.length === undefined
+    ) {
+      return false;
+    }
+    const file = this.app.vault.getAbstractFileByPath(result.path);
+    if (!(file instanceof TFile)) {
+      return false;
+    }
+    let view = this.findNovelEditorView(file.path);
+    if (!view && !options.openChapter) {
+      return false;
+    }
+    this.finderNavigationUntil = performance.now() + 5000;
+    if (!view) {
+      await this.openNovelEditor(file, result.line ?? 1);
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 50));
+        view = this.findNovelEditorView(file.path);
+        if (view?.isEditorReady()) {
+          break;
+        }
+      }
+    }
+    if (!view) {
+      return false;
+    }
+    if (options.openChapter) {
+      await this.app.workspace.revealLeaf(view.leaf);
+    }
+    const scroll = options.scroll ?? true;
+    view.showSearchHighlight(
+      result.offset,
+      result.offset + result.length,
+      scroll,
+      options.focus ?? true,
+      scroll ? this.getNovelFinderAnchorY() : undefined,
+    );
+    if (scroll) {
+      window.setTimeout(() => {
+        const anchorY = this.getNovelFinderAnchorY();
+        if (anchorY !== undefined) {
+          view.alignSearchHighlightTo(anchorY);
+        }
+      }, 80);
+    }
+    this.finderNavigationUntil = performance.now() + 1000;
+    return true;
+  }
+
+  async openNovelFinderResult(
+    result: FinderResult,
+    scope?: SearchScope,
+  ): Promise<void> {
     if (result.kind === "setting" && result.group && result.keyword) {
       const current = this.getLastActiveMarkdownFile();
       if (current) {
@@ -690,10 +902,27 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (!result.path) {
       return;
     }
-    const file = this.app.vault.getAbstractFileByPath(result.path);
-    if (file instanceof TFile) {
-      await this.openFileAtLine(file, result.line ?? 1);
+    if (result.kind === "file") {
+      this.searchPanelV2?.syncActiveResult(result);
     }
+    const file = this.app.vault.getAbstractFileByPath(result.path);
+    if (!(file instanceof TFile)) {
+      return;
+    }
+    if (
+      (scope === "chapter" || scope === "volume" || scope === "book")
+      && result.offset !== undefined
+      && result.length !== undefined
+    ) {
+      if (await this.focusNovelFinderResult(result, scope, {
+        openChapter: true,
+        scroll: true,
+        focus: true,
+      })) {
+        return;
+      }
+    }
+    await this.openFileAtLine(file, result.line ?? 1);
   }
 
   private closeNovelFinder(): void {
@@ -703,12 +932,19 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
+  isNovelFinderOpen(): boolean {
+    return this.searchPanelV2?.isOpen() ?? false;
+  }
+
   openAdvancedSearch(): void {
     if (!this.app.workspace.getActiveViewOfType(NovelEditorView)) {
       this.closeNovelFinder();
       new Notice("Novel View：请先打开 NovelEditor 后再使用 NovelFinder。");
       return;
     }
+    const active = this.getLastActiveMarkdownFile();
+    const editor = active ? this.findNovelEditorView(active.path) : null;
+    editor?.exitImmersiveMode();
     if (!this.searchPanelV2) {
       this.searchPanelV2 = new SearchPanelV2(this);
     }
@@ -1626,9 +1862,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return this.settingRootForPath(parent) !== null;
   }
 
+  isSpecialSettingFile(file: TFile): boolean {
+    return isSettingSpecialFileName(file.name);
+  }
+
   isSpecialNovelFile(file: TFile): boolean {
     return isNovelConfigFile(file)
-      || this.isSettingCollectionIndexPath(file.path);
+      || this.isSettingCollectionIndexPath(file.path)
+      || this.isSpecialSettingFile(file);
   }
 
   async readNovelConfig(folderPath: string): Promise<NovelConfig> {
@@ -1872,6 +2113,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   async openFileAtLine(file: TFile, line = 1): Promise<void> {
+    if (this.isSettingSpecialEditorFile(file)) {
+      await this.openSettingSpecialFile(file);
+      return;
+    }
     if (!this.isNovelArticleFile(file)) {
       await LegacyNovelViewPlugin.prototype.openFileAtLine.call(this, file, line);
       return;
@@ -1887,18 +2132,16 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (!model) {
       return null;
     }
-    const rootPath = this.normalizeFolderPath(folderPath);
-    const isRootSettingFile = (path: string): boolean => {
-      const parent = this.normalizeFolderPath(
-        path.split("/").slice(0, -1).join("/"),
-      );
-      const name = path.split("/").pop()?.replace(/\.md$/u, "") ?? "";
-      return parent === rootPath && name.startsWith("-");
+    const isSpecialArticle = (path: string): boolean => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      return file instanceof TFile && this.isSpecialNovelFile(file);
     };
-    model.articles = model.articles.filter((article) => !isRootSettingFile(article.path));
+    model.articles = model.articles.filter((article) => (
+      !isSpecialArticle(article.path)
+    ));
     model.volumes.forEach((volume) => {
       volume.articles = volume.articles.filter((article) => (
-        !isRootSettingFile(article.path)
+        !isSpecialArticle(article.path)
       ));
     });
     const order = this.getNovelVolumeOrder(folderPath);
@@ -2498,7 +2741,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     for (const root of this.settingGroups.keys()) {
       this.scheduleSettingCollection(root);
     }
-    await this.normalizeExistingRelationLinks();
     await this.cleanupSettingIndexHistory();
     this.refreshSettingCollectionViews();
     void this.refreshSettingKeywordIndex();
@@ -2521,92 +2763,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       }
     }
     this.refreshWorkbenchViews();
-  }
-
-  private async normalizeExistingRelationLinks(): Promise<void> {
-    for (const root of this.novelRoots()) {
-      const groups = this.settingGroupsForNovel(root);
-      if (groups.length < 1) {
-        continue;
-      }
-      const indexes = new Map<string, SettingCollectionIndex>();
-      const links = new Map<string, Array<{
-        path: string;
-        group: string;
-        keyword: string;
-        relation: import("./core/setting-collection").SettingRelation;
-      }>>();
-      for (const group of groups) {
-        const index = await this.readSettingCollectionIndex(group.path);
-        indexes.set(group.path, index);
-        for (const [groupName, tags] of Object.entries(index)) {
-          for (const tag of tags) {
-            for (const record of tag.contain) {
-              for (const relation of record.relations) {
-                if (!relation.linkId) {
-                  continue;
-                }
-                const list = links.get(relation.linkId) ?? [];
-                list.push({
-                  path: group.path,
-                  group: groupName,
-                  keyword: record.keyword,
-                  relation,
-                });
-                links.set(relation.linkId, list);
-              }
-            }
-          }
-        }
-      }
-      const touched = new Set<string>();
-      for (const occurrences of links.values()) {
-        if (occurrences.length < 2) {
-          continue;
-        }
-        const source = occurrences.find((occurrence) => (
-          occurrence.relation.linkSourceGroup === occurrence.group
-          && occurrence.relation.linkSourceKeyword === occurrence.keyword
-        )) ?? occurrences[0];
-        const sourceSide = source.relation.direction === "two-way"
-          ? undefined
-          : source.relation.side ?? "right";
-        for (const occurrence of occurrences) {
-          const relation = occurrence.relation;
-          const nextSide = relation.direction === "two-way"
-            ? undefined
-            : occurrence === source
-              ? sourceSide
-              : sourceSide === "left" ? "right" : "left";
-          const nextDirection = source.relation.direction;
-          const nextType = source.relation.type;
-          if (
-            relation.linkSourceGroup !== source.group
-            || relation.linkSourceKeyword !== source.keyword
-            || relation.side !== nextSide
-            || relation.direction !== nextDirection
-            || relation.type !== nextType
-          ) {
-            relation.linkSourceGroup = source.group;
-            relation.linkSourceKeyword = source.keyword;
-            relation.direction = nextDirection;
-            relation.type = nextType;
-            if (nextSide) {
-              relation.side = nextSide;
-            } else {
-              delete relation.side;
-            }
-            touched.add(occurrence.path);
-          }
-        }
-      }
-      for (const path of touched) {
-        const index = indexes.get(path);
-        if (index) {
-          await this.writeSettingCollectionIndex(path, index);
-        }
-      }
-    }
   }
 
   private novelRoots(): string[] {
@@ -2983,38 +3139,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return count;
   }
 
-  async getSettingRecordTargets(
-    novelRoot: string,
-  ): Promise<Array<{ group: string; tag: string; keyword: string }>> {
-    const result: Array<{ group: string; tag: string; keyword: string }> = [];
-    for (const group of this.settingGroupsForNovel(novelRoot)) {
-      const groupIndex = await this.readSettingCollectionIndex(group.path);
-      const groupName = this.settingGroupNameFromFolder(group);
-      for (const [name, tags] of Object.entries(groupIndex)) {
-        for (const tag of tags) {
-          for (const record of tag.contain) {
-            if (record.keyword) {
-              result.push({
-                group: name || groupName,
-                tag: tag.tag,
-                keyword: record.keyword,
-              });
-            }
-          }
-        }
-      }
-    }
-    return result.sort((left, right) => (
-      left.group.localeCompare(right.group, "zh-CN", { numeric: true })
-      || left.keyword.localeCompare(right.keyword, "zh-CN", { numeric: true })
-    ));
-  }
-
   async replaceNovelKeyword(
     novelRoot: string,
     oldKeyword: string,
     newKeyword: string,
-  ): Promise<{ records: number; relations: number; files: number } | null> {
+  ): Promise<{ records: number; files: number } | null> {
     const root = this.normalizeFolderPath(novelRoot);
     const oldValue = oldKeyword.trim();
     const newValue = newKeyword.trim();
@@ -3033,7 +3162,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       }
     }
     let records = 0;
-    let relations = 0;
     for (const group of groups) {
       const index = await this.readSettingCollectionIndex(group.path);
       let changed = false;
@@ -3044,13 +3172,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
               record.keyword = newValue;
               records += 1;
               changed = true;
-            }
-            for (const relation of record.relations) {
-              if (relation.targetKeyword === oldValue) {
-                relation.targetKeyword = newValue;
-                relations += 1;
-                changed = true;
-              }
             }
           }
         }
@@ -3083,156 +3204,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.refreshSettingCollectionViews();
     this.refreshOpenViews();
     this.refreshArticleListViews();
-    return { records, relations, files };
+    return { records, files };
   }
 
-  ensureSettingRelationLinkIds(
-    relations: import("./core/setting-collection").SettingRelation[],
-    sourceGroup = "",
-    sourceKeyword = "",
-  ): void {
-    for (const relation of relations) {
-      if (!relation.linkId) {
-        relation.linkId = `rel-${Date.now().toString(36)}-${
-          Math.random().toString(36).slice(2, 10)
-        }`;
-      }
-      if (sourceGroup && sourceKeyword) {
-        relation.linkSourceGroup = relation.linkSourceGroup ?? sourceGroup;
-        relation.linkSourceKeyword = relation.linkSourceKeyword ?? sourceKeyword;
-      }
-    }
-  }
-
-  async syncSettingRelationLinks(
-    novelRoot: string,
-    sourceGroup: string,
-    previousKeyword: string,
-    sourceKeyword: string,
-    previousRelations: import("./core/setting-collection").SettingRelation[],
-    relations: import("./core/setting-collection").SettingRelation[],
-  ): Promise<void> {
-    const indexes = new Map<string, SettingCollectionIndex>();
-    const touched = new Set<string>();
-    const load = async (groupName: string): Promise<{
-      folder: TFolder;
-      index: SettingCollectionIndex;
-    } | null> => {
-      const folder = this.getSettingGroupFolderByName(novelRoot, groupName);
-      if (!folder) {
-        return null;
-      }
-      if (!indexes.has(folder.path)) {
-        indexes.set(
-          folder.path,
-          await this.readSettingCollectionIndex(folder.path),
-        );
-      }
-      touched.add(folder.path);
-      return { folder, index: indexes.get(folder.path) as SettingCollectionIndex };
-    };
-    const findRecord = (
-      index: SettingCollectionIndex,
-      keyword: string,
-    ): import("./core/setting-collection").SettingCollectionEntry | null => {
-      for (const tags of Object.values(index)) {
-        for (const tag of tags) {
-          const record = tag.contain.find((entry) => entry.keyword === keyword);
-          if (record) {
-            return record;
-          }
-        }
-      }
-      return null;
-    };
-
-    const currentLinkIds = new Set(
-      relations.map((relation) => relation.linkId).filter(Boolean),
-    );
-    for (const relation of previousRelations) {
-      if (relation.linkId && currentLinkIds.has(relation.linkId)) {
-        continue;
-      }
-      const target = await load(relation.targetGroup);
-      if (!target) {
-        continue;
-      }
-      const record = findRecord(target.index, relation.targetKeyword);
-      if (!record) {
-        continue;
-      }
-      record.relations = record.relations.filter((item) => {
-        if (relation.linkId && item.linkId === relation.linkId) {
-          return false;
-        }
-        return !(
-          item.targetGroup === sourceGroup
-          && (item.targetKeyword === previousKeyword
-            || item.targetKeyword === sourceKeyword)
-          && !item.linkId
-        );
-      });
-    }
-
-    for (const relation of relations) {
-      if (!relation.linkId) {
-        continue;
-      }
-      if (
-        relation.targetGroup === sourceGroup
-        && relation.targetKeyword === sourceKeyword
-      ) {
-        continue;
-      }
-      const target = await load(relation.targetGroup);
-      if (!target) {
-        continue;
-      }
-      const record = findRecord(target.index, relation.targetKeyword);
-      if (!record) {
-        continue;
-      }
-      record.relations = record.relations.filter((item) => (
-        item.linkId !== relation.linkId
-        && !(
-          item.targetGroup === sourceGroup
-          && (item.targetKeyword === previousKeyword
-            || item.targetKeyword === sourceKeyword)
-          && !item.linkId
-        )
-      ));
-      record.relations.push({
-        targetGroup: sourceGroup,
-        targetKeyword: sourceKeyword,
-        type: relation.type,
-        direction: relation.direction,
-        side: relation.direction === "two-way"
-          ? undefined
-          : relation.side === "left" ? "right" : "left",
-        linkId: relation.linkId,
-        linkSourceGroup: relation.linkSourceGroup ?? sourceGroup,
-        linkSourceKeyword: relation.linkSourceKeyword ?? sourceKeyword,
-      });
-    }
-
-    for (const path of touched) {
-      const index = indexes.get(path);
-      if (index) {
-        await this.writeSettingCollectionIndex(path, index);
-      }
-    }
-  }
-
-  getSettingGroupFolderByName(
-    novelRoot: string,
-    groupName: string,
-  ): TFolder | null {
-    for (const folder of this.settingGroupsForNovel(novelRoot)) {
-      if (this.settingGroupNameFromFolder(folder) === groupName) {
-        return folder;
-      }
-    }
-    return null;
+  getSettingGroupsForNovel(novelRoot: string): TFolder[] {
+    return this.settingGroupsForNovel(novelRoot);
   }
 
   getSettingCollectionFolder(path: string): TFolder | null {
@@ -3356,6 +3332,149 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       new Notice("Novel View：详细文件创建失败。");
       return null;
     }
+  }
+
+  async createSettingSpecialFile(
+    settingPath: string,
+    title: string,
+    kind: SettingSpecialFileKind,
+  ): Promise<TFile | null> {
+    const novelRoot = this.findNovelGroupRoot(settingPath)
+      ?? this.normalizeFolderPath(settingPath);
+    const folder = this.getFolder(novelRoot);
+    if (!folder || !this.getNovelSettingFile(novelRoot)) {
+      new Notice("Novel View：找不到小说组。");
+      return null;
+    }
+    const suffix = settingSpecialFileSuffix(kind);
+    let base = this.sanitizeFileBase(
+      title,
+      kind === "detail"
+        ? "详细设定"
+        : kind === "graph"
+          ? "图谱"
+          : kind === "line"
+            ? "轴"
+            : "分支树",
+    );
+    const lower = base.toLocaleLowerCase();
+    if (lower.endsWith(suffix)) {
+      base = base.slice(0, -suffix.length);
+    } else if (lower.endsWith(`.${kind}`)) {
+      base = base.slice(0, -kind.length - 1);
+    }
+    base = base.trim();
+    if (!base) {
+      new Notice("Novel View：文件名不能为空。");
+      return null;
+    }
+    const targetPath = this.getUniqueFilePath(
+      folder.path,
+      `${base}${suffix}`,
+    );
+    try {
+      const file = await this.app.vault.create(
+        targetPath,
+        settingSpecialTemplate(kind, base),
+      );
+      new Notice(`Novel View：已新建${title || base}。`);
+      return file;
+    } catch (error) {
+      console.error("Novel View: special setting file creation failed", error);
+      new Notice("Novel View：特殊设定文件创建失败。");
+      return null;
+    }
+  }
+
+  async renameSettingGroupFolder(
+    folderPath: string,
+    displayName: string,
+  ): Promise<string | null> {
+    const folder = this.getFolder(folderPath);
+    if (!(folder instanceof TFolder) || !folder.name.startsWith("-")) {
+      return "设定组不存在。";
+    }
+    const name = displayName.trim().replace(/^-+/u, "").trim();
+    if (!name) {
+      return "设定组名称不能为空。";
+    }
+    const targetName = `-${settingGroupFolderName(name)}`;
+    if (targetName === folder.name) {
+      return null;
+    }
+    const parent = this.normalizeFolderPath(folder.parent?.path ?? "/");
+    const targetPath = joinVaultPath(parent, targetName);
+    if (this.app.vault.getAbstractFileByPath(targetPath)) {
+      return "同名设定组已存在。";
+    }
+    try {
+      await this.app.fileManager.renameFile(folder, targetPath);
+      return null;
+    } catch (error) {
+      console.error("Novel View: setting group rename failed", error);
+      return "设定组重命名失败。";
+    }
+  }
+
+  async renameSettingSpecialFile(
+    file: TFile,
+    displayName: string,
+  ): Promise<string | null> {
+    const kind = settingSpecialFileKind(file.name);
+    if (!kind) {
+      return "不是特殊设定文件。";
+    }
+    const suffix = settingSpecialFileSuffix(kind);
+    let name = displayName.trim();
+    const lower = name.toLocaleLowerCase();
+    if (lower.endsWith(suffix)) {
+      name = name.slice(0, -suffix.length);
+    } else if (lower.endsWith(`.${kind}`)) {
+      name = name.slice(0, -kind.length - 1);
+    } else if (lower.endsWith(".md")) {
+      name = name.slice(0, -3);
+    }
+    name = name.trim();
+    if (!name) {
+      return "文件名不能为空。";
+    }
+    const targetPath = joinVaultPath(
+      this.normalizeFolderPath(file.parent?.path ?? "/"),
+      `${name}${suffix}`,
+    );
+    if (targetPath === file.path) {
+      return null;
+    }
+    if (this.app.vault.getAbstractFileByPath(targetPath)) {
+      return "同名特殊设定文件已存在。";
+    }
+    const oldPath = file.path;
+    try {
+      await this.app.fileManager.renameFile(file, targetPath);
+    } catch (error) {
+      console.error("Novel View: special file rename failed", error);
+      return "特殊设定文件重命名失败。";
+    }
+    for (const type of [
+      TIMELINE_EDITOR_VIEW_TYPE,
+      GRAPH_EDITOR_VIEW_TYPE,
+      BRANCH_EDITOR_VIEW_TYPE,
+      DETAIL_EDITOR_VIEW_TYPE,
+    ]) {
+      for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+        const state = leaf.getViewState();
+        if (
+          (state.state as { file?: unknown }).file === oldPath
+        ) {
+          await leaf.setViewState({
+            type,
+            state: { ...state.state, file: targetPath },
+            active: false,
+          });
+        }
+      }
+    }
+    return null;
   }
 
   async renameSettingRecordDetails(
@@ -4254,11 +4373,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       return false;
     }
     const parent = this.normalizeFolderPath(file.parent?.path ?? "/");
-    const root = this.findNovelGroupRoot(parent);
-    if (!root) {
-      return false;
-    }
-    return !(parent === root && file.basename.startsWith("-"));
+    return this.findNovelGroupRoot(parent) !== null;
   }
 
   private clearNativeNovelModeStyles(): void {
@@ -4283,6 +4398,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   private routeNovelFileOpen(file: TFile): void {
     if (this.routingNovelFile) {
+      return;
+    }
+    if (this.isSettingSpecialEditorFile(file)) {
+      void this.openSettingSpecialFile(file);
       return;
     }
     if (!this.isNovelArticleFile(file)) {
@@ -4327,6 +4446,25 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   getActiveNovelEditorFile(): TFile | null {
     const view = this.app.workspace.getActiveViewOfType(NovelEditorView);
     return view?.getNovelEditorFile() ?? null;
+  }
+
+  getActiveNovelEditorText(): string | null {
+    const file = this.getLastActiveMarkdownFile();
+    const view = file ? this.findNovelEditorView(file.path) : null;
+    return view?.getEditorText() ?? null;
+  }
+
+  private findNovelEditorView(path: string): NovelEditorView | null {
+    const normalized = this.normalizeFolderPath(path);
+    for (const leaf of this.app.workspace.getLeavesOfType(NOVEL_EDITOR_VIEW_TYPE)) {
+      if (!(leaf.view instanceof NovelEditorView)) {
+        continue;
+      }
+      if (this.normalizeFolderPath(leaf.view.getNovelEditorFile()?.path ?? "") === normalized) {
+        return leaf.view;
+      }
+    }
+    return null;
   }
 
   setNovelEditorFile(file: TFile): void {
@@ -4413,6 +4551,453 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     });
   }
 
+  isSettingSpecialEditorFile(file: TFile): boolean {
+    return settingSpecialFileKind(file.name) !== null;
+  }
+
+  private settingSpecialViewType(
+    file: TFile,
+  ): string | null {
+    switch (settingSpecialFileKind(file.name)) {
+      case "line":
+        return TIMELINE_EDITOR_VIEW_TYPE;
+      case "graph":
+        return GRAPH_EDITOR_VIEW_TYPE;
+      case "branch":
+        return BRANCH_EDITOR_VIEW_TYPE;
+      case "detail":
+        return DETAIL_EDITOR_VIEW_TYPE;
+      default:
+        return null;
+    }
+  }
+
+  async openSettingSpecialFile(file: TFile): Promise<void> {
+    const type = this.settingSpecialViewType(file);
+    if (!type) {
+      await this.app.workspace.getLeaf(false).openFile(file);
+      return;
+    }
+    for (const leaf of this.app.workspace.getLeavesOfType(type)) {
+      if (leaf.getViewState().state?.file === file.path) {
+        await this.app.workspace.revealLeaf(leaf);
+        return;
+      }
+    }
+    const workspace = this.app.workspace as typeof this.app.workspace & {
+      getMostRecentLeaf?: (root: unknown) => WorkspaceLeaf | null;
+    };
+    const leaf = workspace.getMostRecentLeaf?.(this.app.workspace.rootSplit)
+      ?? this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({
+      type,
+      state: { file: file.path },
+      active: true,
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private isLeftSidebarLeaf(leaf: WorkspaceLeaf): boolean {
+    return Boolean(leaf.view.containerEl.closest(
+      ".workspace-split.mod-left-split",
+    ));
+  }
+
+  private isRightSidebarLeaf(leaf: WorkspaceLeaf): boolean {
+    return Boolean(leaf.view.containerEl.closest(
+      ".workspace-split.mod-right-split",
+    ));
+  }
+
+  private leftSidebarLeaf(): WorkspaceLeaf {
+    return this.app.workspace.getLeavesOfType(SETTING_LIST_VIEW_TYPE)
+      .find((leaf) => this.isLeftSidebarLeaf(leaf))
+      ?? this.app.workspace.getLeftLeaf(false)
+      ?? this.app.workspace.getLeftLeaf(true)
+      ?? this.app.workspace.getLeaf(false);
+  }
+
+  private rightSidebarLeaf(): WorkspaceLeaf {
+    return this.app.workspace.getLeavesOfType(TEXT_MARKS_VIEW_TYPE)
+      .find((leaf) => this.isRightSidebarLeaf(leaf))
+      ?? this.app.workspace.getLeavesOfType(SETTING_COLLECTION_VIEW_TYPE)
+        .find((leaf) => this.isRightSidebarLeaf(leaf))
+      ?? this.app.workspace.getRightLeaf(false)
+      ?? this.app.workspace.getRightLeaf(true)
+      ?? this.app.workspace.getLeaf(false);
+  }
+
+  private graphRelationIndexPath(novelRoot: string): string {
+    return joinVaultPath(novelRoot, GRAPH_RELATION_INDEX);
+  }
+
+  private graphFilesForNovel(novelRoot: string): TFile[] {
+    const root = this.normalizeFolderPath(novelRoot);
+    return this.app.vault.getFiles().filter((file) => (
+      file.extension === "md"
+      && this.normalizeFolderPath(file.parent?.path ?? "/") === root
+      && file.name.endsWith(".graph.md")
+    ));
+  }
+
+  async readGraphRelations(novelRoot: string): Promise<GraphRelation[]> {
+    const root = this.normalizeFolderPath(novelRoot);
+    const path = this.graphRelationIndexPath(root);
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) {
+      try {
+        const parsed = parseCanonicalRelations(JSON.parse(await this.app.vault.read(file)));
+        this.graphRelationCache.set(root, parsed);
+        return parsed;
+      } catch (error) {
+        console.debug("Novel View: relation index read failed", error);
+      }
+    }
+    return this.graphRelationCache.get(root) ?? [];
+  }
+
+  private async writeGraphRelations(
+    novelRoot: string,
+    relations: GraphRelation[],
+  ): Promise<void> {
+    const root = this.normalizeFolderPath(novelRoot);
+    const path = this.graphRelationIndexPath(root);
+    const content = JSON.stringify(relations, null, 2);
+    const file = this.app.vault.getAbstractFileByPath(path);
+    this.graphRelationWriteGuards.add(path);
+    try {
+      if (file instanceof TFile) {
+        await this.app.vault.process(file, () => content);
+      } else {
+        await this.app.vault.create(path, content);
+      }
+    } finally {
+      window.setTimeout(() => this.graphRelationWriteGuards.delete(path), 500);
+    }
+    this.graphRelationCache.set(root, relations);
+  }
+
+  private async collectGraphFileRelations(file: TFile): Promise<GraphRelation[]> {
+    try {
+      return parseGraphSource(await this.app.vault.read(file));
+    } catch {
+      return [];
+    }
+  }
+
+  async syncGraphRelationsForNovel(novelRoot: string): Promise<void> {
+    const root = this.normalizeFolderPath(novelRoot);
+    const previous = this.graphRelationSyncChains.get(root)
+      ?? Promise.resolve();
+    const next = previous.then(async () => {
+      const index = new Map<string, GraphRelation>();
+      for (const relation of await this.readGraphRelations(root)) {
+        index.set(canonicalRelationKey(relation), relation);
+      }
+      const files = this.graphFilesForNovel(root);
+      for (const file of files) {
+        mergeCanonicalRelations(index, await this.collectGraphFileRelations(file));
+      }
+      const canonical = [...index.values()];
+      await this.writeGraphRelations(root, canonical);
+      for (const file of files) {
+        const text = await this.app.vault.read(file);
+        const relationKeys = new Set(
+          parseGraphSource(text).map((relation) => canonicalRelationKey(relation)),
+        );
+        const names = new Set([
+          ...parseGraphNodes(text),
+          ...parseGraphSource(text).flatMap((relation) => [
+            relation.from,
+            relation.to,
+          ]),
+        ]);
+        let nextText = text;
+        for (const relation of canonical) {
+          if (
+            names.has(relation.from)
+            && names.has(relation.to)
+            && !relationKeys.has(canonicalRelationKey(relation))
+          ) {
+            nextText = appendGraphRelationLine(nextText, relation);
+          }
+        }
+        if (nextText !== text) {
+          this.graphRelationWriteGuards.add(file.path);
+          try {
+            await this.app.vault.process(file, () => nextText);
+          } finally {
+            window.setTimeout(
+              () => this.graphRelationWriteGuards.delete(file.path),
+              500,
+            );
+          }
+        }
+      }
+    }).catch((error) => {
+      console.error("Novel View: graph relation sync failed", error);
+    });
+    this.graphRelationSyncChains.set(root, next);
+    await next;
+    this.graphRelationSyncChains.delete(root);
+  }
+
+  async removeGraphRelationEverywhere(
+    novelRoot: string,
+    relation: GraphRelation,
+  ): Promise<void> {
+    const root = this.normalizeFolderPath(novelRoot);
+    await this.syncGraphRelationsForNovel(root);
+    const key = canonicalRelationKey(relation);
+    const relations = (await this.readGraphRelations(root))
+      .filter((entry) => canonicalRelationKey(entry) !== key);
+    await this.writeGraphRelations(root, relations);
+    for (const file of this.graphFilesForNovel(root)) {
+      const text = await this.app.vault.read(file);
+      const next = removeGraphRelation(text, relation);
+      if (next !== text) {
+        this.graphRelationWriteGuards.add(file.path);
+        try {
+          await this.app.vault.process(file, () => next);
+        } finally {
+          window.setTimeout(
+            () => this.graphRelationWriteGuards.delete(file.path),
+            500,
+          );
+        }
+      }
+    }
+    this.refreshGraphViews();
+    this.notifyGraphRelationsChanged(root);
+  }
+
+  async renameGraphRelationEverywhere(
+    novelRoot: string,
+    relation: GraphRelation,
+    label: string,
+  ): Promise<void> {
+    const root = this.normalizeFolderPath(novelRoot);
+    await this.syncGraphRelationsForNovel(root);
+    const nextRelation: GraphRelation = { ...relation, label };
+    const oldKey = canonicalRelationKey(relation);
+    const relations = (await this.readGraphRelations(root)).map((entry) => (
+      canonicalRelationKey(entry) === oldKey
+        ? nextRelation
+        : entry
+    ));
+    await this.writeGraphRelations(root, relations);
+    for (const file of this.graphFilesForNovel(root)) {
+      const text = await this.app.vault.read(file);
+      let next = removeGraphRelation(text, relation);
+      if (next !== text) {
+        next = appendGraphRelationLine(next, nextRelation);
+      }
+      if (next !== text) {
+        this.graphRelationWriteGuards.add(file.path);
+        try {
+          await this.app.vault.process(file, () => next);
+        } finally {
+          window.setTimeout(
+            () => this.graphRelationWriteGuards.delete(file.path),
+            500,
+          );
+        }
+      }
+    }
+    this.refreshGraphViews();
+    this.notifyGraphRelationsChanged(root);
+  }
+
+  async renameGraphNodeEverywhere(
+    novelRoot: string,
+    oldName: string,
+    newName: string,
+    skipPath?: string,
+  ): Promise<void> {
+    const root = this.normalizeFolderPath(novelRoot);
+    const relations = (await this.readGraphRelations(root)).map((relation) => ({
+      ...relation,
+      from: relation.from === oldName ? newName : relation.from,
+      to: relation.to === oldName ? newName : relation.to,
+    }));
+    await this.writeGraphRelations(root, relations);
+    for (const file of this.graphFilesForNovel(root)) {
+      if (skipPath && file.path === skipPath) {
+        continue;
+      }
+      const text = await this.app.vault.read(file);
+      const next = renameGraphNodeInSource(text, oldName, newName);
+      if (next !== text) {
+        this.graphRelationWriteGuards.add(file.path);
+        try {
+          await this.app.vault.process(file, () => next);
+        } finally {
+          window.setTimeout(
+            () => this.graphRelationWriteGuards.delete(file.path),
+            500,
+          );
+        }
+      }
+    }
+    this.refreshGraphViews();
+  }
+
+  notifyGraphRelationsChanged(novelRoot: string): void {
+    activeDocument.dispatchEvent(new CustomEvent(
+      "novelview-graph-relations-changed",
+      { detail: { novelRoot: this.normalizeFolderPath(novelRoot) } },
+    ));
+  }
+
+  private refreshGraphViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(
+      GRAPH_EDITOR_VIEW_TYPE,
+    )) {
+      const view = leaf.view;
+      if (view instanceof GraphEditorView) {
+        void view.refreshFromDisk();
+      }
+    }
+  }
+
+  async getTextMarkLabelsForNovel(novelRoot: string): Promise<Set<string>> {
+    const data = await collectTextMarks(this.app, this, novelRoot);
+    return new Set(data.groups.map((group) => group.label.toLocaleLowerCase()));
+  }
+
+  async getFirstTextMarkOccurrence(
+    novelRoot: string,
+    label: string,
+  ): Promise<{ file: TFile; start: number; end: number } | null> {
+    const key = label.trim().toLocaleLowerCase();
+    const data = await collectTextMarks(this.app, this, novelRoot);
+    const group = data.groups.find((entry) => (
+      entry.label.toLocaleLowerCase() === key
+    ));
+    const occurrence = group?.occurrences[0];
+    return occurrence
+      ? {
+        file: occurrence.file,
+        start: occurrence.start,
+        end: occurrence.end,
+      }
+      : null;
+  }
+
+  async getGraphRelationsForKeyword(
+    novelRoot: string,
+    keyword: string,
+  ): Promise<GraphRelation[]> {
+    const key = keyword.trim().toLocaleLowerCase();
+    if (!key) {
+      return [];
+    }
+    await this.syncGraphRelationsForNovel(novelRoot);
+    const merged = new Map<string, GraphRelation>();
+    for (const relation of await this.readGraphRelations(novelRoot)) {
+      merged.set(canonicalRelationKey(relation), relation);
+    }
+    for (const file of this.graphFilesForNovel(novelRoot)) {
+      for (const relation of await this.collectGraphFileRelations(file)) {
+        merged.set(canonicalRelationKey(relation), relation);
+      }
+    }
+    return [...merged.values()].filter((relation) => (
+      relation.from.trim().toLocaleLowerCase() === key
+      || relation.to.trim().toLocaleLowerCase() === key
+    ));
+  }
+
+  private scheduleGraphRelationSync(novelRoot: string): void {
+    if (this.graphRelationSyncTimer !== null) {
+      window.clearTimeout(this.graphRelationSyncTimer);
+    }
+    this.graphRelationSyncTimer = window.setTimeout(() => {
+      this.graphRelationSyncTimer = null;
+      void this.syncGraphRelationsForNovel(novelRoot).then(() => {
+        this.refreshGraphViews();
+        this.notifyGraphRelationsChanged(novelRoot);
+      });
+    }, 350);
+  }
+
+  async getSettingRecordKeywordsForNovel(
+    novelRoot: string,
+  ): Promise<Set<string>> {
+    const keywords = new Set<string>();
+    for (const group of this.settingGroupsForNovel(novelRoot)) {
+      const index = await this.readSettingCollectionIndex(group.path);
+      for (const tags of Object.values(index)) {
+        for (const tag of tags) {
+          for (const record of tag.contain) {
+            const keyword = record.keyword.trim().toLocaleLowerCase();
+            if (keyword) {
+              keywords.add(keyword);
+            }
+          }
+        }
+      }
+    }
+    return keywords;
+  }
+
+  async openTextMarkRange(
+    file: TFile,
+    start: number,
+    end: number,
+  ): Promise<void> {
+    await this.openNovelEditor(file);
+    let view = this.findNovelEditorView(file.path);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (view?.isEditorReady()) {
+        break;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+      view = this.findNovelEditorView(file.path);
+    }
+    view?.showSearchHighlight(start, end, true, true);
+  }
+
+  async openTextMarks(
+    folderPath: string,
+    _sourceLeaf?: WorkspaceLeaf,
+  ): Promise<void> {
+    const novelRoot = this.findNovelGroupRoot(folderPath)
+      ?? this.normalizeFolderPath(folderPath);
+    const leaf = this.rightSidebarLeaf();
+    await leaf.setViewState({
+      type: TEXT_MARKS_VIEW_TYPE,
+      state: { folderPath: novelRoot },
+      active: true,
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  async openSettingCollectionList(
+    folderPath: string,
+    sourceLeaf?: WorkspaceLeaf,
+  ): Promise<void> {
+    const novelRoot = this.findNovelGroupRoot(folderPath)
+      ?? this.normalizeFolderPath(folderPath);
+    for (const existing of this.app.workspace.getLeavesOfType(
+      SETTING_LIST_VIEW_TYPE,
+    )) {
+      if (!this.isLeftSidebarLeaf(existing)) {
+        existing.detach();
+      }
+    }
+    const sourceInLeft = sourceLeaf && this.isLeftSidebarLeaf(sourceLeaf)
+      ? sourceLeaf
+      : null;
+    const leaf = sourceInLeft ?? this.leftSidebarLeaf();
+    await leaf.setViewState({
+      type: SETTING_LIST_VIEW_TYPE,
+      state: { folderPath: novelRoot },
+      active: true,
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
   async openSettingCollection(
     folderPath: string,
     focus?: { group: string; tag: string; keyword: string },
@@ -4479,6 +5064,35 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       entry.tag,
       entry.keyword,
     );
+  }
+
+  async openSettingRecordForNovelKeyword(
+    novelRoot: string,
+    keyword: string,
+  ): Promise<boolean> {
+    const key = keyword.trim().toLocaleLowerCase();
+    if (!key) {
+      return false;
+    }
+    for (const group of this.settingGroupsForNovel(novelRoot)) {
+      const index = await this.readSettingCollectionIndex(group.path);
+      for (const [groupName, tags] of Object.entries(index)) {
+        for (const tag of tags) {
+          const record = tag.contain.find((entry) => (
+            entry.keyword.toLocaleLowerCase() === key
+          ));
+          if (record) {
+            await this.openSettingCollection(group.path, {
+              group: groupName,
+              tag: tag.tag,
+              keyword: record.keyword,
+            });
+            return true;
+          }
+        }
+      }
+    }
+    return false;
   }
 
   async openSettingRecord(

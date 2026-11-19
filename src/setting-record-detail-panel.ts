@@ -1,5 +1,6 @@
 import { setIcon, TFile } from "obsidian";
 import type { SettingCollectionEntry } from "./core/setting-collection";
+import type { GraphRelation } from "./core/setting-special-data";
 import { parseSettingIcon } from "./core/setting-icons";
 
 export interface SettingRecordDetailData {
@@ -11,7 +12,8 @@ export interface SettingRecordDetailData {
   iconUrl: (icon: string) => string | null;
   onEdit: (() => void) | null;
   openFile: (file: TFile) => void;
-  onOpenRelation: (group: string, keyword: string) => void;
+  relations: GraphRelation[];
+  onOpenRelation: (target: string) => void;
 }
 
 export class SettingRecordDetailPanel {
@@ -208,7 +210,7 @@ export class SettingRecordDetailPanel {
         });
       }
     }
-    if (entry.relations.length > 0) {
+    if (this.data?.relations.length) {
       const section = this.body.createDiv({
         cls: "novelview-setting-record-detail-section",
       });
@@ -219,7 +221,9 @@ export class SettingRecordDetailPanel {
       const relationsGrid = section.createDiv({
         cls: "novelview-setting-record-detail-relations-grid",
       });
-      for (const relation of entry.relations) {
+      for (const relation of this.data.relations) {
+        const outgoing = relation.from === this.data.entry.keyword;
+        const target = outgoing ? relation.to : relation.from;
         const row = relationsGrid.createDiv({
           cls: "novelview-setting-record-detail-relation",
         });
@@ -228,48 +232,38 @@ export class SettingRecordDetailPanel {
         });
         relationTop.createSpan({
           cls: "novelview-setting-record-detail-relation-type",
-          text: relation.type || "关联",
+          text: relation.label || "关系",
         });
         const icon = relationTop.createSpan({
           cls: "novelview-setting-record-detail-relation-icon",
         });
-        const arrow = relation.direction === "two-way"
+        const arrow = relation.twoWay
           ? "arrow-left-right"
-          : relation.side === "left"
-            ? "arrow-left"
-            : "arrow-right";
+          : outgoing ? "arrow-right" : "arrow-left";
         setIcon(icon, arrow);
-        icon.setAttr(
-          "aria-label",
-          relation.direction === "two-way" ? "双向关系" : "单向关系",
-        );
-        icon.setAttr(
-          "title",
-          relation.direction === "two-way" ? "双向关系" : "单向关系",
-        );
-        const target = row.createEl("button", {
+        icon.setAttr("aria-label", relation.twoWay ? "双向关系" : "单向关系");
+        icon.setAttr("title", relation.twoWay ? "双向关系" : "单向关系");
+        const targetButton = row.createEl("button", {
           cls: "novelview-setting-record-detail-relation-target",
           attr: {
             type: "button",
-            title: `${relation.targetGroup} / ${relation.targetKeyword}`,
+            title: `打开“${target}”设定记录`,
           },
         });
-        target.createSpan({
+        targetButton.createSpan({
           cls: "novelview-setting-record-detail-relation-group",
-          text: relation.targetGroup,
+          text: relation.twoWay ? "双向" : outgoing ? "指向" : "来自",
         });
-        target.createSpan({
+        targetButton.createSpan({
           cls: "novelview-setting-record-detail-relation-name",
-          text: relation.targetKeyword,
+          text: target,
         });
-        target.addEventListener("click", () => {
-          this.data?.onOpenRelation(
-            relation.targetGroup,
-            relation.targetKeyword,
-          );
+        targetButton.addEventListener("click", () => {
+          this.data?.onOpenRelation(target);
         });
       }
     }
+
     if (detailFiles.length > 0) {
       const section = this.body.createDiv({
         cls: "novelview-setting-record-detail-section",

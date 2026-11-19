@@ -22,6 +22,32 @@ import {
   findSearchMatches,
   replaceSearchMatches,
 } from "../.test-build/search.mjs";
+import {
+  parseBranchSource,
+  moveBranchNode,
+  deleteBranchNode,
+  appendBranchChild,
+  parseGraphLayout,
+  parseGraphNodes,
+  parseGraphSource,
+  parseTimelineOrientation,
+  parseTimelineSource,
+  deleteTimelineEntry,
+  timelineTimeMs,
+  removeGraphNode,
+  removeGraphRelation,
+  removeGraphRelationsBetween,
+  renameGraphRelation,
+  serializeGraphLayout,
+  serializeTimelineOrientation,
+  updateTimelineEntryRange,
+} from "../.test-build/setting-special-data.mjs";
+import {
+  canonicalRelationKey,
+  mergeCanonicalRelations,
+  parseCanonicalRelations,
+  renameGraphNodeInSource,
+} from "../.test-build/graph-relations.mjs";
 import { formatNovelMarkdown } from "../.test-build/format.mjs";
 import { formatNovelTxt, parseNovelTxt } from "../.test-build/txt.mjs";
 import {
@@ -32,6 +58,8 @@ import {
   serializeSettingGroupMarkdown,
   serializeSettingCollectionIndex,
   settingGroupFolderName,
+  settingSpecialFileDisplayName,
+  isSettingSpecialFileName,
 } from "../.test-build/setting-collection.mjs";
 import {
   createNovelConfigContent,
@@ -542,6 +570,220 @@ test("history uses four-hour periods today and day periods before today", () => 
   assert.equal(groups[2].entries[0].delta, 16);
 });
 
+test("special setting file suffixes are recognized", () => {
+  assert.equal(isSettingSpecialFileName("世界观.detail.md"), true);
+  assert.equal(isSettingSpecialFileName("关系.graph.md"), true);
+  assert.equal(isSettingSpecialFileName("时间线.line.md"), true);
+  assert.equal(isSettingSpecialFileName("分支.branch.md"), true);
+  assert.equal(isSettingSpecialFileName("-旧设定.md"), false);
+  assert.equal(isSettingSpecialFileName("普通章节.md"), false);
+  assert.equal(settingSpecialFileDisplayName("我的吗.graph.md"), "我的吗");
+  assert.equal(settingSpecialFileDisplayName("a.b.line.md"), "a.b");
+});
+
+test("graph layout positions and edge curves round-trip", () => {
+  const source = [
+    "# 关系",
+    "- 甲 -> 乙 | 朋友",
+  ].join("\n");
+  const layout = {
+    nodes: { 甲: { x: 140, y: 156 }, 乙: { x: 560, y: 364 } },
+    curves: { "甲\u0000乙\u0000朋友\u0000one-way": 0.4 },
+    containers: {},
+    board: { width: 700, height: 520 },
+  };
+  const next = serializeGraphLayout(source, layout);
+  assert.match(next, /novelview-graph-layout/u);
+  assert.deepEqual(parseGraphLayout(next), layout);
+});
+
+test("graph relation and node removal update source and layout", () => {
+  const source = serializeGraphLayout([
+    "# 关系",
+    "- 甲 -> 乙 | 朋友",
+    "- 乙 -> 丙 | 同事",
+  ].join("\n"), {
+    nodes: { 甲: { x: 140, y: 104 }, 乙: { x: 350, y: 260 } },
+    curves: { "甲\u0000乙\u0000朋友\u0000one-way": 0.3 },
+    containers: {},
+    board: { width: 700, height: 520 },
+  });
+  const [first] = parseGraphSource(source);
+  const withoutEdge = removeGraphRelation(source, first);
+  assert.equal(parseGraphSource(withoutEdge).length, 1);
+  assert.equal(Object.keys(parseGraphLayout(withoutEdge).curves).length, 0);
+  const withoutNode = removeGraphNode(source, "乙");
+  assert.equal(parseGraphSource(withoutNode).length, 0);
+  assert.deepEqual(parseGraphLayout(withoutNode).nodes, { 甲: { x: 140, y: 104 } });
+
+  const duplicateSource = serializeGraphLayout([
+    "# 关系",
+    "- 甲 -> 乙 | 朋友",
+    "- 甲 -> 乙 | 朋友",
+  ].join("\n"), {
+    nodes: {},
+    curves: { "甲\u0000乙\u0000朋友\u0000one-way": 0.4 },
+    containers: {},
+    board: { width: 700, height: 520 },
+  });
+  const [duplicate] = parseGraphSource(duplicateSource);
+  const oneRemaining = removeGraphRelation(duplicateSource, duplicate);
+  assert.equal(parseGraphSource(oneRemaining).length, 1);
+  assert.equal(Object.keys(parseGraphLayout(oneRemaining).curves).length, 1);
+});
+
+test("graph removes all relations between two nodes", () => {
+  const source = [
+    "# 图",
+    "- 甲 -> 乙 | 甲到乙",
+    "- 乙 -> 甲 | 乙到甲",
+    "- 甲 <-> 乙 | 双向",
+    "- 甲 -> 丙 | 保留",
+  ].join("\n");
+  const cleaned = removeGraphRelationsBetween(source, "甲", "乙");
+  const relations = parseGraphSource(cleaned);
+  assert.equal(relations.length, 1);
+  assert.equal(relations[0].to, "丙");
+});
+
+test("graph supports isolated nodes and relation renames", () => {
+  const source = [
+    "# 图",
+    "- 孤立节点",
+    "- 甲 -> 乙 | 旧名",
+  ].join("\n");
+  assert.deepEqual(parseGraphNodes(source), ["孤立节点"]);
+  const [relation] = parseGraphSource(source);
+  const renamed = renameGraphRelation(source, relation, "新名");
+  assert.match(renamed, /甲 -> 乙 \| 新名/u);
+  const withoutIsolated = removeGraphNode(source, "孤立节点");
+  assert.deepEqual(parseGraphNodes(withoutIsolated), []);
+});
+
+test("timeline supports ranges, tracks and range updates", () => {
+  const source = [
+    "# 时间轴",
+    "- 2024-01-01 ~ 2024-01-03 | 起点 | 开始 | 主线",
+    "- 2024-01-02 ~ 2024-01-04 | 并行 | 同时 | 支线",
+  ].join("\n");
+  const entries = parseTimelineSource(source);
+  assert.equal(entries[0].start, "2024-01-01");
+  assert.equal(entries[0].end, "2024-01-03");
+  assert.equal(entries[0].track, "主线");
+  assert.equal(timelineTimeMs(entries[0].start), Date.UTC(2024, 0, 1));
+  const updated = updateTimelineEntryRange(
+    source,
+    0,
+    "2024-01-02",
+    "2024-01-05",
+  );
+  assert.match(updated, /2024-01-02 ~ 2024-01-05 \| 起点 \| 开始 \| 主线/u);
+});
+
+test("graph node rename updates relations, layout and containers", () => {
+  const source = serializeGraphLayout([
+    "# 图",
+    "- 甲",
+    "- 甲 -> 乙 | 朋友",
+  ].join("\n"), {
+    nodes: { 甲: { x: 120, y: 100 }, 乙: { x: 300, y: 100 } },
+    curves: { "甲\u0000乙\u0000朋友\u0000one-way": 0.4 },
+    containers: { 甲: { width: 110, height: 70, members: ["乙"] } },
+    board: { width: 700, height: 520 },
+  });
+  const next = renameGraphNodeInSource(source, "甲", "丙");
+  assert.match(next, /- 丙\n/u);
+  assert.match(next, /- 丙 -> 乙 \| 朋友/u);
+  const layout = parseGraphLayout(next);
+  assert.ok(layout.nodes.丙);
+  assert.equal(layout.nodes.甲, undefined);
+  assert.deepEqual(layout.containers.丙.members, ["乙"]);
+  assert.equal(Object.keys(layout.curves)[0]?.startsWith("丙\u0000"), true);
+});
+
+test("canonical graph relations dedupe by from/to/label/direction", () => {
+  const relations = parseCanonicalRelations([
+    { from: "甲", to: "乙", label: "朋友", twoWay: false },
+    { from: "甲", to: "乙", label: "朋友", twoWay: false },
+    { from: "甲", to: "乙", label: "敌人", twoWay: true },
+  ]);
+  const map = new Map();
+  mergeCanonicalRelations(map, relations);
+  assert.equal(map.size, 2);
+  assert.equal(
+    canonicalRelationKey({ from: "甲", to: "乙", label: "朋友", twoWay: false }),
+    "甲\u0000乙\u0000朋友\u0000one-way",
+  );
+});
+
+test("timeline entry deletion removes only the selected bullet", () => {
+  const source = ["# 轴", "- 第一天 | A", "- 第二天 | B"].join("\n");
+  const next = deleteTimelineEntry(source, 0);
+  assert.doesNotMatch(next, /第一天/u);
+  assert.match(next, /第二天/u);
+});
+
+test("branch supports subtree deletion and child creation", () => {
+  const source = [
+    "- 根",
+    "  - 子A",
+    "    - 孙",
+    "  - 子B",
+  ].join("\n");
+  const deleted = deleteBranchNode(source, "子A");
+  assert.doesNotMatch(deleted, /子A|孙/u);
+  assert.match(deleted, /子B/u);
+  const child = appendBranchChild(source, "子B", "新分支");
+  assert.match(child, /  - 子B\n    - 新分支/u);
+});
+
+test("timeline orientation and branch reparenting persist", () => {
+  const timeline = serializeTimelineOrientation("# 轴\n", "horizontal");
+  assert.equal(parseTimelineOrientation(timeline), "horizontal");
+  const branch = [
+    "- 根",
+    "  - 一",
+    "    - 一·甲",
+    "  - 二",
+  ].join("\n");
+  const moved = moveBranchNode(branch, "一·甲", "二");
+  assert.match(moved, /  - 二\n    - 一·甲/u);
+  assert.doesNotMatch(moved, /\n\s*\n/u);
+});
+
+test("special setting data parsers read timeline, graph and branch sources", () => {
+  const timeline = parseTimelineSource([
+    "# 时间轴",
+    "- 2024-01-01 | 起点 | 故事开始",
+    "- 2024-02-01 | 转折",
+  ].join("\n"));
+  assert.equal(timeline.length, 2);
+  assert.equal(timeline[0].time, "2024-01-01");
+  assert.equal(timeline[0].title, "起点");
+  assert.equal(timeline[0].description, "故事开始");
+
+  const graph = parseGraphSource([
+    "# 关系",
+    "- 甲 -> 乙 | 朋友",
+    "- 乙 <-> 丙 | 对手",
+  ].join("\n"));
+  assert.equal(graph.length, 2);
+  assert.equal(graph[0].from, "甲");
+  assert.equal(graph[0].to, "乙");
+  assert.equal(graph[0].label, "朋友");
+  assert.equal(graph[1].twoWay, true);
+
+  const branch = parseBranchSource([
+    "- 根",
+    "  - 一",
+    "    - 一·甲",
+    "  - 二",
+  ].join("\n"));
+  assert.equal(branch.length, 1);
+  assert.equal(branch[0].children.length, 2);
+  assert.equal(branch[0].children[0].children[0].text, "一·甲");
+});
+
 test("TXT import strips two full-width spaces and splits volumes/chapters", () => {
   const input = [
     "第1卷 风起",
@@ -608,7 +850,6 @@ test("setting collection index parses groups, tags, colors and entries", () => {
         keyword: "零一",
         content: "主角设定",
         fields: [],
-        relations: [],
         marks: [],
       }],
     }],
@@ -647,7 +888,7 @@ test("setting collection keywords keep tag color and first occurrence", () => {
 });
 
 
-test("setting group markdown round-trips fields, relations and marks", () => {
+test("setting group markdown round-trips fields and marks", () => {
   const tags = [{
     tag: "主角",
     color: "#e74c3c",
@@ -655,12 +896,6 @@ test("setting group markdown round-trips fields, relations and marks", () => {
       keyword: "小红",
       content: "小红在13岁那年离开旧宅。",
       fields: [{ name: "年龄", value: "16" }],
-      relations: [{
-        targetGroup: "人物",
-        targetKeyword: "小黄",
-        type: "兄妹",
-        direction: "two-way",
-      }],
       marks: [{ start: 3, end: 7, attribute: "生平" }],
     }],
   }];

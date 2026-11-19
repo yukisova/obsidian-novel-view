@@ -1,4 +1,5 @@
 import { Notice, TFile, type MarkdownView } from "obsidian";
+import { splitFrontmatterContent } from "./core/paragraphs";
 import { confirmAction } from "./confirm-modal";
 import {
   compileSearchExpression,
@@ -32,6 +33,8 @@ export interface FinderResult {
   before?: string;
   matchText?: string;
   after?: string;
+  offset?: number;
+  length?: number;
 }
 
 const SCOPE_LABELS: Record<SearchScope, string> = {
@@ -67,6 +70,12 @@ export class SearchPanelV2 {
   private activeScope: SearchScope = "chapter";
   private ownerView: MarkdownView | null = null;
   private debounceTimer: number | null = null;
+  private lastResults: FinderResult[] = [];
+  private activeResultIndex = -1;
+  private searchCompleted = false;
+  private searchToken = 0;
+  private navigator: HTMLElement | null = null;
+  private navigatorCounter: HTMLElement | null = null;
 
 
   constructor(plugin: NovelViewPlugin) {
@@ -213,7 +222,41 @@ export class SearchPanelV2 {
       if (this.debounceTimer !== null) {
         window.clearTimeout(this.debounceTimer);
       }
+      this.searchCompleted = false;
+      this.lastResults = [];
+      this.activeResultIndex = -1;
+      this.plugin.clearNovelFinderHighlights();
+      this.updateNavigator();
       this.debounceTimer = window.setTimeout(() => void this.search(), 220);
+    });
+    this.navigator = this.root.createDiv({
+      cls: "novelview-search-v2-navigator",
+    });
+    const previous = this.navigator.createEl("button", {
+      text: "←",
+      attr: {
+        type: "button",
+        "aria-label": "上一个查找结果",
+        title: "上一个结果",
+      },
+    });
+    previous.addEventListener("click", () => {
+      void this.stepResult(-1);
+    });
+    this.navigatorCounter = this.navigator.createSpan({
+      cls: "novelview-search-v2-navigator-count",
+      text: "1/1",
+    });
+    const next = this.navigator.createEl("button", {
+      text: "→",
+      attr: {
+        type: "button",
+        "aria-label": "下一个查找结果",
+        title: "下一个结果",
+      },
+    });
+    next.addEventListener("click", () => {
+      void this.stepResult(1);
     });
     this.replacerToggle = this.root.createEl("button", {
       cls: "novelview-search-v2-replacer-toggle",
@@ -247,7 +290,19 @@ export class SearchPanelV2 {
     void this.search();
   }
 
+  isOpen(): boolean {
+    return this.root !== null;
+  }
+
+  getCardRect(): DOMRect | null {
+    return this.root?.getBoundingClientRect() ?? null;
+  }
+
   close(): void {
+    this.plugin.clearNovelFinderHighlights();
+    this.lastResults = [];
+    this.activeResultIndex = -1;
+    this.searchCompleted = false;
     this.closeReplacer();
     this.root?.remove();
     this.root = null;
@@ -256,6 +311,8 @@ export class SearchPanelV2 {
     this.volumeSelect = null;
     this.keywordGroupSelect = null;
     this.keywordRecordSelect = null;
+    this.navigator = null;
+    this.navigatorCounter = null;
     this.ownerView = null;
   }
 
@@ -544,6 +601,89 @@ export class SearchPanelV2 {
     };
   }
 
+  syncActiveResult(result: FinderResult): void {
+    if (!this.searchCompleted) {
+      return;
+    }
+    const index = this.lastResults.findIndex((candidate) => (
+      candidate.path === result.path
+      && candidate.offset === result.offset
+      && candidate.length === result.length
+    ));
+    if (index < 0) {
+      return;
+    }
+    this.activeResultIndex = index;
+    this.updateNavigator();
+  }
+
+  private async finishSearch(
+    context: FinderContext,
+    results: FinderResult[],
+    token: number,
+  ): Promise<void> {
+    if (token !== this.searchToken) {
+      return;
+    }
+    this.searchCompleted = true;
+    this.lastResults = results;
+    this.activeResultIndex = results.length > 0 ? 0 : -1;
+    this.updateNavigator();
+    await this.plugin.showNovelFinderResults(context, results);
+    if (token !== this.searchToken) {
+      return;
+    }
+    const fileScope = context.scope === "chapter"
+      || context.scope === "volume"
+      || context.scope === "book";
+    const first = results[0];
+    this.plugin.clearNovelFinderHighlights();
+    if (fileScope && first) {
+      await this.plugin.focusNovelFinderResult(first, context.scope, {
+        openChapter: false,
+        scroll: context.scope === "chapter",
+        focus: false,
+      });
+    }
+  }
+
+  private async stepResult(direction: -1 | 1): Promise<void> {
+    if (!this.searchCompleted || this.lastResults.length === 0) {
+      return;
+    }
+    const length = this.lastResults.length;
+    this.activeResultIndex = (
+      this.activeResultIndex + direction + length
+    ) % length;
+    this.updateNavigator();
+    const result = this.lastResults[this.activeResultIndex];
+    if (result) {
+      await this.plugin.focusNovelFinderResult(result, this.activeScope, {
+        openChapter: true,
+        scroll: true,
+        focus: true,
+      });
+    }
+  }
+
+  private updateNavigator(): void {
+    if (!this.navigator || !this.navigatorCounter) {
+      return;
+    }
+    const fileScope = this.activeScope === "chapter"
+      || this.activeScope === "volume"
+      || this.activeScope === "book";
+    const query = this.queryInput?.value.trim() ?? "";
+    const visible = fileScope
+      && this.searchCompleted
+      && query.length > 0
+      && this.lastResults.length > 0;
+    this.navigator.toggleClass("is-visible", visible);
+    this.navigatorCounter.setText(
+      `${Math.max(1, this.activeResultIndex + 1)}/${this.lastResults.length}`,
+    );
+  }
+
   private async search(): Promise<void> {
     const focused = activeDocument.activeElement;
     try {
@@ -560,7 +700,10 @@ export class SearchPanelV2 {
   }
 
   private async performSearch(): Promise<void> {
+    const token = ++this.searchToken;
     const options = this.options();
+    this.searchCompleted = false;
+    this.updateNavigator();
     this.refreshContextHeader();
     if (
       this.activeScope === "marks"
@@ -571,30 +714,40 @@ export class SearchPanelV2 {
         this.activeScope,
         options.query,
       );
-      await this.plugin.showNovelFinderResults(
+      await this.finishSearch(
         this.createContext(results.length),
         results,
+        token,
       );
       return;
     }
     const query = options.query.trim();
     if (!query) {
-      await this.plugin.showNovelFinderResults(this.createContext(0), []);
+      await this.finishSearch(this.createContext(0), [], token);
       return;
     }
     const compiled = compileSearchExpression(options);
     if (!compiled.regex) {
-      await this.plugin.showNovelFinderResults(this.createContext(0), []);
+      await this.finishSearch(this.createContext(0), [], token);
       return;
     }
     const files = this.searchFiles();
     const results: FinderResult[] = [];
+    const chapterText = this.activeScope === "chapter"
+      ? this.plugin.getActiveNovelEditorText()
+      : null;
     for (const file of files) {
       let text = "";
-      try {
-        text = await this.plugin.app.vault.cachedRead(file);
-      } catch {
-        continue;
+      if (chapterText !== null) {
+        text = chapterText;
+      } else {
+        try {
+          text = splitFrontmatterContent(
+            await this.plugin.app.vault.cachedRead(file),
+          ).body;
+        } catch {
+          continue;
+        }
       }
       const { matches } = findSearchMatches(text, compiled.regex, 50);
       for (const match of matches) {
@@ -607,12 +760,15 @@ export class SearchPanelV2 {
           before: match.before,
           matchText: match.matchText,
           after: match.after,
+          offset: match.offset,
+          length: match.length,
         });
       }
     }
-    await this.plugin.showNovelFinderResults(
+    await this.finishSearch(
       this.createContext(results.length),
       results,
+      token,
     );
   }
 
@@ -935,7 +1091,7 @@ export class SearchPanelV2 {
       this.keywordRecord = replacement.trim();
       await this.plugin.refreshSettingKeywordIndex();
       new Notice(
-        `Novel View：已替换关键词，更新 ${result.records} 条设定记录、${result.relations} 条关系、${result.files} 个文章文件。`,
+        `Novel View：已替换关键词，更新 ${result.records} 条设定记录、${result.files} 个文章文件。`,
       );
       await this.search();
       return;
