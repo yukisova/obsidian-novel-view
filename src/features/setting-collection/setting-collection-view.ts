@@ -1292,7 +1292,7 @@ export class SettingCollectionView extends ItemView {
     if (!folder) {
       return;
     }
-    this.showRecordDetail(folder, group, tag, entry);
+    void this.showRecordDetail(folder, group, tag, entry);
   }
 
   private resolveSettingIconUrl(icon: string): string | null {
@@ -1518,7 +1518,7 @@ export class SettingCollectionView extends ItemView {
           }
           await this.refresh();
           if (this.recordDetailPanel) {
-            this.showRecordDetail(folder, group, tagName, current);
+            void this.showRecordDetail(folder, group, tagName, current);
           }
           return true;
         },

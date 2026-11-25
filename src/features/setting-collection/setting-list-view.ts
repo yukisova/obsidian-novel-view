@@ -514,7 +514,7 @@ export class NovelSettingListView extends ItemView {
     }
     this.renamingRow = row;
     row.addClass("is-renaming");
-    const input = createEl("input", {
+    const input = row.createEl("input", {
       cls: "novelview-inline-rename",
       attr: {
         type: "text",
@@ -523,11 +523,10 @@ export class NovelSettingListView extends ItemView {
       },
     });
     input.value = initial;
-    const error = createEl("span", {
+    const error = row.createEl("span", {
       cls: "novelview-setting-inline-error",
     });
     nameEl.replaceWith(input);
-    row.appendChild(error);
     let busy = false;
     let finished = false;
     const showError = (message: string): void => {
@@ -625,9 +624,9 @@ export class NovelSettingListView extends ItemView {
       ) {
         continue;
       }
-      const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[
-        OUTLINE_MARKS_PROPERTY
-      ];
+      const frontmatter = this.app.metadataCache.getFileCache(file)
+        ?.frontmatter as Record<string, unknown> | undefined;
+      const raw: unknown = frontmatter?.[OUTLINE_MARKS_PROPERTY];
       count += parseOutlineMarks(raw).length;
     }
     return count;

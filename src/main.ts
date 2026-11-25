@@ -1,12 +1,4 @@
 import {
-  existsSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-  type Dirent,
-} from "fs";
-import { dirname, join } from "path";
-import {
   MarkdownView,
   Menu,
   Notice,
@@ -117,12 +109,7 @@ import {
   setSettingKeywords,
 } from "./editor/setting-keyword-extension";
 
-interface ElectronDialog {
-  showOpenDialog(options: {
-    properties: string[];
-    filters?: Array<{ name: string; extensions: string[] }>;
-  }): Promise<{ canceled: boolean; filePaths: string[] }>;
-}
+
 
 interface ChapterMeta {
   wordCount: number;
@@ -994,18 +981,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   private async exportTxtFiles(files: TFile[], suggestedName: string): Promise<void> {
-    const dialog = this.getElectronDialog();
-    if (!dialog) {
-      new Notice("Novel View：当前环境不支持系统文件夹选择器。");
-      return;
-    }
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"],
-    });
-    const targetDir = result?.filePaths?.[0];
-    if (result?.canceled || !targetDir) {
-      return;
-    }
     interface ExportRow {
       file: TFile;
       root: string | null;
@@ -1091,14 +1066,16 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }));
     const text = formatNovelTxt(chapters);
     const safeName = suggestedName.replace(/[\\/:*?"<>|]/gu, "-").trim() || "导出";
-    let target = join(targetDir, `${safeName}.txt`);
-    let index = 2;
-    while (existsSync(target)) {
-      target = join(targetDir, `${safeName}-${index}.txt`);
-      index += 1;
-    }
-    writeFileSync(target, text, "utf8");
-    new Notice(`Novel View：已导出到 ${target}`);
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = createEl("a", {
+      attr: { href: url, download: `${safeName}.txt` },
+    });
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    new Notice(`Novel View：已导出 ${safeName}.txt`);
   }
 
   private extractTxtBody(content: string): string {
@@ -1113,20 +1090,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       .replace(/\n+$/u, "");
   }
 
-  private getElectronDialog(): ElectronDialog | null {
-    try {
-      const electronRequire = (window as Window & {
-        require?: (id: string) => unknown;
-      }).require;
-      const electron = electronRequire?.("electron") as {
-        remote?: { dialog?: ElectronDialog };
-        dialog?: ElectronDialog;
-      } | undefined;
-      return electron?.remote?.dialog ?? electron?.dialog ?? null;
-    } catch {
-      return null;
-    }
-  }
+  
 
   formatNovelDocument(view: MarkdownView): void {
     if (!view.file || view.getMode() === "preview") {
@@ -2335,21 +2299,41 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     refresh();
   }
 
-  async importNovelTxt(folderPath: string): Promise<void> {
-    const dialog = this.getElectronDialog();
-    if (!dialog) {
-      new Notice("Novel View：当前环境不支持系统文件选择器。");
-      return;
-    }
-    const result = await dialog.showOpenDialog({
-      properties: ["openFile"],
-      filters: [{ name: "TXT", extensions: ["txt"] }],
+  private pickTxtFile(): Promise<File | null> {
+    return new Promise((resolve) => {
+      const input = createEl("input", {
+        cls: "novelview-hidden-file-input",
+        attr: {
+          type: "file",
+          accept: ".txt,text/plain",
+          "aria-label": "选择 TXT 文件",
+        },
+      });
+      document.body.appendChild(input);
+      let settled = false;
+      const finish = (file: File | null): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        input.remove();
+        resolve(file);
+      };
+      input.addEventListener("change", () => finish(input.files?.[0] ?? null));
+      input.addEventListener("cancel", () => finish(null));
+      window.addEventListener("focus", () => {
+        window.setTimeout(() => finish(input.files?.[0] ?? null), 500);
+      }, { once: true });
+      input.click();
     });
-    const filePath = result?.filePaths?.[0];
-    if (result?.canceled || !filePath) {
+  }
+
+  async importNovelTxt(folderPath: string): Promise<void> {
+    const selected = await this.pickTxtFile();
+    if (!selected) {
       return;
     }
-    const text = readFileSync(filePath, "utf8") as string;
+    const text = await selected.text();
     const chapters = parseNovelTxt(text);
     const target = this.getFolder(folderPath);
     if (!target) {
@@ -2959,117 +2943,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
-  async importSettingCollection(
-    novelRoot: string,
-  ): Promise<{ groups: number; files: number } | null> {
-    const dialog = this.getElectronDialog();
-    if (!dialog) {
-      new Notice("Novel View：当前环境不支持系统文件夹选择器。");
-      return null;
-    }
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory"],
-    });
-    const sourceDir = result?.filePaths?.[0];
-    if (result?.canceled || !sourceDir) {
-      return null;
-    }
-    let folder = this.getSettingGroupFolderForNovel(novelRoot);
-    if (!folder) {
-      await this.createSettingGroup(novelRoot);
-      folder = this.getSettingGroupFolderForNovel(novelRoot);
-    }
-    if (!folder) {
-      new Notice("Novel View：设定集创建失败。");
-      return null;
-    }
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(sourceDir, { withFileTypes: true }) as Dirent[];
-    } catch (error: unknown) {
-      console.error("Novel View: setting import folder read failed", error);
-      new Notice("Novel View：无法读取导入文件夹。");
-      return null;
-    }
-    const groups = entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
-      .map((entry) => entry.name.trim())
-      .filter(Boolean);
-    if (groups.length === 0) {
-      new Notice("Novel View：导入文件夹下没有子文件夹。");
-      return null;
-    }
-    const index = await this.readSettingCollectionIndex(folder.path);
-    for (const group of groups) {
-      if (!Object.prototype.hasOwnProperty.call(index, group)) {
-        index[group] = [];
-      }
-    }
-    await this.writeSettingCollectionIndex(folder.path, index);
-    let fileCount = 0;
-    for (const group of groups) {
-      const targetPath = joinVaultPath(
-        folder.path,
-        this.settingGroupFolderPathName(group),
-      );
-      const target = await this.ensureFolder(targetPath);
-      if (!target) {
-        continue;
-      }
-      const sourcePath = join(sourceDir, group);
-      fileCount += await this.importSettingFiles(sourcePath, target.path);
-    }
-    this.refreshSettingCollectionViews();
-    new Notice(
-      `Novel View：已导入 ${groups.length} 个设定分组、${fileCount} 个文件。`,
-    );
-    return { groups: groups.length, files: fileCount };
-  }
-
-  private async importSettingFiles(
-    sourcePath: string,
-    targetFolder: string,
-  ): Promise<number> {
-    let count = 0;
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(sourcePath, { withFileTypes: true }) as Dirent[];
-    } catch (error: unknown) {
-      console.debug("Novel View: setting import directory skipped", error);
-      return 0;
-    }
-    for (const entry of entries) {
-      if (entry.name.startsWith(".")) {
-        continue;
-      }
-      const entryPath = join(sourcePath, entry.name);
-      if (entry.isDirectory()) {
-        const targetPath = joinVaultPath(targetFolder, entry.name);
-        const child = await this.ensureFolder(targetPath);
-        if (child) {
-          count += await this.importSettingFiles(entryPath, child.path);
-        }
-        continue;
-      }
-      if (!entry.isFile()) {
-        continue;
-      }
-      try {
-        const targetPath = this.getUniqueFilePath(targetFolder, entry.name);
-        const data = readFileSync(entryPath) as Buffer;
-        const buffer = data.buffer.slice(
-          data.byteOffset,
-          data.byteOffset + data.byteLength,
-        ) as ArrayBuffer;
-        await this.app.vault.createBinary(targetPath, buffer);
-        count += 1;
-      } catch (error: unknown) {
-        console.error(`Novel View: setting import file failed: ${entryPath}`, error);
-      }
-    }
-    return count;
-  }
-
   async replaceNovelKeyword(
     novelRoot: string,
     oldKeyword: string,
@@ -3636,8 +3509,11 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (!novelRoot) {
       return false;
     }
-    return dirname(oldPath) === novelRoot
-      && dirname(newPath) === novelRoot
+    const parent = (path: string): string => (
+      path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""
+    );
+    return parent(oldPath) === novelRoot
+      && parent(newPath) === novelRoot
       && this.getFolder(newPath) instanceof TFolder;
   }
 
