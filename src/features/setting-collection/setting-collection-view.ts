@@ -10,20 +10,17 @@ import {
 import {
   type SettingCollectionIndex,
   type SettingCollectionTag,
-} from "./core/setting-collection";
-import { parseSettingIcon } from "./core/setting-icons";
+} from "../../core/model/setting-collection";
+import { parseSettingIcon } from "../../core/model/setting-icons";
 import {
   SettingConfirmModal,
   SettingGroupModal,
   SettingTagModal,
 } from "./setting-collection-modal";
-import {
-  SETTING_DRAG_MIME,
-  SETTING_RECORD_DROP_EVENT,
-} from "./core/setting-drag";
+import { SETTING_DRAG_MIME } from "../../core/model/setting-drag";
 import { SettingRecordDetailPanel } from "./setting-record-detail-panel";
 import { SettingRecordEditorPanel } from "./setting-record-editor-panel";
-import type NovelViewPlugin from "./main";
+import type NovelViewPlugin from "../../main";
 
 export const SETTING_COLLECTION_VIEW_TYPE = "novelview-setting-collection";
 
@@ -50,17 +47,13 @@ export class SettingCollectionView extends ItemView {
   private readonly plugin: NovelViewPlugin;
   private folderPath = "";
   private refreshing = false;
-  private detailSelection: {
-    folder: TFolder;
-    group: string;
-    tag: string;
-    entry: import("./core/setting-collection").SettingCollectionEntry;
-  } | null = null;
   private dragPayload: SettingDragPayload | null = null;
   private dropTarget: SettingDropTarget | null = null;
   private recordDetailPanel: SettingRecordDetailPanel | null = null;
   private recordEditorPanel: SettingRecordEditorPanel | null = null;
   private focusedTagKey: string | null = null;
+  private readonly expandedTagKeys = new Set<string>();
+  private searchQuery = "";
   private recordPreview: HTMLElement | null = null;
   private recordDragActive = false;
 
@@ -128,34 +121,6 @@ export class SettingCollectionView extends ItemView {
     this.contentEl.addEventListener("dragend", () => {
       this.clearDragState();
     });
-    const relationChanged = (event: Event): void => {
-      const selection = this.detailSelection;
-      if (!selection) {
-        return;
-      }
-      const root = this.plugin.findNovelGroupRoot(selection.folder.path)
-        ?? this.folderPath;
-      const changedRoot = (event as CustomEvent<{ novelRoot?: string }>)
-        .detail?.novelRoot;
-      if (changedRoot === root) {
-        void this.showRecordDetail(
-          selection.folder,
-          selection.group,
-          selection.tag,
-          selection.entry,
-        );
-      }
-    };
-    activeDocument.addEventListener(
-      "novelview-graph-relations-changed",
-      relationChanged,
-    );
-    this.register(() => {
-      activeDocument.removeEventListener(
-        "novelview-graph-relations-changed",
-        relationChanged,
-      );
-    });
     await this.refresh();
   }
 
@@ -193,6 +158,22 @@ export class SettingCollectionView extends ItemView {
       this.addHeaderButton(toolbar, "refresh-cw", "刷新设定集", () => {
         void this.refresh();
       });
+      const searchWrap = header.createDiv({
+        cls: "novelview-collection-search",
+      });
+      const search = searchWrap.createEl("input", {
+        cls: "novelview-collection-search-input",
+        attr: {
+          type: "search",
+          placeholder: "搜索设定记录名称",
+          "aria-label": "搜索设定记录名称",
+        },
+      });
+      search.value = this.searchQuery;
+      search.addEventListener("input", () => {
+        this.searchQuery = search.value;
+        this.applySettingSearch();
+      });
       if (!folder) {
         this.renderMissingCollection();
         return;
@@ -215,6 +196,7 @@ export class SettingCollectionView extends ItemView {
       for (const [group, tags] of groups) {
         this.renderGroup(list, group, tags);
       }
+      this.applySettingSearch();
     } finally {
       this.refreshing = false;
     }
@@ -242,7 +224,7 @@ export class SettingCollectionView extends ItemView {
     element?.addClass("is-active");
   }
 
-  private showRecordPreview(row: HTMLElement, entry: import("./core/setting-collection").SettingCollectionEntry): void {
+  private showRecordPreview(row: HTMLElement, entry: import("../../core/model/setting-collection").SettingCollectionEntry): void {
     if (this.dragPayload) {
       return;
     }
@@ -384,14 +366,6 @@ export class SettingCollectionView extends ItemView {
           void this.performSettingDrop(payload, target);
           return;
         }
-        const finishTarget = finishEvent.target as HTMLElement | null;
-        const editor = finishTarget?.closest<HTMLElement>(
-          ".novelview-special-editor-view",
-        );
-        editor?.dispatchEvent(new CustomEvent(SETTING_RECORD_DROP_EVENT, {
-          bubbles: true,
-          detail: payload,
-        }));
       };
       const doc = row.ownerDocument;
       doc.addEventListener("pointermove", move, true);
@@ -810,6 +784,47 @@ export class SettingCollectionView extends ItemView {
     return button;
   }
 
+  private applySettingSearch(): void {
+    const query = this.searchQuery.trim().toLocaleLowerCase();
+    for (const list of this.contentEl.querySelectorAll<HTMLElement>(
+      ".novelview-setting-collection-tags",
+    )) {
+      let listVisible = false;
+      for (const tagCard of list.querySelectorAll<HTMLElement>(
+        ".novelview-setting-collection-tag",
+      )) {
+        let visible = false;
+        for (const entry of tagCard.querySelectorAll<HTMLElement>(
+          ".novelview-setting-collection-entry",
+        )) {
+          const keyword = entry.querySelector(
+            ".novelview-setting-collection-keyword",
+          )?.textContent ?? "";
+          const hit = !query
+            || keyword.toLocaleLowerCase().includes(query);
+          entry.toggleClass("is-search-hidden", !hit);
+          visible = visible || hit;
+        }
+        tagCard.toggleClass("is-search-hidden", !visible);
+        if (query && visible) {
+          const key = this.tagStateKey(
+            tagCard.dataset.settingGroup ?? "",
+            tagCard.dataset.settingDropTag ?? "",
+          );
+          this.expandedTagKeys.add(key);
+          tagCard.removeClass("is-collapsed");
+          tagCard.addClass("is-expanded");
+          tagCard.querySelector(".novelview-setting-collection-tag-body")
+            ?.removeClass("is-collapsed");
+          tagCard.querySelector(".novelview-setting-collection-tag-title")
+            ?.setAttribute("aria-expanded", "true");
+        }
+        listVisible = listVisible || visible;
+      }
+      list.toggleClass("is-search-hidden", !listVisible);
+    }
+  }
+
   private renderGroup(
     parent: HTMLElement,
     group: string,
@@ -839,7 +854,7 @@ export class SettingCollectionView extends ItemView {
     const tagCard = parent.createDiv({
       cls: `novelview-setting-collection-tag${
         this.focusedTagKey === tagKey ? " is-active" : ""
-      }`,
+      }${this.expandedTagKeys.has(tagKey) ? " is-expanded" : " is-collapsed"}`,
       attr: {
         "data-setting-drop-tag": tag.tag,
         "data-setting-group": group,
@@ -852,8 +867,38 @@ export class SettingCollectionView extends ItemView {
       this.focusedTagKey = tagKey;
       this.updateFocusedTags();
     });
+    const collapsed = !this.expandedTagKeys.has(tagKey);
     const heading = tagCard.createDiv({
       cls: "novelview-setting-collection-tag-title",
+      attr: {
+        role: "button",
+        tabindex: "0",
+        "aria-expanded": String(!collapsed),
+      },
+    });
+    const toggleTag = (): void => {
+      if (this.expandedTagKeys.has(tagKey)) {
+        this.expandedTagKeys.delete(tagKey);
+      } else {
+        this.expandedTagKeys.add(tagKey);
+      }
+      const isExpanded = this.expandedTagKeys.has(tagKey);
+      tagCard.toggleClass("is-collapsed", !isExpanded);
+      tagCard.toggleClass("is-expanded", isExpanded);
+      body.toggleClass("is-collapsed", !isExpanded);
+      heading.setAttr("aria-expanded", String(isExpanded));
+      this.focusedTagKey = tagKey;
+      this.updateFocusedTags();
+    };
+    heading.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleTag();
+    });
+    heading.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleTag();
+      }
     });
     const tagGrip = heading.createSpan({
       cls: "novelview-setting-collection-drag-grip",
@@ -892,7 +937,9 @@ export class SettingCollectionView extends ItemView {
       this.openTagMenu(event, group, tag.tag);
     });
     const body = tagCard.createDiv({
-      cls: "novelview-setting-collection-tag-body",
+      cls: `novelview-setting-collection-tag-body${
+        collapsed ? " is-collapsed" : ""
+      }`,
     });
     if (tag.contain.length === 0) {
       body.createDiv({
@@ -1239,7 +1286,7 @@ export class SettingCollectionView extends ItemView {
   private openRecordDetail(
     group: string,
     tag: string,
-    entry: import("./core/setting-collection").SettingCollectionEntry,
+    entry: import("../../core/model/setting-collection").SettingCollectionEntry,
   ): void {
     const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
     if (!folder) {
@@ -1338,15 +1385,8 @@ export class SettingCollectionView extends ItemView {
     folder: TFolder,
     group: string,
     tag: string,
-    entry: import("./core/setting-collection").SettingCollectionEntry,
+    entry: import("../../core/model/setting-collection").SettingCollectionEntry,
   ): Promise<void> {
-    const novelRoot = this.plugin.findNovelGroupRoot(folder.path)
-      ?? this.folderPath;
-    const relations = await this.plugin.getGraphRelationsForKeyword(
-      novelRoot,
-      entry.keyword,
-    );
-    this.detailSelection = { folder, group, tag, entry };
     const detailFiles = this.plugin.getSettingRecordDetailFiles(
       folder.path,
       group,
@@ -1372,10 +1412,6 @@ export class SettingCollectionView extends ItemView {
       ),
       openFile: (file) => {
         void this.app.workspace.getLeaf(false).openFile(file);
-      },
-      relations,
-      onOpenRelation: (target) => {
-        void this.plugin.openSettingRecordForNovelKeyword(novelRoot, target);
       },
     });
     this.bindRecordPanels();

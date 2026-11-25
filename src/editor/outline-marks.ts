@@ -9,7 +9,7 @@ import {
   EditorView,
   type DecorationSet,
 } from "@codemirror/view";
-import type { OutlineMark } from "../core/outline-marks";
+import type { OutlineMark } from "../core/model/outline-marks";
 
 export const setOutlineMarksEffect = StateEffect.define<OutlineMark[]>();
 

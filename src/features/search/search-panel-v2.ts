@@ -1,12 +1,12 @@
 import { Notice, TFile, type MarkdownView } from "obsidian";
-import { splitFrontmatterContent } from "./core/paragraphs";
-import { confirmAction } from "./confirm-modal";
+import { splitFrontmatterContent } from "../../core/text/paragraphs";
+import { confirmAction } from "../../ui/confirm-modal";
 import {
   compileSearchExpression,
   findSearchMatches,
   replaceSearchMatches,
-} from "./core/search";
-import type NovelViewPlugin from "./main";
+} from "../../core/search/search";
+import type NovelViewPlugin from "../../main";
 
 export type SearchScope = "chapter" | "volume" | "book" | "marks" | "pending" | "keywords";
 
@@ -42,7 +42,7 @@ const SCOPE_LABELS: Record<SearchScope, string> = {
   volume: "本卷",
   book: "全书",
   marks: "文字标记",
-  pending: "待修改部分",
+  pending: "对照组",
   keywords: "关键词",
 };
 
@@ -321,7 +321,7 @@ export class SearchPanelV2 {
       case "marks":
         return "新的标记名称";
       case "pending":
-        return "新的待修改名称";
+        return "新的对照组名称";
       case "keywords":
         return "新的关键词";
       default:
@@ -822,15 +822,15 @@ export class SearchPanelV2 {
         continue;
       }
       if (scope === "pending") {
-        const pattern = /```待修改部分[^\n]*\n([\s\S]*?)```/gu;
+        const pattern = /```(?:待修改部分|对照组)[^\n]*\n([\s\S]*?)```/gu;
         let match: RegExpExecArray | null;
         while ((match = pattern.exec(text)) !== null) {
           const body = match[1].trim();
           const header = match[0].split("\n")[0] ?? "";
           const title = header
-            .replace(/^```待修改部分/u, "")
+            .replace(/^```(?:待修改部分|对照组)/u, "")
             .replace(/[\p{Extended_Pictographic}]/gu, "")
-            .trim() || "待修改部分";
+            .trim() || "对照组";
           if (needle && !title.toLocaleLowerCase().includes(needle)) {
             continue;
           }
@@ -932,7 +932,7 @@ export class SearchPanelV2 {
       case "marks":
         return "文字标记名称";
       case "pending":
-        return "待修改部分名称";
+        return "对照组名称";
       case "keywords":
         return "关键词";
       default:
@@ -1009,7 +1009,7 @@ export class SearchPanelV2 {
     replacement: string,
   ): Promise<number> {
     let count = 0;
-    const openRe = /^(?:`{3,})[ \t]*待修改部分(.*)$/u;
+    const openRe = /^(?:`{3,})[ \t]*(?:待修改部分|对照组)(.*)$/u;
     for (const file of this.novelMarkdownFiles(root)) {
       await this.plugin.app.vault.process(file, (text) => {
         let changed = false;
@@ -1023,14 +1023,14 @@ export class SearchPanelV2 {
           const title = rest
             .replace(/[🟢🔴🟠🟡🔵🟣🟤]/gu, "")
             .replace(/^[\s:：-]+/u, "")
-            .trim() || "待修改部分";
+            .trim() || "对照组";
           if (!title.toLocaleLowerCase().includes(query.toLocaleLowerCase())) {
             return line;
           }
           const nextTitle = this.replaceInsensitive(title, query, replacement);
           const fence = line.match(/^`{3,}/u)?.[0] ?? "```";
-          const next = `${fence}待修改部分${emoji}${
-            nextTitle === "待修改部分" ? "" : ` ${nextTitle}`
+          const next = `${fence}对照组${emoji}${
+            nextTitle === "对照组" ? "" : ` ${nextTitle}`
           }`;
           changed = true;
           count += 1;

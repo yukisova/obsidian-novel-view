@@ -1,5 +1,6 @@
 import {
   ItemView,
+  Modal,
   setIcon,
   TAbstractFile,
   TFile,
@@ -9,11 +10,86 @@ import {
   OUTLINE_MARKS_PROPERTY,
   parseOutlineMarks,
   serializeOutlineMarks,
-} from "./core/outline-marks";
-import { splitFrontmatterContent } from "./core/paragraphs";
-import type NovelViewPlugin from "./main";
+} from "../../core/model/outline-marks";
+import { splitFrontmatterContent } from "../../core/text/paragraphs";
+import type NovelViewPlugin from "../../main";
 
 export const TEXT_MARKS_VIEW_TYPE = "novelview-text-marks";
+const MARK_NOTES_FILENAME = "novelview-mark-notes.json";
+const MARK_ORDER_FILENAME = "novelview-mark-order.json";
+
+function markOccurrenceKey(occurrence: MarkOccurrence): string {
+  return `${occurrence.file.path}\u0000${occurrence.start}\u0000${occurrence.end}`;
+}
+
+function orderedOccurrences(
+  occurrences: MarkOccurrence[],
+  order: string[],
+): MarkOccurrence[] {
+  if (order.length === 0) {
+    return occurrences;
+  }
+  const index = new Map(order.map((key, position) => [key, position]));
+  return [...occurrences].sort((left, right) => (
+    (index.get(markOccurrenceKey(left)) ?? Number.MAX_SAFE_INTEGER)
+    - (index.get(markOccurrenceKey(right)) ?? Number.MAX_SAFE_INTEGER)
+  ));
+}
+
+
+class MarkNoteModal extends Modal {
+  private readonly initial: string;
+  private readonly onSave: (value: string) => void;
+
+  constructor(
+    app: import("obsidian").App,
+    private readonly label: string,
+    initial: string,
+    onSave: (value: string) => void,
+  ) {
+    super(app);
+    this.initial = initial;
+    this.onSave = onSave;
+  }
+
+  override onOpen(): void {
+    this.setTitle(`说明：${this.label}`);
+    this.modalEl.addClass("novelview-mark-note-modal");
+    this.contentEl.empty();
+    const textarea = this.contentEl.createEl("textarea", {
+      cls: "novelview-mark-note-textarea",
+      attr: {
+        rows: "6",
+        placeholder: "为这个文字标记补充说明，例如伏笔解释、上下文或提醒…",
+        "aria-label": "文字标记说明",
+      },
+    });
+    textarea.value = this.initial;
+    const buttons = this.contentEl.createDiv({
+      cls: "modal-button-container",
+    });
+    buttons.createEl("button", {
+      text: "取消",
+      attr: { type: "button" },
+    }).addEventListener("click", () => this.close());
+    buttons.createEl("button", {
+      cls: "mod-cta",
+      text: "保存说明",
+      attr: { type: "button" },
+    }).addEventListener("click", () => {
+      this.onSave(textarea.value.trim());
+      this.close();
+    });
+    window.setTimeout(() => {
+      textarea.focus();
+      textarea.select();
+    }, 0);
+  }
+
+  override onClose(): void {
+    this.contentEl.empty();
+  }
+}
 
 export interface MarkOccurrence {
   file: TFile;
@@ -40,6 +116,8 @@ interface DragState {
   startY: number;
   moved: boolean;
   target: HTMLElement | null;
+  targetEntry: HTMLElement | null;
+  targetPosition: "before" | "after";
 }
 
 export class TextMarkCollectionView extends ItemView {
@@ -50,6 +128,8 @@ export class TextMarkCollectionView extends ItemView {
   private drag: DragState | null = null;
   private lastFingerprint = "";
   private pendingRefresh = false;
+  private searchQuery = "";
+  private readonly expandedLabels = new Set<string>();
 
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
@@ -88,7 +168,12 @@ export class TextMarkCollectionView extends ItemView {
   protected override async onOpen(): Promise<void> {
     this.contentEl.addClass("novelview-mark-collection-view");
     const schedule = (file: TAbstractFile): void => {
-      if (file instanceof TFile && file.extension === "md") {
+      if (
+        file instanceof TFile
+        && (file.extension === "md"
+          || file.name === MARK_NOTES_FILENAME
+          || file.name === MARK_ORDER_FILENAME)
+      ) {
         this.scheduleRefresh();
       }
     };
@@ -127,11 +212,15 @@ export class TextMarkCollectionView extends ItemView {
     const novelRoot = this.plugin.findNovelGroupRoot(this.folderPath)
       ?? this.plugin.normalizeFolderPath(this.folderPath);
     const data = await collectTextMarks(this.app, this.plugin, novelRoot);
+    const notes = await this.loadMarkNotes(novelRoot);
+    const orders = await this.loadMarkOrders(novelRoot);
     if (token !== this.refreshToken) {
       return;
     }
     const fingerprint = JSON.stringify({
       conflicts: data.conflicts,
+      notes,
+      orders,
       groups: data.groups.map((group) => ({
         label: group.label,
         occurrences: group.occurrences.map((occurrence) => [
@@ -173,6 +262,22 @@ export class TextMarkCollectionView extends ItemView {
     });
     setIcon(refresh, "refresh-cw");
     refresh.addEventListener("click", () => void this.render(true));
+    const searchWrap = header.createDiv({
+      cls: "novelview-collection-search",
+    });
+    const search = searchWrap.createEl("input", {
+      cls: "novelview-collection-search-input",
+      attr: {
+        type: "search",
+        placeholder: "搜索文字标记标题",
+        "aria-label": "搜索文字标记标题",
+      },
+    });
+    search.value = this.searchQuery;
+    search.addEventListener("input", () => {
+      this.searchQuery = search.value;
+      this.applyMarkSearch();
+    });
 
     if (data.conflicts > 0) {
       const warning = this.contentEl.createDiv({
@@ -196,18 +301,61 @@ export class TextMarkCollectionView extends ItemView {
       cls: "novelview-setting-collection-tags novelview-mark-tags",
     });
     for (const group of data.groups) {
-      this.renderMarkGroup(tags, group);
+      this.renderMarkGroup(
+        tags,
+        group,
+        notes[group.label] ?? "",
+        novelRoot,
+        orders[group.label] ?? [],
+      );
     }
+    this.applyMarkSearch();
     this.contentEl.scrollTop = scrollTop;
   }
 
-  private renderMarkGroup(parent: HTMLElement, group: MarkGroup): void {
+  private renderMarkGroup(
+    parent: HTMLElement,
+    group: MarkGroup,
+    note: string,
+    novelRoot: string,
+    order: string[],
+  ): void {
+    const expanded = this.expandedLabels.has(group.label);
     const tagCard = parent.createDiv({
-      cls: "novelview-setting-collection-tag novelview-mark-tag",
+      cls: `novelview-setting-collection-tag novelview-mark-tag${
+        expanded ? " is-expanded" : " is-collapsed"
+      }`,
       attr: { "data-mark-label": group.label },
     });
     const heading = tagCard.createDiv({
       cls: "novelview-setting-collection-tag-title",
+      attr: {
+        role: "button",
+        tabindex: "0",
+        "aria-expanded": String(expanded),
+      },
+    });
+    const toggle = (): void => {
+      if (this.expandedLabels.has(group.label)) {
+        this.expandedLabels.delete(group.label);
+      } else {
+        this.expandedLabels.add(group.label);
+      }
+      const isExpanded = this.expandedLabels.has(group.label);
+      tagCard.toggleClass("is-expanded", isExpanded);
+      tagCard.toggleClass("is-collapsed", !isExpanded);
+      body.toggleClass("is-collapsed", !isExpanded);
+      heading.setAttr("aria-expanded", String(isExpanded));
+    };
+    heading.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggle();
+    });
+    heading.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggle();
+      }
     });
     heading.createSpan({
       cls: "novelview-setting-collection-tag-dot",
@@ -221,13 +369,40 @@ export class TextMarkCollectionView extends ItemView {
       text: `${group.occurrences.length}`,
     });
     const body = tagCard.createDiv({
-      cls: "novelview-setting-collection-tag-body novelview-mark-tag-body",
+      cls: `novelview-setting-collection-tag-body novelview-mark-tag-body${
+        expanded ? "" : " is-collapsed"
+      }`,
     });
-    for (const occurrence of group.occurrences) {
-      const row = body.createDiv({
+    const noteBox = body.createDiv({ cls: "novelview-mark-note" });
+    noteBox.createDiv({
+      cls: `novelview-mark-note-text${note ? "" : " is-empty"}`,
+      text: note || "暂无说明",
+    });
+    const editNote = noteBox.createEl("button", {
+      cls: "novelview-mark-note-edit",
+      attr: {
+        type: "button",
+        title: note ? "编辑说明" : "添加说明",
+        "aria-label": note ? "编辑说明" : "添加说明",
+      },
+    });
+    setIcon(editNote, "pencil");
+    editNote.addEventListener("click", (event) => {
+      event.stopPropagation();
+      new MarkNoteModal(this.app, group.label, note, (value) => {
+        void this.saveMarkNote(novelRoot, group.label, value).then(() => {
+          this.scheduleRefresh();
+        });
+      }).open();
+    });
+    const entries = body.createDiv({ cls: "novelview-mark-entries" });
+    for (const occurrence of orderedOccurrences(group.occurrences, order)) {
+      const row = entries.createDiv({
         cls: "novelview-setting-collection-entry novelview-mark-entry",
         attr: {
           "data-mark-instance": "true",
+          "data-mark-instance-label": group.label,
+          "data-mark-instance-key": markOccurrenceKey(occurrence),
           "data-mark-file": occurrence.file.path,
           "data-mark-start": String(occurrence.start),
           "data-mark-end": String(occurrence.end),
@@ -250,13 +425,175 @@ export class TextMarkCollectionView extends ItemView {
         cls: "novelview-setting-collection-content novelview-mark-entry-meta",
         text: `${occurrence.file.basename} · 第 ${occurrence.line} 行`,
       });
-      this.attachInstanceDrag(row, occurrence);
+      this.attachInstanceDrag(row, occurrence, group.label, novelRoot);
+    }
+  }
+
+  private markNotesPath(novelRoot: string): string {
+    const root = this.plugin.normalizeFolderPath(novelRoot);
+    return root
+      ? `${root}/${MARK_NOTES_FILENAME}`
+      : MARK_NOTES_FILENAME;
+  }
+
+  private async loadMarkNotes(
+    novelRoot: string,
+  ): Promise<Record<string, string>> {
+    const file = this.app.vault.getAbstractFileByPath(
+      this.markNotesPath(novelRoot),
+    );
+    if (!(file instanceof TFile)) {
+      return {};
+    }
+    try {
+      const raw = JSON.parse(await this.app.vault.read(file)) as unknown;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return {};
+      }
+      const notes: Record<string, string> = {};
+      for (const [label, value] of Object.entries(raw)) {
+        if (typeof value === "string" && value.trim()) {
+          notes[label] = value.trim();
+        }
+      }
+      return notes;
+    } catch (error) {
+      console.debug("Novel View: mark notes read failed", error);
+      return {};
+    }
+  }
+
+  private async saveMarkNote(
+    novelRoot: string,
+    label: string,
+    note: string,
+  ): Promise<void> {
+    const path = this.markNotesPath(novelRoot);
+    const notes = await this.loadMarkNotes(novelRoot);
+    const value = note.trim();
+    if (value) {
+      notes[label] = value;
+    } else {
+      delete notes[label];
+    }
+    const content = JSON.stringify(notes, null, 2);
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) {
+      await this.app.vault.process(file, () => content);
+      return;
+    }
+    await this.app.vault.create(path, content);
+  }
+
+  private markOrderPath(novelRoot: string): string {
+    const root = this.plugin.normalizeFolderPath(novelRoot);
+    return root
+      ? `${root}/${MARK_ORDER_FILENAME}`
+      : MARK_ORDER_FILENAME;
+  }
+
+  private async loadMarkOrders(
+    novelRoot: string,
+  ): Promise<Record<string, string[]>> {
+    const file = this.app.vault.getAbstractFileByPath(
+      this.markOrderPath(novelRoot),
+    );
+    if (!(file instanceof TFile)) {
+      return {};
+    }
+    try {
+      const raw = JSON.parse(await this.app.vault.read(file)) as unknown;
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        return {};
+      }
+      const orders: Record<string, string[]> = {};
+      for (const [label, value] of Object.entries(raw)) {
+        if (Array.isArray(value)) {
+          const keys = value.filter((entry): entry is string => (
+            typeof entry === "string" && entry.length > 0
+          ));
+          if (keys.length > 0) {
+            orders[label] = keys;
+          }
+        }
+      }
+      return orders;
+    } catch (error) {
+      console.debug("Novel View: mark order read failed", error);
+      return {};
+    }
+  }
+
+  private async saveMarkOrders(
+    novelRoot: string,
+    orders: Record<string, string[]>,
+  ): Promise<void> {
+    const path = this.markOrderPath(novelRoot);
+    const content = JSON.stringify(orders, null, 2);
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) {
+      await this.app.vault.process(file, () => content);
+    } else {
+      await this.app.vault.create(path, content);
+    }
+  }
+
+  private async reorderOccurrence(
+    novelRoot: string,
+    label: string,
+    occurrence: MarkOccurrence,
+    targetKey: string,
+    position: "before" | "after",
+  ): Promise<void> {
+    const group = this.contentEl.querySelector<HTMLElement>(
+      `.novelview-mark-tag[data-mark-label="${CSS.escape(label)}"]`,
+    );
+    const keys = [...(group?.querySelectorAll<HTMLElement>(
+      "[data-mark-instance-key]",
+    ) ?? [])].map((entry) => entry.dataset.markInstanceKey ?? "");
+    const moving = markOccurrenceKey(occurrence);
+    const without = keys.filter((key) => key && key !== moving);
+    const targetIndex = without.indexOf(targetKey);
+    if (targetIndex < 0) {
+      return;
+    }
+    without.splice(targetIndex + (position === "after" ? 1 : 0), 0, moving);
+    const orders = await this.loadMarkOrders(novelRoot);
+    orders[label] = without;
+    await this.saveMarkOrders(novelRoot, orders);
+    this.scheduleRefresh();
+  }
+
+  private applyMarkSearch(): void {
+    const query = this.searchQuery.trim().toLocaleLowerCase();
+    for (const card of this.contentEl.querySelectorAll<HTMLElement>(
+      ".novelview-mark-tag",
+    )) {
+      const label = card.dataset.markLabel ?? "";
+      const hit = !query || label.toLocaleLowerCase().includes(query);
+      card.toggleClass("is-search-hidden", !hit);
+      for (const entry of card.querySelectorAll<HTMLElement>(
+        ".novelview-mark-entry",
+      )) {
+        entry.removeClass("is-search-hidden");
+      }
+      if (query && hit) {
+        this.expandedLabels.add(label);
+        card.removeClass("is-collapsed");
+        card.addClass("is-expanded");
+        card.querySelector(".novelview-mark-tag-body")
+          ?.removeClass("is-collapsed");
+        card.querySelector(".novelview-setting-collection-tag-title")
+          ?.setAttribute("aria-expanded", "true");
+      }
     }
   }
 
   private attachInstanceDrag(
     row: HTMLElement,
     occurrence: MarkOccurrence,
+    label: string,
+    novelRoot: string,
   ): void {
     row.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || this.drag) {
@@ -275,6 +612,8 @@ export class TextMarkCollectionView extends ItemView {
         startY: event.clientY,
         moved: false,
         target: null,
+        targetEntry: null,
+        targetPosition: "before",
       };
       this.drag = drag;
       row.addClass("is-pressed");
@@ -297,12 +636,24 @@ export class TextMarkCollectionView extends ItemView {
           moveEvent.clientY,
         );
         const target = element?.closest<HTMLElement>("[data-mark-label]") ?? null;
-        if (target === drag.target) {
-          return;
+        const entry = element?.closest<HTMLElement>("[data-mark-instance]") ?? null;
+        if (target !== drag.target) {
+          drag.target?.removeClass("is-drop-inside");
+          target?.addClass("is-drop-inside");
+          drag.target = target;
         }
-        drag.target?.removeClass("is-drop-inside");
-        target?.addClass("is-drop-inside");
-        drag.target = target;
+        if (entry !== drag.targetEntry) {
+          drag.targetEntry?.removeClass("is-drop-before", "is-drop-after");
+          drag.targetEntry = entry;
+        }
+        if (entry) {
+          const rect = entry.getBoundingClientRect();
+          drag.targetPosition = moveEvent.clientY > rect.top + rect.height / 2
+            ? "after"
+            : "before";
+          entry.removeClass("is-drop-before", "is-drop-after");
+          entry.addClass(`is-drop-${drag.targetPosition}`);
+        }
       };
       const onUp = (upEvent: PointerEvent): void => {
         window.removeEventListener("pointermove", onMove, true);
@@ -312,32 +663,22 @@ export class TextMarkCollectionView extends ItemView {
         row.removeClass("is-pressed");
         row.removeClass("is-dragging");
         drag.target?.removeClass("is-drop-inside");
+        drag.targetEntry?.removeClass("is-drop-before", "is-drop-after");
         const targetLabel = drag.target?.dataset.markLabel;
-        if (drag.moved && !targetLabel) {
-          const element = this.contentEl.ownerDocument.elementFromPoint(
-            upEvent.clientX,
-            upEvent.clientY,
+        const targetEntry = drag.targetEntry;
+        if (
+          drag.moved
+          && targetEntry
+          && targetEntry !== row
+          && targetEntry.dataset.markInstanceLabel === label
+        ) {
+          void this.reorderOccurrence(
+            novelRoot,
+            label,
+            drag.occurrence,
+            targetEntry.dataset.markInstanceKey ?? "",
+            drag.targetPosition,
           );
-          const targetView = element?.closest<HTMLElement>(
-            ".novelview-special-editor-view",
-          );
-          if (targetView && !targetView.contains(this.contentEl)) {
-            targetView.dispatchEvent(new CustomEvent(
-              "novelview-text-mark-drop",
-              {
-                bubbles: true,
-                detail: {
-                  label: drag.occurrence.label,
-                  text: drag.occurrence.text,
-                  file: drag.occurrence.file.path,
-                  start: drag.occurrence.start,
-                  end: drag.occurrence.end,
-                  clientX: upEvent.clientX,
-                  clientY: upEvent.clientY,
-                },
-              },
-            ));
-          }
         } else if (
           drag.moved
           && targetLabel

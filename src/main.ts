@@ -18,7 +18,7 @@ import {
   type WorkspaceLeaf,
 } from "obsidian";
 import type { EditorView } from "@codemirror/view";
-import LegacyNovelViewPlugin from "./legacy-main.cjs";
+import LegacyNovelViewPlugin from "./legacy/legacy-main.cjs";
 import {
   ARTICLE_LIST_VIEW_TYPE,
   ARTICLE_MIME,
@@ -27,13 +27,13 @@ import {
   type ArticleEntry,
   type ArticleListModel,
   type ArticleListTarget,
-} from "./article-list-view";
+} from "./features/article-list/article-list-view";
 import {
   CHAPTER_STATUS_LABELS,
   CHAPTER_STATUS_PROPERTY,
   readChapterStatus,
   type ChapterStatus,
-} from "./core/chapter-status";
+} from "./core/model/chapter-status";
 import {
   SETTING_COLLECTION_INDEX,
   parseSettingCollectionIndex,
@@ -42,21 +42,18 @@ import {
   getAllSettingKeywordEntries,
   getSettingKeywordEntries,
   settingGroupFolderName,
-  isSettingSpecialFileName,
-  settingSpecialFileKind,
-  settingSpecialFileSuffix,
+  isSettingDetailFileName,
   type SettingCollectionIndex,
   type SettingGroupTags,
-  type SettingSpecialFileKind,
-} from "./core/setting-collection";
-import { countNovelCharacters } from "./core/status";
-import { findFrontmatterEnd } from "./core/paragraphs";
-import { formatNovelMarkdown } from "./core/format";
+} from "./core/model/setting-collection";
+import { countNovelCharacters } from "./core/text/status";
+import { findFrontmatterEnd } from "./core/text/paragraphs";
+import { formatNovelMarkdown } from "./core/text/format";
 import {
   formatNovelTxt,
   parseNovelTxt,
   type TxtExportChapter,
-} from "./core/txt";
+} from "./core/text/txt";
 import {
   createNovelConfigContent,
   getNovelConfigPath,
@@ -71,82 +68,50 @@ import {
   type NovelArticleGroup,
   type NovelConfig,
   type NovelGroupInfo,
-} from "./core/novel-config";
-import { confirmAction } from "./confirm-modal";
-import { ArticleGroupModal } from "./article-group-modal";
-import { VolumeEditModal } from "./volume-edit-modal";
+} from "./core/model/novel-config";
+import { confirmAction } from "./ui/confirm-modal";
+import { ArticleGroupModal } from "./features/article-list/article-group-modal";
+import { VolumeEditModal } from "./features/article-list/volume-edit-modal";
 import {
   NovelSrcGalleryView,
   SRC_GALLERY_VIEW_TYPE,
-} from "./src-gallery-view";
+} from "./features/src-gallery/src-gallery-view";
 import {
   NovelWorkbenchView,
   WORKBENCH_VIEW_TYPE,
-} from "./workbench-view";
+} from "./features/workbench/workbench-view";
 import {
   frontmatterCompartment,
   setFrontmatterProtection,
 } from "./editor/frontmatter-hide-extension";
-import {
-  parseGraphNodes,
-  parseGraphSource,
-  removeGraphRelation,
-  settingSpecialTemplate,
-  type GraphRelation,
-} from "./core/setting-special-data";
-import {
-  GRAPH_RELATION_INDEX,
-  appendGraphRelationLine,
-  canonicalRelationKey,
-  mergeCanonicalRelations,
-  parseCanonicalRelations,
-  renameGraphNodeInSource,
-} from "./core/graph-relations";
-import { NovelFloatingToolbar } from "./editor/floating-toolbar";
+import { NovelFloatingToolbar } from "./ui/floating-toolbar";
 import {
   NOVEL_EDITOR_VIEW_TYPE,
   NovelEditorView,
-} from "./novel-editor-view";
+} from "./features/novel-editor/novel-editor-view";
 import {
   SETTING_COLLECTION_VIEW_TYPE,
   SettingCollectionView,
-} from "./setting-collection-view";
+} from "./features/setting-collection/setting-collection-view";
 import {
   NovelSettingListView,
   SETTING_LIST_VIEW_TYPE,
-} from "./setting-list-view";
+} from "./features/setting-collection/setting-list-view";
 import {
   TEXT_MARKS_VIEW_TYPE,
   TextMarkCollectionView,
-  collectTextMarks,
-} from "./mark-collection-view";
-import {
-  TimelineEditorView,
-  TIMELINE_EDITOR_VIEW_TYPE,
-} from "./special-editors/timeline-editor-view";
-import {
-  GraphEditorView,
-  GRAPH_EDITOR_VIEW_TYPE,
-} from "./special-editors/graph-editor-view";
-import {
-  BranchEditorView,
-  BRANCH_EDITOR_VIEW_TYPE,
-} from "./special-editors/branch-editor-view";
-import {
-  DetailEditorView,
-  DETAIL_EDITOR_VIEW_TYPE,
-} from "./special-editors/detail-editor-view";
-import { ModeSettingsPanel } from "./mode-settings-panel";
+} from "./features/text-marks/mark-collection-view";
+import { ModeSettingsPanel } from "./features/setting-collection/mode-settings-panel";
 import {
   SearchPanelV2,
   type FinderContext,
   type FinderResult,
   type SearchScope,
-} from "./search-panel-v2";
+} from "./features/search/search-panel-v2";
 import {
   NOVEL_FINDER_VIEW_TYPE,
   NovelFinderView,
-} from "./novel-finder-view";
+} from "./features/search/novel-finder-view";
 import {
   refreshSettingKeywords,
   setSettingKeywords,
@@ -162,18 +127,15 @@ interface ElectronDialog {
 interface ChapterMeta {
   wordCount: number;
   status: ChapterStatus;
+  pendingCount: number;
 }
 
 
 export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   private readonly chapterMetaCache = new Map<string, ChapterMeta>();
-  private settingKeywordEntries: import("./core/setting-collection").SettingKeywordEntry[] = [];
+  private settingKeywordEntries: import("./core/model/setting-collection").SettingKeywordEntry[] = [];
   private readonly settingKeywordPage = new Map<string, number>();
-  private readonly graphRelationCache = new Map<string, GraphRelation[]>();
-  private readonly graphRelationSyncChains = new Map<string, Promise<void>>();
-  private readonly graphRelationWriteGuards = new Set<string>();
-  private graphRelationSyncTimer: number | null = null;
   private readonly articleUndoStack: Array<() => Promise<void>> = [];
   private readonly novelConfigs = new Map<string, NovelConfig>();
   private searchPanelV2: SearchPanelV2 | null = null;
@@ -259,32 +221,15 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerView(TEXT_MARKS_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
       new TextMarkCollectionView(leaf, this)
     ));
-    this.registerView(TIMELINE_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
-      new TimelineEditorView(leaf, this)
-    ));
-    this.registerView(GRAPH_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
-      new GraphEditorView(leaf, this)
-    ));
-    this.registerView(BRANCH_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
-      new BranchEditorView(leaf, this)
-    ));
-    this.registerView(DETAIL_EDITOR_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
-      new DetailEditorView(leaf, this)
-    ));
     this.app.workspace.onLayoutReady(() => {
-      const types = [
-        TIMELINE_EDITOR_VIEW_TYPE,
-        GRAPH_EDITOR_VIEW_TYPE,
-        BRANCH_EDITOR_VIEW_TYPE,
-        DETAIL_EDITOR_VIEW_TYPE,
-      ];
-      for (const type of types) {
+      for (const type of [
+        "novelview-graph-editor",
+        "novelview-branch-editor",
+        "novelview-timeline-editor",
+        "novelview-detail-editor",
+      ]) {
         for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-          const state = leaf.getViewState().state as { file?: unknown } | null;
-          const path = typeof state?.file === "string" ? state.file : "";
-          if (!path || !this.app.vault.getAbstractFileByPath(path)) {
-            leaf.detach();
-          }
+          leaf.detach();
         }
       }
       for (const leaf of this.app.workspace.getLeavesOfType(
@@ -370,17 +315,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         return;
       }
       this.scheduleHistoryCheck(file);
-      if (
-        file.name.endsWith(".graph.md")
-        && !this.graphRelationWriteGuards.has(file.path)
-      ) {
-        const graphRoot = this.findNovelGroupRoot(
-          this.normalizeFolderPath(file.parent?.path ?? "/"),
-        );
-        if (graphRoot) {
-          this.scheduleGraphRelationSync(graphRoot);
-        }
-      }
       if (file.name === SETTING_COLLECTION_INDEX) {
         const root = this.settingRootForPath(
           this.normalizeFolderPath(file.parent?.path ?? "/"),
@@ -757,7 +691,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
 
   registerCommands(): void {}
 
-  getSettingKeywordsForFinder(): import("./core/setting-collection").SettingKeywordEntry[] {
+  getSettingKeywordsForFinder(): import("./core/model/setting-collection").SettingKeywordEntry[] {
     return this.settingKeywordEntries;
   }
 
@@ -1218,7 +1152,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   async getChapterMeta(path: string): Promise<ChapterMeta> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) {
-      return { wordCount: 0, status: "todo" };
+      return { wordCount: 0, status: "todo", pendingCount: 0 };
     }
     try {
       const content = await this.app.vault.cachedRead(file);
@@ -1228,12 +1162,17 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       const meta = {
         wordCount: countNovelCharacters(content),
         status,
+        pendingCount: (
+          content.match(/```(?:待修改部分|对照组)[^\n]*\n[\s\S]*?```/gu)
+          ?? []
+        ).length,
       };
       this.chapterMetaCache.set(path, meta);
       return meta;
     } catch (error) {
       console.debug("Novel View: chapter meta read skipped", error);
-      return this.chapterMetaCache.get(path) ?? { wordCount: 0, status: "todo" };
+      return this.chapterMetaCache.get(path)
+        ?? { wordCount: 0, status: "todo", pendingCount: 0 };
     }
   }
 
@@ -1862,14 +1801,10 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     return this.settingRootForPath(parent) !== null;
   }
 
-  isSpecialSettingFile(file: TFile): boolean {
-    return isSettingSpecialFileName(file.name);
-  }
-
   isSpecialNovelFile(file: TFile): boolean {
     return isNovelConfigFile(file)
       || this.isSettingCollectionIndexPath(file.path)
-      || this.isSpecialSettingFile(file);
+      || isSettingDetailFileName(file.name);
   }
 
   async readNovelConfig(folderPath: string): Promise<NovelConfig> {
@@ -2113,10 +2048,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   }
 
   async openFileAtLine(file: TFile, line = 1): Promise<void> {
-    if (this.isSettingSpecialEditorFile(file)) {
-      await this.openSettingSpecialFile(file);
-      return;
-    }
     if (!this.isNovelArticleFile(file)) {
       await LegacyNovelViewPlugin.prototype.openFileAtLine.call(this, file, line);
       return;
@@ -3334,58 +3265,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     }
   }
 
-  async createSettingSpecialFile(
-    settingPath: string,
-    title: string,
-    kind: SettingSpecialFileKind,
-  ): Promise<TFile | null> {
-    const novelRoot = this.findNovelGroupRoot(settingPath)
-      ?? this.normalizeFolderPath(settingPath);
-    const folder = this.getFolder(novelRoot);
-    if (!folder || !this.getNovelSettingFile(novelRoot)) {
-      new Notice("Novel View：找不到小说组。");
-      return null;
-    }
-    const suffix = settingSpecialFileSuffix(kind);
-    let base = this.sanitizeFileBase(
-      title,
-      kind === "detail"
-        ? "详细设定"
-        : kind === "graph"
-          ? "图谱"
-          : kind === "line"
-            ? "轴"
-            : "分支树",
-    );
-    const lower = base.toLocaleLowerCase();
-    if (lower.endsWith(suffix)) {
-      base = base.slice(0, -suffix.length);
-    } else if (lower.endsWith(`.${kind}`)) {
-      base = base.slice(0, -kind.length - 1);
-    }
-    base = base.trim();
-    if (!base) {
-      new Notice("Novel View：文件名不能为空。");
-      return null;
-    }
-    const targetPath = this.getUniqueFilePath(
-      folder.path,
-      `${base}${suffix}`,
-    );
-    try {
-      const file = await this.app.vault.create(
-        targetPath,
-        settingSpecialTemplate(kind, base),
-      );
-      new Notice(`Novel View：已新建${title || base}。`);
-      return file;
-    } catch (error) {
-      console.error("Novel View: special setting file creation failed", error);
-      new Notice("Novel View：特殊设定文件创建失败。");
-      return null;
-    }
-  }
-
   async renameSettingGroupFolder(
     folderPath: string,
     displayName: string,
@@ -3414,67 +3293,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       console.error("Novel View: setting group rename failed", error);
       return "设定组重命名失败。";
     }
-  }
-
-  async renameSettingSpecialFile(
-    file: TFile,
-    displayName: string,
-  ): Promise<string | null> {
-    const kind = settingSpecialFileKind(file.name);
-    if (!kind) {
-      return "不是特殊设定文件。";
-    }
-    const suffix = settingSpecialFileSuffix(kind);
-    let name = displayName.trim();
-    const lower = name.toLocaleLowerCase();
-    if (lower.endsWith(suffix)) {
-      name = name.slice(0, -suffix.length);
-    } else if (lower.endsWith(`.${kind}`)) {
-      name = name.slice(0, -kind.length - 1);
-    } else if (lower.endsWith(".md")) {
-      name = name.slice(0, -3);
-    }
-    name = name.trim();
-    if (!name) {
-      return "文件名不能为空。";
-    }
-    const targetPath = joinVaultPath(
-      this.normalizeFolderPath(file.parent?.path ?? "/"),
-      `${name}${suffix}`,
-    );
-    if (targetPath === file.path) {
-      return null;
-    }
-    if (this.app.vault.getAbstractFileByPath(targetPath)) {
-      return "同名特殊设定文件已存在。";
-    }
-    const oldPath = file.path;
-    try {
-      await this.app.fileManager.renameFile(file, targetPath);
-    } catch (error) {
-      console.error("Novel View: special file rename failed", error);
-      return "特殊设定文件重命名失败。";
-    }
-    for (const type of [
-      TIMELINE_EDITOR_VIEW_TYPE,
-      GRAPH_EDITOR_VIEW_TYPE,
-      BRANCH_EDITOR_VIEW_TYPE,
-      DETAIL_EDITOR_VIEW_TYPE,
-    ]) {
-      for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-        const state = leaf.getViewState();
-        if (
-          (state.state as { file?: unknown }).file === oldPath
-        ) {
-          await leaf.setViewState({
-            type,
-            state: { ...state.state, file: targetPath },
-            active: false,
-          });
-        }
-      }
-    }
-    return null;
   }
 
   async renameSettingRecordDetails(
@@ -4400,10 +4218,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (this.routingNovelFile) {
       return;
     }
-    if (this.isSettingSpecialEditorFile(file)) {
-      void this.openSettingSpecialFile(file);
-      return;
-    }
     if (!this.isNovelArticleFile(file)) {
       return;
     }
@@ -4551,52 +4365,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     });
   }
 
-  isSettingSpecialEditorFile(file: TFile): boolean {
-    return settingSpecialFileKind(file.name) !== null;
-  }
-
-  private settingSpecialViewType(
-    file: TFile,
-  ): string | null {
-    switch (settingSpecialFileKind(file.name)) {
-      case "line":
-        return TIMELINE_EDITOR_VIEW_TYPE;
-      case "graph":
-        return GRAPH_EDITOR_VIEW_TYPE;
-      case "branch":
-        return BRANCH_EDITOR_VIEW_TYPE;
-      case "detail":
-        return DETAIL_EDITOR_VIEW_TYPE;
-      default:
-        return null;
-    }
-  }
-
-  async openSettingSpecialFile(file: TFile): Promise<void> {
-    const type = this.settingSpecialViewType(file);
-    if (!type) {
-      await this.app.workspace.getLeaf(false).openFile(file);
-      return;
-    }
-    for (const leaf of this.app.workspace.getLeavesOfType(type)) {
-      if (leaf.getViewState().state?.file === file.path) {
-        await this.app.workspace.revealLeaf(leaf);
-        return;
-      }
-    }
-    const workspace = this.app.workspace as typeof this.app.workspace & {
-      getMostRecentLeaf?: (root: unknown) => WorkspaceLeaf | null;
-    };
-    const leaf = workspace.getMostRecentLeaf?.(this.app.workspace.rootSplit)
-      ?? this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({
-      type,
-      state: { file: file.path },
-      active: true,
-    });
-    await this.app.workspace.revealLeaf(leaf);
-  }
-
   private isLeftSidebarLeaf(leaf: WorkspaceLeaf): boolean {
     return Boolean(leaf.view.containerEl.closest(
       ".workspace-split.mod-left-split",
@@ -4625,320 +4393,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
       ?? this.app.workspace.getRightLeaf(false)
       ?? this.app.workspace.getRightLeaf(true)
       ?? this.app.workspace.getLeaf(false);
-  }
-
-  private graphRelationIndexPath(novelRoot: string): string {
-    return joinVaultPath(novelRoot, GRAPH_RELATION_INDEX);
-  }
-
-  private graphFilesForNovel(novelRoot: string): TFile[] {
-    const root = this.normalizeFolderPath(novelRoot);
-    return this.app.vault.getFiles().filter((file) => (
-      file.extension === "md"
-      && this.normalizeFolderPath(file.parent?.path ?? "/") === root
-      && file.name.endsWith(".graph.md")
-    ));
-  }
-
-  async readGraphRelations(novelRoot: string): Promise<GraphRelation[]> {
-    const root = this.normalizeFolderPath(novelRoot);
-    const path = this.graphRelationIndexPath(root);
-    const file = this.app.vault.getAbstractFileByPath(path);
-    if (file instanceof TFile) {
-      try {
-        const parsed = parseCanonicalRelations(JSON.parse(await this.app.vault.read(file)));
-        this.graphRelationCache.set(root, parsed);
-        return parsed;
-      } catch (error) {
-        console.debug("Novel View: relation index read failed", error);
-      }
-    }
-    return this.graphRelationCache.get(root) ?? [];
-  }
-
-  private async writeGraphRelations(
-    novelRoot: string,
-    relations: GraphRelation[],
-  ): Promise<void> {
-    const root = this.normalizeFolderPath(novelRoot);
-    const path = this.graphRelationIndexPath(root);
-    const content = JSON.stringify(relations, null, 2);
-    const file = this.app.vault.getAbstractFileByPath(path);
-    this.graphRelationWriteGuards.add(path);
-    try {
-      if (file instanceof TFile) {
-        await this.app.vault.process(file, () => content);
-      } else {
-        await this.app.vault.create(path, content);
-      }
-    } finally {
-      window.setTimeout(() => this.graphRelationWriteGuards.delete(path), 500);
-    }
-    this.graphRelationCache.set(root, relations);
-  }
-
-  private async collectGraphFileRelations(file: TFile): Promise<GraphRelation[]> {
-    try {
-      return parseGraphSource(await this.app.vault.read(file));
-    } catch {
-      return [];
-    }
-  }
-
-  async syncGraphRelationsForNovel(novelRoot: string): Promise<void> {
-    const root = this.normalizeFolderPath(novelRoot);
-    const previous = this.graphRelationSyncChains.get(root)
-      ?? Promise.resolve();
-    const next = previous.then(async () => {
-      const index = new Map<string, GraphRelation>();
-      for (const relation of await this.readGraphRelations(root)) {
-        index.set(canonicalRelationKey(relation), relation);
-      }
-      const files = this.graphFilesForNovel(root);
-      for (const file of files) {
-        mergeCanonicalRelations(index, await this.collectGraphFileRelations(file));
-      }
-      const canonical = [...index.values()];
-      await this.writeGraphRelations(root, canonical);
-      for (const file of files) {
-        const text = await this.app.vault.read(file);
-        const relationKeys = new Set(
-          parseGraphSource(text).map((relation) => canonicalRelationKey(relation)),
-        );
-        const names = new Set([
-          ...parseGraphNodes(text),
-          ...parseGraphSource(text).flatMap((relation) => [
-            relation.from,
-            relation.to,
-          ]),
-        ]);
-        let nextText = text;
-        for (const relation of canonical) {
-          if (
-            names.has(relation.from)
-            && names.has(relation.to)
-            && !relationKeys.has(canonicalRelationKey(relation))
-          ) {
-            nextText = appendGraphRelationLine(nextText, relation);
-          }
-        }
-        if (nextText !== text) {
-          this.graphRelationWriteGuards.add(file.path);
-          try {
-            await this.app.vault.process(file, () => nextText);
-          } finally {
-            window.setTimeout(
-              () => this.graphRelationWriteGuards.delete(file.path),
-              500,
-            );
-          }
-        }
-      }
-    }).catch((error) => {
-      console.error("Novel View: graph relation sync failed", error);
-    });
-    this.graphRelationSyncChains.set(root, next);
-    await next;
-    this.graphRelationSyncChains.delete(root);
-  }
-
-  async removeGraphRelationEverywhere(
-    novelRoot: string,
-    relation: GraphRelation,
-  ): Promise<void> {
-    const root = this.normalizeFolderPath(novelRoot);
-    await this.syncGraphRelationsForNovel(root);
-    const key = canonicalRelationKey(relation);
-    const relations = (await this.readGraphRelations(root))
-      .filter((entry) => canonicalRelationKey(entry) !== key);
-    await this.writeGraphRelations(root, relations);
-    for (const file of this.graphFilesForNovel(root)) {
-      const text = await this.app.vault.read(file);
-      const next = removeGraphRelation(text, relation);
-      if (next !== text) {
-        this.graphRelationWriteGuards.add(file.path);
-        try {
-          await this.app.vault.process(file, () => next);
-        } finally {
-          window.setTimeout(
-            () => this.graphRelationWriteGuards.delete(file.path),
-            500,
-          );
-        }
-      }
-    }
-    this.refreshGraphViews();
-    this.notifyGraphRelationsChanged(root);
-  }
-
-  async renameGraphRelationEverywhere(
-    novelRoot: string,
-    relation: GraphRelation,
-    label: string,
-  ): Promise<void> {
-    const root = this.normalizeFolderPath(novelRoot);
-    await this.syncGraphRelationsForNovel(root);
-    const nextRelation: GraphRelation = { ...relation, label };
-    const oldKey = canonicalRelationKey(relation);
-    const relations = (await this.readGraphRelations(root)).map((entry) => (
-      canonicalRelationKey(entry) === oldKey
-        ? nextRelation
-        : entry
-    ));
-    await this.writeGraphRelations(root, relations);
-    for (const file of this.graphFilesForNovel(root)) {
-      const text = await this.app.vault.read(file);
-      let next = removeGraphRelation(text, relation);
-      if (next !== text) {
-        next = appendGraphRelationLine(next, nextRelation);
-      }
-      if (next !== text) {
-        this.graphRelationWriteGuards.add(file.path);
-        try {
-          await this.app.vault.process(file, () => next);
-        } finally {
-          window.setTimeout(
-            () => this.graphRelationWriteGuards.delete(file.path),
-            500,
-          );
-        }
-      }
-    }
-    this.refreshGraphViews();
-    this.notifyGraphRelationsChanged(root);
-  }
-
-  async renameGraphNodeEverywhere(
-    novelRoot: string,
-    oldName: string,
-    newName: string,
-    skipPath?: string,
-  ): Promise<void> {
-    const root = this.normalizeFolderPath(novelRoot);
-    const relations = (await this.readGraphRelations(root)).map((relation) => ({
-      ...relation,
-      from: relation.from === oldName ? newName : relation.from,
-      to: relation.to === oldName ? newName : relation.to,
-    }));
-    await this.writeGraphRelations(root, relations);
-    for (const file of this.graphFilesForNovel(root)) {
-      if (skipPath && file.path === skipPath) {
-        continue;
-      }
-      const text = await this.app.vault.read(file);
-      const next = renameGraphNodeInSource(text, oldName, newName);
-      if (next !== text) {
-        this.graphRelationWriteGuards.add(file.path);
-        try {
-          await this.app.vault.process(file, () => next);
-        } finally {
-          window.setTimeout(
-            () => this.graphRelationWriteGuards.delete(file.path),
-            500,
-          );
-        }
-      }
-    }
-    this.refreshGraphViews();
-  }
-
-  notifyGraphRelationsChanged(novelRoot: string): void {
-    activeDocument.dispatchEvent(new CustomEvent(
-      "novelview-graph-relations-changed",
-      { detail: { novelRoot: this.normalizeFolderPath(novelRoot) } },
-    ));
-  }
-
-  private refreshGraphViews(): void {
-    for (const leaf of this.app.workspace.getLeavesOfType(
-      GRAPH_EDITOR_VIEW_TYPE,
-    )) {
-      const view = leaf.view;
-      if (view instanceof GraphEditorView) {
-        void view.refreshFromDisk();
-      }
-    }
-  }
-
-  async getTextMarkLabelsForNovel(novelRoot: string): Promise<Set<string>> {
-    const data = await collectTextMarks(this.app, this, novelRoot);
-    return new Set(data.groups.map((group) => group.label.toLocaleLowerCase()));
-  }
-
-  async getFirstTextMarkOccurrence(
-    novelRoot: string,
-    label: string,
-  ): Promise<{ file: TFile; start: number; end: number } | null> {
-    const key = label.trim().toLocaleLowerCase();
-    const data = await collectTextMarks(this.app, this, novelRoot);
-    const group = data.groups.find((entry) => (
-      entry.label.toLocaleLowerCase() === key
-    ));
-    const occurrence = group?.occurrences[0];
-    return occurrence
-      ? {
-        file: occurrence.file,
-        start: occurrence.start,
-        end: occurrence.end,
-      }
-      : null;
-  }
-
-  async getGraphRelationsForKeyword(
-    novelRoot: string,
-    keyword: string,
-  ): Promise<GraphRelation[]> {
-    const key = keyword.trim().toLocaleLowerCase();
-    if (!key) {
-      return [];
-    }
-    await this.syncGraphRelationsForNovel(novelRoot);
-    const merged = new Map<string, GraphRelation>();
-    for (const relation of await this.readGraphRelations(novelRoot)) {
-      merged.set(canonicalRelationKey(relation), relation);
-    }
-    for (const file of this.graphFilesForNovel(novelRoot)) {
-      for (const relation of await this.collectGraphFileRelations(file)) {
-        merged.set(canonicalRelationKey(relation), relation);
-      }
-    }
-    return [...merged.values()].filter((relation) => (
-      relation.from.trim().toLocaleLowerCase() === key
-      || relation.to.trim().toLocaleLowerCase() === key
-    ));
-  }
-
-  private scheduleGraphRelationSync(novelRoot: string): void {
-    if (this.graphRelationSyncTimer !== null) {
-      window.clearTimeout(this.graphRelationSyncTimer);
-    }
-    this.graphRelationSyncTimer = window.setTimeout(() => {
-      this.graphRelationSyncTimer = null;
-      void this.syncGraphRelationsForNovel(novelRoot).then(() => {
-        this.refreshGraphViews();
-        this.notifyGraphRelationsChanged(novelRoot);
-      });
-    }, 350);
-  }
-
-  async getSettingRecordKeywordsForNovel(
-    novelRoot: string,
-  ): Promise<Set<string>> {
-    const keywords = new Set<string>();
-    for (const group of this.settingGroupsForNovel(novelRoot)) {
-      const index = await this.readSettingCollectionIndex(group.path);
-      for (const tags of Object.values(index)) {
-        for (const tag of tags) {
-          for (const record of tag.contain) {
-            const keyword = record.keyword.trim().toLocaleLowerCase();
-            if (keyword) {
-              keywords.add(keyword);
-            }
-          }
-        }
-      }
-    }
-    return keywords;
   }
 
   async openTextMarkRange(

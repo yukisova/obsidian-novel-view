@@ -4871,91 +4871,6 @@
 .novelview-setting-color-4 { background: #3498db; }
 .novelview-setting-color-5 { background: #9b59b6; }
 
-/* Novel-group root files in the workbench detail card */
-.novelview-workbench-root-files {
-  margin-top: 10px;
-  padding-top: 8px;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.novelview-workbench-root-files-title {
-  margin-bottom: 4px;
-  color: var(--text-faint);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-}
-
-.novelview-workbench-root-file {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 25px;
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-.novelview-workbench-root-file:hover {
-  background: var(--background-modifier-hover);
-}
-
-.novelview-workbench-root-file-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--text-faint);
-}
-
-.novelview-workbench-root-file-icon svg {
-  width: 12px;
-  height: 12px;
-}
-
-.novelview-workbench-root-file-name {
-  overflow: hidden;
-  flex: 1 1 auto;
-  color: var(--text-normal);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-workbench-root-file-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.novelview-workbench-root-file:hover .novelview-workbench-root-file-actions,
-.novelview-workbench-root-file:focus-within .novelview-workbench-root-file-actions {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.novelview-workbench-root-file-actions button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: var(--text-faint);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.novelview-workbench-root-file-actions button:hover {
-  color: var(--text-accent);
-  background: var(--background-modifier-border);
-}
-
-.novelview-workbench-root-file-actions svg {
-  width: 11px;
-  height: 11px;
-}
-
 /* Plain introduction editor with no mark-highlight overlay. */
 .novelview-setting-record-editor-panel
   textarea.novelview-setting-editor-textarea {
@@ -6524,2099 +6439,303 @@
   background: var(--background-modifier-border);
 }
 
-.novelview-setting-list-special-row .novelview-article-row-icon {
-  color: var(--text-muted);
-}
-
-.novelview-setting-list-special-row .novelview-article-row-count {
-  color: var(--text-faint);
-}
-
-/* CodeMirror-based special setting editors */
-.novelview-special-editor-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
+/* Article and setting-list toolbar labels */
+.novelview-article-toolbar-button.novelview-article-toolbar-settings,
+.novelview-article-toolbar-button.novelview-setting-toolbar-back-article {
+  width: 27px;
+  min-width: 27px;
+  height: 27px;
+  margin-left: auto;
   padding: 0;
-  color: var(--text-normal);
-  font-family: var(--font-interface);
-  background: var(--background-primary);
 }
 
-.novelview-special-editor-header {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-editor-title-block {
-  flex: 1;
-  min-width: 0;
-}
-
-.novelview-special-editor-title {
-  overflow: hidden;
-  color: var(--text-normal);
-  font-size: 15px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-editor-subtitle {
-  overflow: hidden;
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-editor-toolbar {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 3px;
-}
-
-.novelview-special-editor-toolbar button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-special-editor-toolbar button:hover {
-  color: var(--text-accent);
-  background: var(--background-modifier-hover);
-  border-color: var(--background-modifier-border);
-}
-
-.novelview-special-editor-toolbar svg {
-  width: 15px;
-  height: 15px;
-}
-
-.novelview-special-editor-status {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-special-editor-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
+/* Setting-group list rows */
+.novelview-setting-list-view {
   overflow: hidden;
 }
 
-.novelview-special-editor-source,
-.novelview-special-editor-preview {
-  display: none;
-  flex: 1 1 100%;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.novelview-special-editor-source.is-visible {
-  display: flex;
-}
-
-.novelview-special-editor-preview.is-visible {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--background-secondary);
-}
-
-.novelview-special-editor-display-label {
-  flex: 0 0 auto;
-  padding: 5px 10px;
-  color: var(--text-faint);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-editor-display-content {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  padding: 14px 18px;
-  overflow: auto;
-}
-
-.novelview-special-editor-panzoom .novelview-special-editor-display-content {
-  overflow: hidden;
-  cursor: grab;
-  touch-action: none;
-}
-
-.novelview-special-editor-panzoom
-  .novelview-special-editor-display-content.is-panning {
-  cursor: grabbing;
-}
-
-.novelview-special-editor-display-scene {
-  display: block;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 100%;
-  padding: 8px;
-  transform-origin: 0 0;
-  will-change: transform;
-}
-
-.novelview-special-editor-source-label {
-  flex: 0 0 auto;
-  padding: 5px 10px;
-  color: var(--text-faint);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-editor-codemirror {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.novelview-special-editor-codemirror .cm-editor {
-  height: 100%;
-}
-
-.novelview-special-editor-view.is-record-drop-target {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: -2px;
-}
-
-.novelview-special-editor-message,
-.novelview-special-editor-empty {
-  padding: 24px 12px;
-  color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.6;
-  text-align: center;
-}
-
-.novelview-special-timeline {
-  position: relative;
-  padding-left: 18px;
-}
-
-.novelview-special-timeline::before {
-  content: "";
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 5px;
-  width: 1px;
-  background: var(--background-modifier-border);
-}
-
-.novelview-special-timeline-item {
-  position: relative;
-  margin-bottom: 10px;
-}
-
-.novelview-special-timeline-dot {
-  position: absolute;
-  top: 10px;
-  left: -17px;
-  width: 7px;
-  height: 7px;
-  background: var(--interactive-accent);
-  border-radius: 50%;
-}
-
-.novelview-special-timeline-card {
-  padding: 7px 9px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-}
-
-.novelview-special-timeline-time {
-  color: var(--text-accent);
-  font-size: 9px;
-}
-
-.novelview-special-timeline-title {
-  margin-top: 2px;
-  color: var(--text-normal);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.novelview-special-timeline-description {
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.novelview-special-graph {
-  min-width: 300px;
-  min-height: 240px;
-  border-radius: 7px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--background-modifier-border) 18%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      color-mix(in srgb, var(--background-modifier-border) 18%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 24px 24px;
-}
-
-.novelview-special-graph svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.novelview-special-graph-edge {
-  stroke: color-mix(in srgb, var(--interactive-accent) 60%, var(--text-faint));
-  stroke-width: 1.2;
-}
-
-.novelview-special-graph-label {
-  fill: var(--text-muted);
-  font-size: 10px;
-  text-anchor: middle;
-}
-
-.novelview-special-graph-node circle {
-  fill: var(--background-primary);
-  stroke: var(--interactive-accent);
-  stroke-width: 1.4;
-}
-
-.novelview-special-graph-node text {
-  fill: var(--text-normal);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.novelview-special-branch ul {
-  margin: 0;
-  padding-left: 16px;
-  border-left: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-branch > ul {
-  padding-left: 2px;
-  border-left: none;
-}
-
-.novelview-special-branch li {
-  position: relative;
-  margin: 3px 0;
-  padding-left: 8px;
-  color: var(--text-normal);
-  font-size: 11px;
-  list-style: none;
-}
-
-.novelview-special-branch li::before {
-  content: "";
-  position: absolute;
-  top: 9px;
-  left: -1px;
-  width: 6px;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-branch-node {
-  display: inline-block;
-  padding: 2px 6px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-}
-
-@media (max-width: 760px) {
-  .novelview-special-editor-preview.is-visible {
-    padding: 10px;
-  }
-}
-
-
-.novelview-special-timeline-card.is-clickable,
-.novelview-special-graph-node.is-clickable,
-.novelview-special-branch-node.is-clickable {
-  cursor: pointer;
-}
-
-.novelview-special-timeline-card.is-clickable:hover {
-  border-color: var(--interactive-accent);
-}
-
-.novelview-special-branch-node.is-clickable:hover {
-  color: var(--text-accent);
-  border-color: var(--interactive-accent);
-}
-
-/* Minimal special editor chrome: only the source/display toggle */
-.novelview-special-editor-view {
-  position: relative;
-}
-
-.novelview-special-editor-toggle {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  z-index: 20;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--text-muted);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  box-shadow: var(--shadow-s, 0 2px 6px rgba(0, 0, 0, 0.12));
-  cursor: pointer;
-}
-
-.novelview-special-editor-toggle:hover {
-  color: var(--text-accent);
-  border-color: var(--interactive-accent);
-}
-
-.novelview-special-editor-toggle svg {
-  width: 15px;
-  height: 15px;
-}
-
-.novelview-special-graph-node {
-  cursor: grab;
-}
-
-.novelview-special-graph-node:active {
-  cursor: grabbing;
-}
-
-/* Relationship graph editing */
-.novelview-special-graph-edge {
-  fill: none;
-}
-
-.novelview-special-graph-arrow {
-  fill: var(--interactive-accent);
-}
-
-.novelview-special-graph-label {
-  paint-order: stroke;
-  stroke: var(--background-secondary);
-  stroke-width: 3px;
-  stroke-linejoin: round;
-}
-
-.novelview-special-graph-connect-preview {
-  fill: none;
-  stroke: var(--interactive-accent);
-  stroke-width: 1.4;
-  stroke-dasharray: 4 3;
-  pointer-events: none;
-}
-
-.novelview-special-graph-node.is-connect-target circle:first-child {
-  fill: color-mix(
-    in srgb,
-    var(--interactive-accent) 18%,
-    var(--background-primary)
-  );
-  stroke-width: 2.2;
-}
-
-
-/* Hover feedback: no helper balls on the canvas */
-.novelview-special-graph-edge-hit {
-  fill: none;
-  stroke: transparent;
-  stroke-width: 14;
-  pointer-events: stroke;
-  cursor: ew-resize;
-}
-
-.novelview-special-graph-edge-group:hover
-  .novelview-special-graph-edge {
-  stroke-width: 3;
-}
-
-.novelview-special-graph-node > circle:first-child {
-  transition: r 0.12s ease-out, stroke-width 0.12s ease-out;
-}
-
-.novelview-special-graph-node > circle.is-border-hover {
-  stroke-width: 3.4;
-}
-
-.novelview-special-graph-node > circle.is-inside-hover {
-  r: 22px;
-}
-
-.novelview-special-graph-node {
-  cursor: grab;
-}
-
-/* Timeline orientation and bounded canvas */
-.novelview-special-timeline-controls {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  z-index: 10;
-}
-
-.novelview-special-timeline-controls button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 7px;
-  color: var(--text-muted);
-  font-size: 9px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-special-timeline-controls button:hover {
-  color: var(--text-accent);
-  border-color: var(--interactive-accent);
-}
-
-.novelview-special-timeline-controls svg {
-  width: 12px;
-  height: 12px;
-}
-
-.novelview-special-timeline-canvas {
-  box-sizing: border-box;
-  width: max-content;
-  max-width: 100%;
-  min-width: 260px;
-  min-height: 180px;
-  padding: 34px 16px 16px;
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: 8px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--background-modifier-border) 20%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      color-mix(in srgb, var(--background-modifier-border) 20%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 24px 24px;
-}
-
-.novelview-special-timeline-canvas.is-horizontal .novelview-special-timeline {
-  display: flex;
-  gap: 10px;
-  width: max-content;
-  min-height: 150px;
-  padding: 16px 0 0;
-}
-
-.novelview-special-timeline-canvas.is-horizontal
-  .novelview-special-timeline::before {
-  top: 12px;
-  right: 0;
-  bottom: auto;
-  left: 0;
-  width: auto;
-  height: 1px;
-}
-
-.novelview-special-timeline-canvas.is-horizontal
-  .novelview-special-timeline-item {
-  width: 160px;
-  margin: 0;
-}
-
-.novelview-special-timeline-canvas.is-horizontal
-  .novelview-special-timeline-dot {
-  top: -8px;
-  left: 12px;
-}
-
-.novelview-special-branch-canvas {
-  box-sizing: border-box;
-  width: max-content;
-  max-width: 100%;
-  min-width: 260px;
-  min-height: 180px;
-  padding: 18px;
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: 8px;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--background-modifier-border) 20%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      color-mix(in srgb, var(--background-modifier-border) 20%, transparent) 1px,
-      transparent 1px
-    );
-  background-size: 24px 24px;
-}
-
-.novelview-special-branch-node {
-  padding: 5px 10px;
-  font-size: 13px;
-}
-
-.novelview-special-branch-node.is-drag-target {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border-color: var(--interactive-accent);
-}
-
-.novelview-special-branch-node.is-dragging {
-  opacity: 0.45;
-}
-
-.novelview-special-graph-boundary {
-  fill: none;
-  stroke: var(--background-modifier-border);
-  stroke-width: 1.4;
-  stroke-dasharray: 7 5;
-  pointer-events: none;
-}
-
-/* FCP-like multi-track timeline */
-.novelview-special-timeline-canvas.is-fcp {
-  width: 100%;
-  max-width: 100%;
-  padding: 34px 16px 16px;
-}
-
-.novelview-special-timeline-board {
-  min-width: 0;
-}
-
-.novelview-special-timeline-ruler {
-  display: flex;
-  height: 24px;
-  margin-bottom: 4px;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-special-timeline-ruler-label {
-  flex: 0 0 86px;
-  padding-right: 10px;
-  text-align: right;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.novelview-special-timeline-ruler-track {
-  position: relative;
-  flex: 1;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-timeline-tick {
-  position: absolute;
-  top: -4px;
-  height: 8px;
-  border-left: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-timeline-tick span {
-  position: absolute;
-  top: 9px;
-  left: 3px;
-  white-space: nowrap;
-}
-
-.novelview-special-timeline-row {
-  display: flex;
-  min-height: 42px;
-  border-top: 1px solid
-    color-mix(in srgb, var(--background-modifier-border) 55%, transparent);
-}
-
-.novelview-special-timeline-row-label {
-  display: flex;
-  flex: 0 0 86px;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 10px;
-  color: var(--text-muted);
-  font-size: 9px;
-}
-
-.novelview-special-timeline-lane {
-  position: relative;
-  flex: 1;
-  min-height: 42px;
-  border-left: 1px solid var(--background-modifier-border);
-  background-image: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--background-modifier-border) 28%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 16.666% 100%;
-}
-
-.novelview-special-timeline-bar {
-  position: absolute;
-  top: 7px;
-  display: flex;
-  align-items: stretch;
-  min-width: 22px;
-  height: 28px;
-  overflow: visible;
-  color: var(--text-on-accent);
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 82%,
-    var(--background-primary)
-  );
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  cursor: grab;
-}
-
-.novelview-special-timeline-bar:active {
-  cursor: grabbing;
-}
-
-.novelview-special-timeline-handle {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  z-index: 2;
-  width: 8px;
-  cursor: ew-resize;
-}
-
-.novelview-special-timeline-handle.is-start {
-  left: -4px;
-  border-left: 2px solid var(--background-primary);
-}
-
-.novelview-special-timeline-handle.is-end {
-  right: -4px;
-  border-right: 2px solid var(--background-primary);
-}
-
-.novelview-special-timeline-bar-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  padding: 0 9px;
-  overflow: hidden;
-}
-
-.novelview-special-timeline-bar-title {
-  overflow: hidden;
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-timeline-bar-time {
-  overflow: hidden;
-  font-size: 9px;
-  opacity: 0.8;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-timeline-track {
-  margin-top: 3px;
-  color: var(--text-faint);
-  font-size: 8px;
-}
-
-/* Mind-map branch controls */
-.novelview-special-branch-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  margin-right: 3px;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-special-branch-toggle:hover {
-  color: var(--interactive-accent);
-}
-
-.novelview-special-branch-toggle.is-empty {
-  display: inline-block;
-  width: 15px;
-  height: 1px;
-}
-
-/* Mind-map branch layout */
-.novelview-special-branch-mindmap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 10px;
-}
-
-.novelview-special-branch-mind-node {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 22px;
-}
-
-.novelview-special-branch-mind-row {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 4px;
-}
-
-.novelview-special-branch-mind-children {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding-left: 18px;
-}
-
-.novelview-special-branch-mind-children::before {
-  content: "";
-  position: absolute;
-  top: 18px;
-  bottom: 18px;
-  left: 7px;
-  border-left: 1.5px solid var(--background-modifier-border);
-}
-
-.novelview-special-branch-mind-children
-  > .novelview-special-branch-mind-node::before {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -11px;
-  width: 11px;
-  border-top: 1.5px solid var(--background-modifier-border);
-}
-
-.novelview-special-branch-mindmap
-  > .novelview-special-branch-mind-node
-  > .novelview-special-branch-mind-row
-  > .novelview-special-branch-node {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.novelview-special-branch-mind-row > .novelview-special-branch-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 50%;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-special-branch-mind-row > .novelview-special-branch-toggle:hover {
-  color: var(--accent-color);
-  border-color: var(--interactive-accent);
-}
-
-/* Vertical track timeline (same FCP blocks, time flows downward) */
-.novelview-special-timeline-canvas.is-fcp.is-vertical {
-  width: max-content;
-  min-width: 320px;
-  max-width: 100%;
-}
-
-.novelview-special-timeline-vboard {
-  display: flex;
-  min-height: 420px;
-  max-height: 62vh;
-  gap: 2px;
-  overflow: auto;
-}
-
-.novelview-special-timeline-vcol {
-  display: flex;
-  flex: 1 0 132px;
-  flex-direction: column;
-  min-width: 132px;
-}
-
-.novelview-special-timeline-vcol-label {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  color: var(--text-muted);
-  font-size: 9px;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-timeline-vlane {
-  position: relative;
-  flex: 1;
-  min-height: 360px;
-  border-left: 1px solid var(--background-modifier-border);
-  background-image: linear-gradient(
-    color-mix(in srgb, var(--background-modifier-border) 24%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 100% 10%;
-}
-
-.novelview-special-timeline-vbar {
-  position: absolute;
-  right: 7px;
-  left: 7px;
-  display: flex;
-  align-items: stretch;
-  min-height: 24px;
-  color: var(--text-on-accent);
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 82%,
-    var(--background-primary)
-  );
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-  cursor: grab;
-}
-
-.novelview-special-timeline-vhandle {
-  position: absolute;
-  right: -2px;
-  left: -2px;
-  z-index: 2;
-  height: 8px;
-  cursor: ns-resize;
-}
-
-.novelview-special-timeline-vhandle.is-start {
-  top: -4px;
-  border-top: 2px solid var(--background-primary);
-}
-
-.novelview-special-timeline-vhandle.is-end {
-  bottom: -4px;
-  border-bottom: 2px solid var(--background-primary);
-}
-
-.novelview-special-timeline-vbar-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  min-height: 0;
-  padding: 3px 7px;
-  overflow: hidden;
-}
-
-.novelview-special-timeline-vbar-title {
-  overflow: hidden;
-  font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-timeline-vbar-time {
-  overflow: hidden;
-  font-size: 8px;
-  opacity: 0.8;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Center display canvases in the viewport */
-.novelview-special-editor-panzoom
-  .novelview-special-editor-display-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.novelview-special-editor-panzoom
-  .novelview-special-editor-display-scene {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-width: 0;
-  min-height: 0;
-  margin: auto;
-}
-
-.novelview-special-editor-panzoom
-  .novelview-special-editor-display-scene
-  > * {
-  flex: 0 0 auto;
-}
-
-/* CodeMirror source polish */
-.novelview-special-editor-source.is-visible {
-  background: var(--background-primary);
-}
-
-.novelview-special-editor-codemirror,
-.novelview-special-editor-codemirror .cm-editor {
-  height: 100%;
-}
-
-.novelview-special-editor-codemirror .cm-scroller {
-  overflow: auto;
-}
-
-.novelview-special-editor-codemirror .cm-content {
-  box-sizing: border-box;
-  max-width: 980px;
-  min-height: 100%;
-  margin: 0 auto;
-  padding: 42px 24px 56px;
-  font-family: var(--font-monospace);
-  font-size: 13px;
-  line-height: 1.8;
-}
-
-.novelview-special-editor-codemirror .cm-gutters {
-  padding-top: 42px;
-  color: var(--text-faint);
-  background: transparent;
-  border-right: none;
-}
-
-.novelview-special-editor-codemirror .cm-activeLine,
-.novelview-special-editor-codemirror .cm-activeLineGutter {
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 5%,
-    transparent
-  );
-}
-
-.novelview-special-editor-codemirror .cm-selectionBackground {
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 22%,
-    transparent
-  ) !important;
-}
-
-/* Default text-mark collection */
 .novelview-setting-list-mark-row {
-  margin-bottom: 6px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 8%,
-    var(--background-primary)
-  );
-  border: 1px solid color-mix(
-    in srgb,
-    var(--interactive-accent) 28%,
-    var(--background-modifier-border)
-  );
-}
-
-.novelview-setting-list-mark-row .novelview-article-row-icon {
-  color: var(--interactive-accent);
+  gap: 7px;
 }
 
 .novelview-setting-list-mark-badge {
-  margin-left: auto;
+  flex: 0 0 auto;
   padding: 1px 5px;
-  color: var(--text-on-accent);
-  font-size: 8px;
-  font-weight: 700;
-  background: var(--interactive-accent);
-  border-radius: 8px;
-}
-
-.novelview-mark-collection-view {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  overflow: auto;
-  background: var(--background-primary);
-}
-
-.novelview-mark-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 18px 12px;
-  padding: 14px 16px;
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--interactive-accent) 12%, transparent),
-      transparent 70%
-    ),
-    var(--background-primary);
-  border: 1px solid color-mix(
-    in srgb,
-    var(--interactive-accent) 24%,
-    var(--background-modifier-border)
-  );
-  border-radius: 10px;
-}
-
-.novelview-mark-header-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border-radius: 9px;
-}
-
-.novelview-mark-header-icon svg {
-  width: 19px;
-  height: 19px;
-}
-
-.novelview-mark-title-block {
-  flex: 1;
-  min-width: 0;
-}
-
-.novelview-mark-title {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.novelview-mark-subtitle {
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.novelview-mark-count {
-  color: var(--text-faint);
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.novelview-mark-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
-  padding: 0 18px 24px;
-}
-
-.novelview-mark-card {
-  overflow: hidden;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 9px;
-}
-
-.novelview-mark-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 11px;
+  color: var(--text-accent);
+  font-size: 8.5px;
+  line-height: 1.4;
   background: color-mix(
     in srgb,
-    var(--interactive-accent) 7%,
-    var(--background-secondary)
+    var(--interactive-accent) 12%,
+    transparent
   );
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
 }
 
-.novelview-mark-card-label {
-  overflow: hidden;
-  padding: 1px 6px;
-  color: var(--text-on-accent);
-  font-size: 11px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: var(--interactive-accent);
-  border-radius: 4px;
+.novelview-setting-list-detail-row .novelview-article-row-icon {
+  color: var(--text-muted);
 }
 
-.novelview-mark-card-count {
-  color: var(--text-faint);
+.novelview-setting-inline-error {
+  flex: 0 0 100%;
+  min-height: 1.2em;
+  color: var(--text-error);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.novelview-setting-list-row.is-renaming {
+  flex-wrap: wrap;
+}
+
+/* Pending/control-group count beside chapter words */
+.novelview-article-row-pending {
+  padding: 1px 5px;
+  color: var(--text-normal);
   font-size: 9px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(
+    in srgb,
+    var(--color-green, #4caf50) 17%,
+    transparent
+  );
+  border: 1px solid color-mix(
+    in srgb,
+    var(--color-green, #4caf50) 62%,
+    transparent
+  );
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
-.novelview-mark-occurrence-list {
-  display: flex;
-  flex-direction: column;
+/* Collapsible setting tags and text-mark cards */
+.novelview-setting-collection-tag-body.is-collapsed {
+  display: none;
 }
 
-.novelview-mark-occurrence {
+.novelview-setting-collection-tag-title[role="button"] {
+  cursor: pointer;
+}
+
+.novelview-setting-collection-tag.is-collapsed
+  .novelview-setting-collection-tag-title {
+  border-bottom-color: transparent;
+}
+
+/* Text-mark description */
+.novelview-mark-note {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
-  padding: 7px 10px;
-  color: var(--text-normal);
-  text-align: left;
+  gap: 8px;
+  margin: 2px 0 8px;
+  padding: 7px 8px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
+.novelview-mark-note-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.novelview-mark-note-text.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.novelview-mark-note-edit {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-faint);
   background: transparent;
   border: none;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--background-modifier-border) 45%, transparent);
+  border-radius: 4px;
   box-shadow: none;
   cursor: pointer;
 }
 
-.novelview-mark-occurrence:last-child {
-  border-bottom: none;
-}
-
-.novelview-mark-occurrence:hover {
+.novelview-mark-note-edit:hover {
+  color: var(--text-accent);
   background: var(--background-modifier-hover);
 }
 
-.novelview-mark-file-icon {
-  color: var(--text-faint);
-  margin-top: 1px;
-}
-
-.novelview-mark-file-icon svg {
-  width: 12px;
-  height: 12px;
-}
-
-.novelview-mark-occurrence-info {
-  min-width: 0;
-}
-
-.novelview-mark-file {
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.novelview-mark-snippet {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-mark-empty {
-  margin: 24px 18px;
-  padding: 28px;
-  color: var(--text-muted);
-  text-align: center;
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: 10px;
-}
-
-.novelview-mark-collection-view .novelview-mark-title,
-.novelview-mark-collection-view .novelview-mark-count {
-  white-space: nowrap;
-}
-
-.novelview-mark-collection-view .novelview-mark-header {
-  min-width: 0;
-}
-
-.novelview-mark-modal {
-  width: min(820px, 92vw);
-  max-height: 82vh;
-}
-
-.novelview-mark-modal .modal-content {
-  padding: 0;
-  overflow: auto;
-}
-
-.novelview-mark-modal .novelview-mark-header {
-  margin-top: 8px;
-}
-
-
-.novelview-special-branch-root-node {
-  font-size: 14px;
-  font-weight: 700;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    var(--background-primary)
-  );
-  border-color: color-mix(
-    in srgb,
-    var(--interactive-accent) 40%,
-    var(--background-modifier-border)
-  );
-}
-
-.novelview-special-branch-mind-node.is-virtual-root
-  > .novelview-special-branch-mind-row
-  > .novelview-special-branch-node {
-  padding: 6px 11px;
-}
-
-
-.novelview-mark-collection-view .novelview-mark-header {
-  flex-wrap: wrap;
-}
-
-.novelview-mark-collection-view .novelview-mark-title-block {
-  flex-basis: 150px;
-}
-
-.novelview-mark-collection-view .novelview-mark-count {
-  margin-left: 46px;
-}
-
-.novelview-mark-collection-view .novelview-mark-grid {
-  grid-template-columns: 1fr;
-}
-
-/* Clear mind-map connectors */
-.novelview-special-branch-mind-children::before {
-  top: 20px;
-  bottom: 20px;
-  left: 8px;
-  border-left: 1.5px solid var(--text-faint);
-}
-
-.novelview-special-branch-mind-children::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: -22px;
-  width: 30px;
-  border-top: 1.5px solid var(--text-faint);
-}
-
-.novelview-special-branch-mind-children
-  > .novelview-special-branch-mind-node::before {
-  left: -10px;
-  width: 18px;
-  border-top: 1.5px solid var(--text-faint);
-}
-
-/* Text marks reuse setting collection cards */
-.novelview-mark-collection-view {
-  box-sizing: border-box;
-  height: 100%;
-  padding: 8px 10px 22px;
-  overflow: auto;
-  background: var(--background-primary);
-}
-
-.novelview-mark-tag-body {
-  display: block;
-}
-
-.novelview-mark-entry {
-  position: relative;
-  padding: 6px 4px 6px 13px;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.novelview-mark-entry .novelview-setting-collection-content {
-  display: block;
-}
-
-.novelview-mark-entry-text {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-mark-entry-meta {
-  margin-top: 1px;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-mark-entry.is-pressed {
-  background: var(--background-modifier-hover);
-}
-
-.novelview-mark-entry.is-dragging {
-  opacity: 0.55;
-}
-
-.novelview-mark-conflict {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 7px 9px;
-  color: var(--text-warning);
-  font-size: 10px;
-  line-height: 1.45;
-  background: color-mix(in srgb, var(--color-orange) 8%, transparent);
-  border: 1px solid color-mix(
-    in srgb,
-    var(--color-orange) 35%,
-    var(--background-modifier-border)
-  );
-  border-radius: 6px;
-}
-
-.novelview-mark-conflict-icon {
-  flex: 0 0 auto;
-  margin-top: 1px;
-}
-
-.novelview-mark-conflict-icon svg {
+.novelview-mark-note-edit svg {
   width: 13px;
   height: 13px;
 }
 
-.novelview-setting-toolbar-back-article {
-  margin-left: auto !important;
+.novelview-mark-note-textarea {
+  width: 100%;
+  min-height: 130px;
+  resize: vertical;
+  font-family: var(--font-interface);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.novelview-article-toolbar-settings {
-  margin-left: auto !important;
+/* Persistent expanded/collapsed states */
+.novelview-setting-collection-tag.is-collapsed
+  > .novelview-setting-collection-tag-body {
+  display: none !important;
 }
 
-.novelview-setting-toolbar-back-article
-  .novelview-article-toolbar-back-label,
-.novelview-article-toolbar-settings-label {
-  margin-left: 2px;
-  font-size: 10px;
+.novelview-setting-collection-tag.is-expanded
+  > .novelview-setting-collection-tag-body {
+  display: grid !important;
 }
 
-.novelview-setting-toolbar-back-article,
-.novelview-article-toolbar-settings {
-  width: auto !important;
-  min-width: 27px;
-  gap: 4px;
-  padding: 0 7px;
+.novelview-mark-tag.is-collapsed > .novelview-mark-tag-body {
+  display: none !important;
 }
 
-/* Mark instances are list rows, not poker-style setting cards */
-.novelview-mark-tag-body {
+.novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
   display: block !important;
 }
 
-.novelview-mark-tag-body > .novelview-mark-entry {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  min-height: 0 !important;
-  padding: 6px 4px 6px 13px !important;
-  aspect-ratio: auto !important;
+/* Collection search */
+.novelview-collection-search {
+  margin-top: 6px;
 }
 
-.novelview-mark-entry-info {
-  flex: 1;
+.novelview-collection-search-input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 25px;
+  padding: 0 7px;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 10px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.novelview-collection-search-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.is-search-hidden {
+  display: none !important;
+}
+
+/* Text-mark excerpt cards: compact, content-driven, reorderable */
+.novelview-mark-entries {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding-top: 6px;
+}
+
+.novelview-mark-entry {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  box-sizing: border-box;
   min-width: 0;
-}
-
-.novelview-mark-entry .novelview-setting-collection-drag-grip {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  margin-top: 2px;
+  min-height: 42px;
+  padding: 9px 7px 7px;
+  overflow: visible;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
   cursor: grab;
 }
 
-.novelview-mark-entry .novelview-setting-collection-drag-grip svg {
-  width: 10px;
-  height: 10px;
-}
-
-
-/* Only the mark list uses a compact record icon; setting cards keep their own icon scale */
-.novelview-mark-collection-view
-  .novelview-setting-collection-entry-icon {
-  flex: 0 0 18px;
-  width: 18px;
-  height: 18px;
-  overflow: hidden;
-}
-
-.novelview-mark-collection-view
-  .novelview-setting-collection-entry-icon svg {
-  width: 14px !important;
-  height: 14px !important;
-  max-width: 14px !important;
-  max-height: 14px !important;
-}
-
-.novelview-mark-collection-view
-  .novelview-setting-collection-entry-icon img {
-  width: 14px;
-  height: 14px;
-}
-
-.novelview-graph-rename-input {
-  position: absolute;
-  z-index: 30;
-  min-width: 140px;
-  max-width: 240px;
-  padding: 4px 7px;
-  color: var(--text-normal);
-  font-size: 11px;
-  background: var(--background-primary);
-  border: 1px solid var(--interactive-accent);
-  border-radius: 5px;
-  outline: none;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.novelview-graph-rename-input.is-invalid {
-  border-color: var(--text-error);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-error) 20%, transparent);
-}
-
-.novelview-setting-list-row.is-renaming {
-  cursor: text;
-}
-
-.novelview-setting-inline-error {
-  flex: 1 0 100%;
-  margin-top: 2px;
-  color: var(--text-error);
-  font-size: 9px;
-  white-space: normal;
-}
-
-.novelview-inline-rename.is-invalid {
-  border-color: var(--text-error);
-}
-
-.novelview-setting-list-row.is-renaming {
-  flex-wrap: wrap;
-}
-
-/* Graph rounded rectangle container nodes */
-.novelview-special-graph-container {
-  cursor: move;
-}
-
-.novelview-special-graph-container-rect {
-  fill: color-mix(
-    in srgb,
-    var(--interactive-accent) 7%,
-    var(--background-primary)
-  );
-  stroke: color-mix(
-    in srgb,
-    var(--interactive-accent) 55%,
-    var(--background-modifier-border)
-  );
-  stroke-width: 1.5;
-  stroke-dasharray: none;
-}
-
-.novelview-special-graph-container:hover
-  > .novelview-special-graph-container-rect {
-  stroke-width: 2.4;
-}
-
-.novelview-special-graph-container-label {
-  fill: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-  pointer-events: none;
-}
-
-/* Unbound containers use a dashed border; bound containers are solid */
-.novelview-special-graph-container.is-unrecorded
-  > .novelview-special-graph-container-rect {
-  stroke-dasharray: 5 4;
-}
-
-/* Ordinary nodes without a matching setting record */
-.novelview-special-graph-node.is-unrecorded > circle:first-child {
-  stroke-dasharray: 4 3;
-}
-
-.novelview-setting-record-relations {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin-top: 5px;
-}
-
-.novelview-setting-record-relation-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  color: var(--text-normal);
-  font-size: 10px;
-  text-align: left;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-setting-record-relation-row:hover {
-  border-color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
-}
-
-.novelview-setting-record-relation-direction {
-  display: inline-flex;
-  color: var(--text-faint);
-}
-
-.novelview-setting-record-relation-direction svg {
-  width: 12px;
-  height: 12px;
-}
-
-.novelview-setting-record-relation-label {
-  color: var(--text-muted);
-}
-
-.novelview-setting-record-relation-target {
-  margin-left: auto;
-  color: var(--text-accent);
-  font-weight: 600;
-}
-
-/* Container border vs interior feedback */
-.novelview-special-graph-container-rect.is-border-hover {
-  stroke-width: 3.5;
-  fill: color-mix(
-    in srgb,
-    var(--interactive-accent) 9%,
-    var(--background-primary)
-  );
-}
-
-.novelview-special-graph-container-rect.is-inside-hover {
-  fill: color-mix(
-    in srgb,
-    var(--interactive-accent) 14%,
-    var(--background-primary)
-  );
-  stroke-width: 2;
-}
-
-.novelview-special-timeline-bar.is-bound,
-.novelview-special-timeline-vbar.is-bound {
-  border: 1px solid color-mix(in srgb, var(--interactive-accent) 75%, white);
-}
-
-.novelview-special-timeline-bar.is-unbound,
-.novelview-special-timeline-vbar.is-unbound {
-  border: 1px dashed var(--text-faint);
-  opacity: 0.78;
-}
-
-.novelview-special-branch-node.is-bound {
-  border-style: solid;
+.novelview-mark-entry:hover {
   border-color: color-mix(
     in srgb,
-    var(--interactive-accent) 55%,
+    var(--interactive-accent) 35%,
     var(--background-modifier-border)
   );
 }
 
-.novelview-special-branch-node.is-unbound {
-  border-style: dashed;
-  color: var(--text-muted);
-}
-
-.novelview-special-branch-node.is-focused {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: 1px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    var(--background-primary)
-  );
-}
-
-/* Special editor mode controls and source readability */
-.novelview-special-editor-toggle {
-  right: 10px;
-  width: auto;
-  min-width: 54px;
-  gap: 4px;
-  padding: 0 8px;
-}
-
-.novelview-special-editor-toggle-label {
-  font-size: 10px;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.novelview-special-editor-toggle.is-source-mode {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border-color: var(--interactive-accent);
-}
-
-.novelview-special-editor-reset {
+.novelview-mark-entry > .novelview-setting-collection-drag-grip {
   position: absolute;
-  top: 8px;
-  right: 74px;
-  z-index: 20;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  color: var(--text-muted);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  cursor: pointer;
+  top: 3px;
+  left: 3px;
+  opacity: 0;
 }
 
-.novelview-special-editor-reset:hover {
-  color: var(--text-accent);
-  border-color: var(--interactive-accent);
+.novelview-mark-entry:hover > .novelview-setting-collection-drag-grip {
+  opacity: 0.7;
 }
 
-.novelview-special-editor-source-hint {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 12px;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.4;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-editor-source-help {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-special-editor-source-hint .novelview-special-editor-status {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-special-editor-body {
-  min-height: 0;
-}
-
-.novelview-special-editor-codemirror {
-  flex: 1;
-  min-height: 0;
-}
-
-.novelview-special-editor-codemirror .cm-editor {
-  height: 100%;
-}
-
-.novelview-special-editor-codemirror .cm-scroller {
-  font-family: var(--font-monospace, monospace);
-  scroll-behavior: smooth;
-}
-
-.novelview-special-editor-codemirror .cm-content {
-  max-width: none;
-  margin: 0;
-  padding: 24px 26px 90px !important;
-  font-size: 13.5px !important;
-  line-height: 1.9 !important;
-  letter-spacing: 0.01em;
-}
-
-.novelview-special-editor-codemirror .cm-line {
-  padding: 0 2px;
-}
-
-.novelview-special-editor-codemirror .cm-gutters {
-  min-width: 38px;
-  padding: 24px 0 90px;
-  color: var(--text-faint);
-  background: var(--background-secondary);
-  border-right: 1px solid var(--background-modifier-border);
-}
-
-.novelview-special-editor-codemirror .cm-lineNumbers .cm-gutterElement {
-  min-width: 26px;
-  padding: 0 8px 0 0;
-  text-align: right;
-  font-size: 10px;
-}
-
-.novelview-special-editor-codemirror .cm-activeLine {
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 8%,
-    transparent
-  );
-  border-radius: 3px;
-}
-
-.novelview-special-editor-codemirror .cm-activeLineGutter {
-  color: var(--text-accent);
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 10%,
-    transparent
-  );
-}
-
-.novelview-special-editor-codemirror .cm-selectionBackground {
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 24%,
-    transparent
-  ) !important;
-}
-
-.novelview-special-editor-codemirror .cm-cursor {
-  border-left-color: var(--interactive-accent);
-  border-left-width: 2px;
-}
-
-.novelview-setting-record-relation-direction-label {
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-/* Vertical-only timeline: horizontal wheel scrolling and no cursor grab */
-.novelview-timeline-mode .novelview-special-editor-display-content {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  cursor: default !important;
-}
-
-.novelview-timeline-mode .novelview-special-editor-display-scene {
-  transform-origin: 0 0;
-}
-
-.novelview-timeline-mode .novelview-special-timeline-vboard {
-  gap: var(--timeline-gap, 2px);
-}
-
-/* Refined branch connectors */
-.novelview-special-branch-mind-children {
-  gap: 14px;
-  padding-left: 22px;
-}
-
-.novelview-special-branch-mind-children::before {
-  left: 8px;
-  width: 2px;
-  border-left: none;
-  border-radius: 2px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 38%,
-    var(--background-modifier-border)
-  );
-}
-
-.novelview-special-branch-mind-children::after {
-  left: -22px;
-  width: 30px;
-  height: 2px;
-  border-top: none;
-  border-radius: 2px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 38%,
-    var(--background-modifier-border)
-  );
-}
-
-.novelview-special-branch-mind-children
-  > .novelview-special-branch-mind-node::before {
-  left: -10px;
-  width: 18px;
-  height: 2px;
-  border-top: none;
-  border-radius: 2px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 38%,
-    var(--background-modifier-border)
-  );
-}
-
-.novelview-timeline-mode .novelview-special-editor-display-scene {
-  justify-content: flex-start;
-}
-
-.novelview-timeline-mode .novelview-special-editor-display-scene > * {
-  flex: 0 0 auto;
-}
-
-/* Horizontal-only timeline: wheel scrolls horizontally, Shift adjusts row gap */
-.novelview-timeline-mode .novelview-special-editor-display-scene {
-  justify-content: flex-start;
-}
-
-.novelview-timeline-mode .novelview-special-timeline-canvas {
-  width: max(100%, 900px);
-  max-width: none;
-}
-
-.novelview-timeline-mode .novelview-special-timeline-board {
-  display: flex;
-  flex-direction: column;
-  gap: var(--timeline-gap, 2px);
-}
-
-.novelview-timeline-mode .novelview-special-timeline-row {
-  min-height: 42px;
-}
-
-.novelview-timeline-mode .novelview-special-timeline-board {
-  gap: 2px;
-}
-
-/* Timeline item categories */
-.novelview-special-timeline-bar.is-setting-record {
-  color: #fff;
-  background: #6c5ce7;
-  border: 1px solid #6c5ce7;
-}
-
-.novelview-special-timeline-bar.is-setting-record .novelview-special-timeline-handle.is-start,
-.novelview-special-timeline-bar.is-setting-record .novelview-special-timeline-handle.is-end {
-  border-color: rgba(255, 255, 255, 0.8);
-}
-
-.novelview-special-timeline-bar.is-text-mark {
-  color: #fff;
-  background: transparent;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
-}
-
-.novelview-special-timeline-bar.is-unknown {
-  color: #fff;
-  background: transparent;
-  border: 1.5px dashed rgba(255, 255, 255, 0.92);
-}
-
-.novelview-special-timeline-bar.is-text-mark
-  .novelview-special-timeline-handle,
-.novelview-special-timeline-bar.is-unknown
-  .novelview-special-timeline-handle {
-  border-color: #fff;
-}
-
-.novelview-special-timeline-bar.is-setting-record
-  .novelview-special-timeline-bar-title,
-.novelview-special-timeline-bar.is-text-mark
-  .novelview-special-timeline-bar-title,
-.novelview-special-timeline-bar.is-unknown
-  .novelview-special-timeline-bar-title {
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
-
-/* Floating timeline information card */
-.novelview-timeline-info-card {
-  position: fixed;
-  z-index: 1400;
-  width: 260px;
-  padding: 10px 12px;
-  color: var(--text-normal);
-  font-size: 11px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.26);
-}
-
-.novelview-timeline-info-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 7px;
-  margin-bottom: 5px;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-timeline-info-title {
-  overflow: hidden;
-  color: var(--text-normal);
-  font-size: 12px;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-timeline-info-type {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-timeline-info-row {
-  display: flex;
-  gap: 8px;
-  padding: 2px 0;
-}
-
-.novelview-timeline-info-name {
-  flex: 0 0 34px;
-  color: var(--text-faint);
-}
-
-.novelview-timeline-info-value {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-normal);
-  word-break: break-word;
-}
-
-/* SVG curved branch connectors */
-.novelview-special-branch-mindmap {
-  position: relative;
-}
-
-.novelview-special-branch-links {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.novelview-special-branch-link {
-  fill: none;
-  stroke: color-mix(
-    in srgb,
-    var(--interactive-accent) 52%,
-    var(--text-faint)
-  );
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-
-.novelview-special-branch-link-dot {
-  fill: var(--background-primary);
-  stroke: color-mix(
-    in srgb,
-    var(--interactive-accent) 58%,
-    var(--text-faint)
-  );
-  stroke-width: 1.4;
-}
-
-.novelview-special-branch-mind-node {
-  z-index: 1;
-  gap: 28px;
-}
-
-.novelview-special-branch-mind-row {
-  position: relative;
-  z-index: 2;
-}
-
-.novelview-special-branch-mind-children {
-  z-index: 1;
-  gap: 16px;
-  padding-left: 26px;
-}
-
-/* old pseudo-element elbows are no longer used */
-.novelview-special-branch-mind-children::before,
-.novelview-special-branch-mind-children::after,
-.novelview-special-branch-mind-node::before {
+.novelview-mark-entry > .novelview-setting-collection-entry-icon {
   display: none;
 }
 
-/* Fixed timeline viewport: adding items must not resize the axis area */
-.novelview-timeline-mode .novelview-special-editor-display-scene {
-  height: 100%;
-  min-height: 0;
+.novelview-mark-entry-info {
+  min-width: 0;
+  width: 100%;
 }
 
-.novelview-timeline-mode .novelview-special-timeline-canvas {
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: visible;
+.novelview-mark-entry-text {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
-/* Keep the fixed timeline canvas vertically centered */
-.novelview-timeline-mode .novelview-special-editor-display-content {
-  align-items: center;
+.novelview-mark-entry-meta {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.novelview-timeline-mode .novelview-special-editor-display-scene {
-  align-items: center;
+.novelview-mark-entry.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
 }
 
-.novelview-timeline-mode .novelview-special-timeline-canvas {
-  height: 100%;
-  max-height: min(720px, 100%);
-  display: flex;
-  flex-direction: column;
+.novelview-mark-entry.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
 }
 
-.novelview-timeline-mode .novelview-special-timeline-board {
-  margin-block: auto;
+@media (max-width: 420px) {
+  .novelview-mark-entries {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Never reveal card content on hover; only explicit expanded state does. */
+.novelview-mark-collection-view
+  .novelview-setting-collection-tag:not(.is-expanded)
+  > .novelview-setting-collection-tag-body,
+.novelview-setting-collection-view
+  .novelview-setting-collection-tag:not(.is-expanded)
+  > .novelview-setting-collection-tag-body,
+.novelview-mark-tag:not(.is-expanded) > .novelview-mark-tag-body {
+  display: none !important;
+}
+
+.novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
+  display: block !important;
+}
+
+.novelview-setting-collection-tag.is-expanded
+  > .novelview-setting-collection-tag-body {
+  display: grid !important;
 }

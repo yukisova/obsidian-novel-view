@@ -10,8 +10,8 @@ import {
 import type {
   NovelFloatingToolbar,
   NovelToolbarScope,
-} from "./editor/floating-toolbar";
-import type { ArticleListModel } from "./article-list-view";
+} from "../ui/floating-toolbar";
+import type { ArticleListModel } from "../features/article-list/article-list-view";
 
 export interface NovelViewSettings {
   fontSize: number;

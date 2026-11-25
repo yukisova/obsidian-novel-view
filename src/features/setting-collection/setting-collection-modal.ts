@@ -2,7 +2,7 @@ import { App, Modal } from "obsidian";
 import type {
   SettingField,
   SettingMark,
-} from "./core/setting-collection";
+} from "../../core/model/setting-collection";
 
 const TAG_COLORS = [
   "#e74c3c",

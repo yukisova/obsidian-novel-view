@@ -1,9 +1,9 @@
 import { setIcon } from "obsidian";
-import type { SettingField } from "./core/setting-collection";
+import type { SettingField } from "../../core/model/setting-collection";
 import {
   SETTING_ICON_PRESETS,
   parseSettingIcon,
-} from "./core/setting-icons";
+} from "../../core/model/setting-icons";
 import type {
   SettingRecordDraft,
 } from "./setting-collection-modal";

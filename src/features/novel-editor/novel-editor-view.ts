@@ -31,26 +31,26 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { formatNovelMarkdown } from "./core/format";
+import { formatNovelMarkdown } from "../../core/text/format";
 import {
   OUTLINE_MARKS_PROPERTY,
   parseOutlineMarks,
   serializeOutlineMarks,
   type OutlineMark,
-} from "./core/outline-marks";
-import { joinVaultPath } from "./core/novel-config";
+} from "../../core/model/outline-marks";
+import { joinVaultPath } from "../../core/model/novel-config";
 import {
   classifyLine,
   joinFrontmatterContent,
   splitFrontmatterContent,
-} from "./core/paragraphs";
+} from "../../core/text/paragraphs";
 import {
   getOutlineMarks,
   outlineMarksExtension,
   setOutlineMarksEffect,
-} from "./editor/outline-marks";
-import { settingKeywordExtension } from "./editor/setting-keyword-extension";
-import { TextPromptModal } from "./text-prompt-modal";
+} from "../../editor/outline-marks";
+import { settingKeywordExtension } from "../../editor/setting-keyword-extension";
+import { TextPromptModal } from "../../ui/text-prompt-modal";
 import {
   PENDING_COLOR_OPTIONS,
   pendingBlockExtension,
@@ -59,8 +59,8 @@ import {
   parsePendingBlocks,
   type PendingBlock,
   type PendingColor,
-} from "./editor/pending-block";
-import type NovelViewPlugin from "./main";
+} from "../../editor/pending-block";
+import type NovelViewPlugin from "../../main";
 
 export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
 
@@ -547,8 +547,8 @@ export class NovelEditorView extends ItemView {
       cls: "novelview-pending-trigger",
       attr: {
         type: "button",
-        "aria-label": "编辑待修改部分",
-        title: "编辑待修改部分",
+        "aria-label": "编辑对照组",
+        title: "编辑对照组",
       },
     });
     setIcon(this.pendingButton, "pencil");
@@ -567,17 +567,17 @@ export class NovelEditorView extends ItemView {
     });
     this.pendingPanel.createDiv({
       cls: "novelview-pending-panel-label",
-      text: "待修改部分标题",
+      text: "对照组标题",
     });
     this.pendingInput = this.pendingPanel.createEl("input", {
       cls: "novelview-pending-panel-input",
-      attr: { type: "text", placeholder: "待修改部分" },
+      attr: { type: "text", placeholder: "对照组" },
     });
     this.pendingTitleError = this.pendingPanel.createDiv({
       cls: "novelview-pending-panel-error",
     });
     this.pendingInput.addEventListener("input", () => {
-      const title = (this.pendingInput?.value.trim() || "待修改部分");
+      const title = (this.pendingInput?.value.trim() || "对照组");
       if (this.isPendingTitleDuplicate(title)) {
         this.pendingTitleError?.setText("名称已存在");
         return;
@@ -1201,13 +1201,11 @@ export class NovelEditorView extends ItemView {
       return;
     }
     if (!this.immersiveMode) {
-      view.contentDOM.style.paddingTop = "";
-      view.contentDOM.style.paddingBottom = "";
+      this.setImmersivePadding(null);
       return;
     }
     const pad = Math.max(80, Math.ceil(view.scrollDOM.clientHeight / 2));
-    view.contentDOM.style.paddingTop = `${pad}px`;
-    view.contentDOM.style.paddingBottom = `${pad}px`;
+    this.setImmersivePadding(pad);
     this.scheduleEditorMeasure();
   }
 
@@ -1307,15 +1305,23 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  private setImmersivePadding(pad: number | null): void {
+    const content = this.editorView?.contentDOM;
+    if (!content) {
+      return;
+    }
+    content.setCssStyles({
+      paddingTop: pad === null ? "" : `${pad}px`,
+      paddingBottom: pad === null ? "" : `${pad}px`,
+    });
+  }
+
   private scheduleEditorMeasure(): void {
     if (this.immersiveMode) {
       const pad = Math.max(80, Math.ceil(
         (this.editorView?.scrollDOM.clientHeight ?? 0) / 2,
       ));
-      if (this.editorView) {
-        this.editorView.contentDOM.style.paddingTop = `${pad}px`;
-        this.editorView.contentDOM.style.paddingBottom = `${pad}px`;
-      }
+      this.setImmersivePadding(pad);
     }
     this.editorView?.requestMeasure();
     if (this.resizeFrame !== null) {
@@ -1668,8 +1674,8 @@ export class NovelEditorView extends ItemView {
       .replace(/[\r\n`]/gu, " ")
       .trim();
     const emoji = patch.emoji ?? current.emoji;
-    const suffix = title && title !== "待修改部分" ? ` ${title}` : "";
-    const line = `\`\`\`待修改部分${emoji}${suffix}`;
+    const suffix = title && title !== "对照组" ? ` ${title}` : "";
+    const line = `\`\`\`对照组${emoji}${suffix}`;
     this.allowFenceEdit = true;
     this.editorView.dispatch({
       changes: {
@@ -1732,7 +1738,7 @@ export class NovelEditorView extends ItemView {
     if (!this.editorView) {
       return false;
     }
-    const value = title.trim() || "待修改部分";
+    const value = title.trim() || "对照组";
     const current = this.activePending?.openFrom;
     return parsePendingBlocks(this.editorView.state).some((block) => (
       block.openFrom !== current && block.title === value
@@ -1768,7 +1774,7 @@ export class NovelEditorView extends ItemView {
     if (!selection.empty && !this.selectionOverlapsPending()) {
       menu.addItem((item) => {
         item
-          .setTitle("转换成待修改代码块")
+          .setTitle("转换成对照组")
           .setIcon("square-pen")
           .onClick(() => this.wrapSelectionInPending());
       });
@@ -1794,19 +1800,19 @@ export class NovelEditorView extends ItemView {
 
   private uniquePendingTitle(): string {
     if (!this.editorView) {
-      return "待修改部分";
+      return "对照组";
     }
     const used = new Set(
       parsePendingBlocks(this.editorView.state).map((block) => block.title),
     );
-    if (!used.has("待修改部分")) {
-      return "待修改部分";
+    if (!used.has("对照组")) {
+      return "对照组";
     }
     let index = 2;
-    while (used.has(`待修改部分 ${index}`)) {
+    while (used.has(`对照组 ${index}`)) {
       index += 1;
     }
-    return `待修改部分 ${index}`;
+    return `对照组 ${index}`;
   }
 
   private wrapSelectionInPending(): void {
@@ -1823,9 +1829,9 @@ export class NovelEditorView extends ItemView {
       return;
     }
     const title = this.uniquePendingTitle();
-    const info = title === "待修改部分"
-      ? "```待修改部分🟢"
-      : `\`\`\`待修改部分🟢 ${title}`;
+    const info = title === "对照组"
+      ? "```对照组🟢"
+      : `\`\`\`对照组🟢 ${title}`;
     const body = selected.endsWith("\n") ? selected.slice(0, -1) : selected;
     const before = selection.from > 0
       && doc.sliceString(selection.from - 1, selection.from) !== "\n"

@@ -13,7 +13,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from "@codemirror/view";
-import { findFrontmatterEnd } from "../core/paragraphs";
+import { findFrontmatterEnd } from "../core/text/paragraphs";
 
 const hiddenLine = Decoration.line({ class: "novelview-hidden-frontmatter" });
 

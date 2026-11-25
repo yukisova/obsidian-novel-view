@@ -7,7 +7,7 @@ import {
   type ViewStateResult,
   type WorkspaceLeaf,
 } from "obsidian";
-import type NovelViewPlugin from "./main";
+import type NovelViewPlugin from "../../main";
 
 export const SRC_GALLERY_VIEW_TYPE = "novelview-src-gallery";
 

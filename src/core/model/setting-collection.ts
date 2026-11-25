@@ -315,55 +315,16 @@ export function findSettingKeywordMatches(
 }
 
 
-export type SettingSpecialFileKind = "detail" | "graph" | "line" | "branch";
 
-export const SETTING_SPECIAL_FILE_LABELS: Record<
-  SettingSpecialFileKind,
-  string
-> = {
-  detail: "详细设定",
-  graph: "图谱",
-  line: "轴",
-  branch: "分支树",
-};
+export const SETTING_DETAIL_FILE_SUFFIX = ".d.md";
 
-export const SETTING_SPECIAL_FILE_SUFFIXES: Record<
-  SettingSpecialFileKind,
-  string
-> = {
-  detail: ".detail.md",
-  graph: ".graph.md",
-  line: ".line.md",
-  branch: ".branch.md",
-};
-
-export function settingSpecialFileSuffix(kind: SettingSpecialFileKind): string {
-  return SETTING_SPECIAL_FILE_SUFFIXES[kind];
+export function isSettingDetailFileName(name: string): boolean {
+  return name.length > SETTING_DETAIL_FILE_SUFFIX.length
+    && name.toLocaleLowerCase().endsWith(SETTING_DETAIL_FILE_SUFFIX);
 }
 
-export function settingSpecialFileKind(
-  name: string,
-): SettingSpecialFileKind | null {
-  const lower = name.toLocaleLowerCase();
-  for (const [kind, suffix] of Object.entries(
-    SETTING_SPECIAL_FILE_SUFFIXES,
-  ) as Array<[SettingSpecialFileKind, string]>) {
-    if (lower.endsWith(suffix)) {
-      return kind;
-    }
-  }
-  return null;
-}
-
-export function isSettingSpecialFileName(name: string): boolean {
-  return settingSpecialFileKind(name) !== null;
-}
-
-export function settingSpecialFileDisplayName(name: string): string {
-  const kind = settingSpecialFileKind(name);
-  if (!kind) {
-    return name.replace(/\.md$/iu, "");
-  }
-  const suffix = SETTING_SPECIAL_FILE_SUFFIXES[kind];
-  return name.slice(0, -suffix.length) || name.replace(/\.md$/iu, "");
+export function settingDetailFileDisplayName(name: string): string {
+  return isSettingDetailFileName(name)
+    ? name.slice(0, -SETTING_DETAIL_FILE_SUFFIX.length)
+    : name.replace(/\.md$/u, "");
 }

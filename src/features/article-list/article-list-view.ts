@@ -7,11 +7,11 @@ import {
   type ViewStateResult,
   type WorkspaceLeaf,
 } from "obsidian";
-import { CHAPTER_STATUS_LABELS } from "./core/chapter-status";
-import type { NovelGroupInfo } from "./core/novel-config";
+import { CHAPTER_STATUS_LABELS } from "../../core/model/chapter-status";
+import type { NovelGroupInfo } from "../../core/model/novel-config";
 import { ArticleGroupModal } from "./article-group-modal";
-import type { NovelArticleGroup } from "./core/novel-config";
-import type NovelViewPlugin from "./main";
+import type { NovelArticleGroup } from "../../core/model/novel-config";
+import type NovelViewPlugin from "../../main";
 
 export interface ArticleListTarget {
   kind: "article" | "volume";
@@ -426,10 +426,6 @@ export class NovelArticleListView extends ItemView {
       },
     );
     settingsButton.addClass("novelview-article-toolbar-settings");
-    settingsButton.createSpan({
-      cls: "novelview-article-toolbar-settings-label",
-      text: "设定集",
-    });
   }
 
   private createToolbarButton(
@@ -1088,6 +1084,12 @@ export class NovelArticleListView extends ItemView {
       cls: "novelview-article-row-words",
       text: `${new Intl.NumberFormat("zh-CN").format(chapter.wordCount)} 字`,
     });
+    if (chapter.pendingCount > 0) {
+      meta.createSpan({
+        cls: "novelview-article-row-pending",
+        text: String(chapter.pendingCount),
+      }).setAttr("title", `本章节有 ${chapter.pendingCount} 个对照组`);
+    }
     meta.createSpan({
       cls: "novelview-article-row-state",
       text: CHAPTER_STATUS_LABELS[chapter.status],

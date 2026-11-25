@@ -10,7 +10,7 @@ import {
   classifyLine,
   findFrontmatterEnd,
   isSpecialBlockLine,
-} from "../core/paragraphs";
+} from "../core/text/paragraphs";
 
 const PROSE_LINE = "novelview-prose-line";
 const PARAGRAPH_START = "novelview-paragraph-start";

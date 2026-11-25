@@ -1,5 +1,5 @@
 import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
-import type NovelViewPlugin from "./main";
+import type NovelViewPlugin from "../../main";
 import type { FinderContext, FinderResult } from "./search-panel-v2";
 
 export const NOVEL_FINDER_VIEW_TYPE = "novelview-finder-results";
@@ -220,7 +220,7 @@ export class NovelFinderView extends ItemView {
       });
       top.createSpan({
         cls: "novelview-finder-pending-badge",
-        text: "待修改部分",
+        text: "对照组",
       });
       top.createSpan({
         cls: "novelview-finder-location",

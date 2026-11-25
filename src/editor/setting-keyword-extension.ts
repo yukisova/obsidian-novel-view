@@ -12,8 +12,8 @@ import {
 import {
   findSettingKeywordMatches,
   type SettingKeywordEntry,
-} from "../core/setting-collection";
-import { findFrontmatterEnd } from "../core/paragraphs";
+} from "../core/model/setting-collection";
+import { findFrontmatterEnd } from "../core/text/paragraphs";
 
 let currentEntries: SettingKeywordEntry[] = [];
 let keywordRevision = 0;

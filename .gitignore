@@ -1,0 +1,9 @@
+node_modules/
+.test-build/
+.preview/
+.dev-vault/
+dist/
+*.log
+.DS_Store
+main.js.map
+.snapshots/

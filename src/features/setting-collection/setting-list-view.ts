@@ -7,20 +7,16 @@ import {
   TFolder,
   type WorkspaceLeaf,
 } from "obsidian";
-import { ARTICLE_LIST_VIEW_TYPE } from "./article-list-view";
-import {
-  SETTING_SPECIAL_FILE_LABELS,
-  SETTING_SPECIAL_FILE_SUFFIXES,
-  isSettingSpecialFileName,
-  settingSpecialFileKind,
-  settingSpecialFileSuffix,
-  type SettingSpecialFileKind,
-} from "./core/setting-collection";
+import { ARTICLE_LIST_VIEW_TYPE } from "../article-list/article-list-view";
 import {
   OUTLINE_MARKS_PROPERTY,
   parseOutlineMarks,
-} from "./core/outline-marks";
-import type NovelViewPlugin from "./main";
+} from "../../core/model/outline-marks";
+import {
+  isSettingDetailFileName,
+  settingDetailFileDisplayName,
+} from "../../core/model/setting-collection";
+import type NovelViewPlugin from "../../main";
 
 export const SETTING_LIST_VIEW_TYPE = "novelview-setting-list";
 
@@ -31,10 +27,9 @@ interface SettingListGroup {
   recordCount: number;
 }
 
-interface SettingListSpecialFile {
+interface SettingListDetailFile {
   file: TFile;
   name: string;
-  kind: SettingSpecialFileKind;
 }
 
 export class NovelSettingListView extends ItemView {
@@ -88,7 +83,7 @@ export class NovelSettingListView extends ItemView {
       if (
         file instanceof TFolder
         || file.name === "index.md"
-        || isSettingSpecialFileName(file.name)
+        || (file instanceof TFile && isSettingDetailFileName(file.name))
       ) {
         this.scheduleRefresh();
       }
@@ -160,16 +155,12 @@ export class NovelSettingListView extends ItemView {
       () => void this.backToArticles(),
     );
     articleButton.addClass("novelview-setting-toolbar-back-article");
-    articleButton.createSpan({
-      cls: "novelview-article-toolbar-back-label",
-      text: "小说组",
-    });
 
     const groups = await this.loadGroups(novelRoot);
+    const detailFiles = this.loadDetailFiles(novelRoot);
     if (token !== this.refreshToken) {
       return;
     }
-    const specialFiles = this.loadSpecialFiles(novelRoot);
     const header = this.contentEl.createDiv({
       cls: "novelview-article-header",
     });
@@ -194,8 +185,8 @@ export class NovelSettingListView extends ItemView {
         openWorkbench();
       }
     });
-    const total = specialFiles.length > 0
-      ? `${groups.length} 个设定集 · ${specialFiles.length} 个特殊文件`
+    const total = detailFiles.length > 0
+      ? `${groups.length} 个设定集 · ${detailFiles.length} 个详细设定`
       : `${groups.length} 个设定集`;
     titleBlock.createDiv({
       cls: "novelview-article-total",
@@ -241,7 +232,7 @@ export class NovelSettingListView extends ItemView {
     markRow.addEventListener("click", () => {
       void this.plugin.openTextMarks(novelRoot, this.leaf);
     });
-    if (groups.length === 0 && specialFiles.length === 0) {
+    if (groups.length === 0 && detailFiles.length === 0) {
       list.createDiv({
         cls: "novelview-setting-list-empty",
         text: "暂无设定集。右击列表空白处可新建设定组。",
@@ -292,31 +283,34 @@ export class NovelSettingListView extends ItemView {
         menu.showAtMouseEvent(event);
       });
     }
-    if (specialFiles.length > 0) {
+    if (detailFiles.length > 0) {
       if (groups.length > 0) {
         list.createDiv({ cls: "novelview-setting-list-divider" });
       }
-      for (const special of specialFiles) {
+      for (const detail of detailFiles) {
         const row = list.createEl("button", {
-          cls: "novelview-article-row novelview-setting-list-row novelview-setting-list-special-row",
+          cls: "novelview-article-row novelview-setting-list-row novelview-setting-list-detail-row",
           attr: {
             type: "button",
-            title: special.file.path,
-            "data-setting-special-row": special.file.path,
+            title: detail.file.path,
           },
         });
         const icon = row.createSpan({ cls: "novelview-article-row-icon" });
         icon.setAttr("aria-hidden", "true");
-        setIcon(icon, this.specialFileIcon(special.kind));
+        setIcon(icon, "file-text");
         row.createSpan({
           cls: "novelview-article-row-name",
-          text: special.name,
+          text: detail.name,
+        });
+        row.createSpan({
+          cls: "novelview-article-row-count",
+          text: "详细",
         });
         row.addEventListener("click", () => {
           if (this.renamingRow === row) {
             return;
           }
-          void this.plugin.openSettingSpecialFile(special.file);
+          void this.app.workspace.getLeaf(false).openFile(detail.file);
         });
         row.addEventListener("contextmenu", (event) => {
           event.preventDefault();
@@ -324,13 +318,7 @@ export class NovelSettingListView extends ItemView {
           const menu = new Menu();
           menu.addItem((item) => {
             item.setTitle("重命名").setIcon("pencil").onClick(() => {
-              this.beginSpecialRename(row, special);
-            });
-          });
-          menu.addSeparator();
-          menu.addItem((item) => {
-            item.setTitle("删除").setIcon("trash").onClick(() => {
-              void this.deleteSpecialFile(special);
+              this.beginDetailRename(row, detail);
             });
           });
           menu.showAtMouseEvent(event);
@@ -339,16 +327,27 @@ export class NovelSettingListView extends ItemView {
     }
   }
 
-  private async deleteSettingGroup(group: SettingListGroup): Promise<void> {
-    await this.app.fileManager.trashFile(group.folder);
-    this.renamingRow = null;
-    this.scheduleRefresh();
+  private loadDetailFiles(novelRoot: string): SettingListDetailFile[] {
+    const root = this.plugin.normalizeFolderPath(novelRoot);
+    return this.app.vault.getFiles()
+      .filter((file) => (
+        file.extension === "md"
+        && this.plugin.normalizeFolderPath(file.parent?.path ?? "/") === root
+        && isSettingDetailFileName(file.name)
+      ))
+      .map((file) => ({
+        file,
+        name: settingDetailFileDisplayName(file.name),
+      }))
+      .sort((left, right) => left.name.localeCompare(
+        right.name,
+        "zh-CN",
+        { numeric: true, sensitivity: "base" },
+      ));
   }
 
-  private async deleteSpecialFile(
-    special: SettingListSpecialFile,
-  ): Promise<void> {
-    await this.app.fileManager.trashFile(special.file);
+  private async deleteSettingGroup(group: SettingListGroup): Promise<void> {
+    await this.app.fileManager.trashFile(group.folder);
     this.renamingRow = null;
     this.scheduleRefresh();
   }
@@ -362,60 +361,95 @@ export class NovelSettingListView extends ItemView {
         });
       });
     });
-    menu.addSeparator();
-    for (const kind of [
-      "detail", "graph", "line", "branch",
-    ] as SettingSpecialFileKind[]) {
-      menu.addItem((item) => {
-        item
-          .setTitle(`新建${SETTING_SPECIAL_FILE_LABELS[kind]}`)
-          .setIcon(this.specialFileIcon(kind))
-          .onClick(() => this.createSpecialFileDefault(novelRoot, kind));
+    menu.addItem((item) => {
+      item.setTitle("新建单设定").setIcon("file-plus").onClick(() => {
+        void this.createDetailFile(novelRoot);
       });
-    }
+    });
     menu.showAtMouseEvent(event);
   }
 
-  private createSpecialFileDefault(
-    novelRoot: string,
-    kind: SettingSpecialFileKind,
-  ): void {
-    const title = this.defaultSpecialName(novelRoot, kind);
-    void this.plugin.createSettingSpecialFile(
-      novelRoot,
-      title,
-      kind,
-    ).then(async (file) => {
-      if (!file) {
-        return;
-      }
-      await this.plugin.openSettingSpecialFile(file);
-      this.scheduleRefresh();
-    });
+  private async createDetailFile(novelRoot: string): Promise<void> {
+    const folder = this.app.vault.getAbstractFileByPath(novelRoot);
+    if (!(folder instanceof TFolder)) {
+      return;
+    }
+    let index = 1;
+    let path = `${folder.path}/设定.d.md`;
+    while (this.app.vault.getAbstractFileByPath(path)) {
+      index += 1;
+      path = `${folder.path}/设定 ${index}.d.md`;
+    }
+    const file = await this.app.vault.create(path, "# 设定\n\n");
+    this.scheduleRefresh();
+    await this.app.workspace.getLeaf(false).openFile(file);
   }
 
-  private defaultSpecialName(
-    novelRoot: string,
-    kind: SettingSpecialFileKind,
-  ): string {
-    const base = kind === "detail"
-      ? "新详细设定"
-      : kind === "graph"
-        ? "新图谱"
-        : kind === "line"
-          ? "新时间轴"
-          : "新分支树";
-    const suffix = settingSpecialFileSuffix(kind);
-    const root = this.plugin.normalizeFolderPath(novelRoot);
-    let name = base;
-    let index = 2;
-    while (this.app.vault.getAbstractFileByPath(
-      root ? `${root}/${name}${suffix}` : `${name}${suffix}`,
-    )) {
-      name = `${base} ${index}`;
-      index += 1;
+  private beginDetailRename(
+    row: HTMLElement,
+    detail: SettingListDetailFile,
+  ): void {
+    this.beginInlineRename(
+      row,
+      detail.name,
+      (value) => this.validateDetailName(detail, value),
+      async (value) => {
+        const name = this.cleanDetailName(value);
+        if (!name) {
+          return "名称不能为空。";
+        }
+        const parent = detail.file.parent?.path ?? "";
+        const targetPath = `${parent}/${name}.d.md`;
+        if (targetPath === detail.file.path) {
+          return null;
+        }
+        try {
+          await this.app.fileManager.renameFile(detail.file, targetPath);
+          return null;
+        } catch (error) {
+          console.error("Novel View: detail file rename failed", error);
+          return "详细设定重命名失败。";
+        }
+      },
+    );
+  }
+
+  private cleanDetailName(value: string): string {
+    let name = value.trim();
+    if (name.toLocaleLowerCase().endsWith(".d.md")) {
+      name = name.slice(0, -5);
+    } else if (name.toLocaleLowerCase().endsWith(".md")) {
+      name = name.slice(0, -3);
     }
-    return name;
+    return name.trim();
+  }
+
+  private validateDetailName(
+    detail: SettingListDetailFile,
+    value: string,
+  ): string | null {
+    if (value !== value.trim()) {
+      return "名称首尾不能有空格。";
+    }
+    const name = this.cleanDetailName(value);
+    if (!name) {
+      return "名称不能为空。";
+    }
+    if (/[\\/:*?"<>|]/u.test(name)) {
+      return "名称包含路径非法字符。";
+    }
+    if (name.endsWith(".") || name === "." || name === "..") {
+      return "名称不能以点号结尾。";
+    }
+    const parent = detail.file.parent?.path ?? "";
+    const target = `${parent}/${name}.d.md`;
+    if (
+      target !== detail.file.path
+      && this.app.vault.getAbstractFileByPath(target)
+    ) {
+      return "同名详细设定已存在。";
+    }
+    return null;
   }
 
   private beginGroupRename(row: HTMLElement, group: SettingListGroup): void {
@@ -427,18 +461,6 @@ export class NovelSettingListView extends ItemView {
         group.folder.path,
         value,
       ),
-    );
-  }
-
-  private beginSpecialRename(
-    row: HTMLElement,
-    special: SettingListSpecialFile,
-  ): void {
-    this.beginInlineRename(
-      row,
-      special.name,
-      (value) => this.validateSpecialName(special, value),
-      (value) => this.plugin.renameSettingSpecialFile(special.file, value),
     );
   }
 
@@ -471,48 +493,6 @@ export class NovelSettingListView extends ItemView {
       && this.app.vault.getAbstractFileByPath(target)
     ) {
       return "同名设定组已存在。";
-    }
-    return null;
-  }
-
-  private validateSpecialName(
-    special: SettingListSpecialFile,
-    value: string,
-  ): string | null {
-    if (value !== value.trim()) {
-      return "文件名首尾不能有空格。";
-    }
-    let name = value.trim();
-    const lower = name.toLocaleLowerCase();
-    for (const suffix of Object.values(SETTING_SPECIAL_FILE_SUFFIXES)) {
-      if (lower.endsWith(suffix)) {
-        name = name.slice(0, -suffix.length);
-        break;
-      }
-    }
-    if (name.toLocaleLowerCase().endsWith(".md")) {
-      name = name.slice(0, -3);
-    }
-    name = name.trim();
-    if (!name) {
-      return "文件名不能为空。";
-    }
-    if (/[\\/:*?"<>|]/u.test(name)) {
-      return "文件名包含路径非法字符。";
-    }
-    if (name.endsWith(".") || name === "." || name === "..") {
-      return "文件名不能以点号结尾。";
-    }
-    const parent = special.file.parent?.path ?? "";
-    const suffix = settingSpecialFileSuffix(special.kind);
-    const target = parent
-      ? `${parent}/${name}${suffix}`
-      : `${name}${suffix}`;
-    if (
-      target !== special.file.path
-      && this.app.vault.getAbstractFileByPath(target)
-    ) {
-      return "同名特殊设定文件已存在。";
     }
     return null;
   }
@@ -609,78 +589,30 @@ export class NovelSettingListView extends ItemView {
     }, 0);
   }
 
-  private specialFileIcon(kind: SettingSpecialFileKind): string {
-    switch (kind) {
-      case "detail":
-        return "file-text";
-      case "graph":
-        return "git-fork";
-      case "line":
-        return "chart-no-axes-combined";
-      case "branch":
-        return "git-branch";
-    }
-  }
-
-  private loadSpecialFiles(novelRoot: string): SettingListSpecialFile[] {
-    const root = this.plugin.normalizeFolderPath(novelRoot);
-    return this.app.vault.getFiles()
-      .filter((file) => (
-        file.extension === "md"
-        && this.plugin.normalizeFolderPath(file.parent?.path ?? "/") === root
-      ))
-      .map((file): SettingListSpecialFile | null => {
-        const kind = settingSpecialFileKind(file.name);
-        if (!kind) {
-          return null;
-        }
-        const suffix = SETTING_SPECIAL_FILE_SUFFIXES[kind];
-        return {
-          file,
-          kind,
-          name: file.name.slice(0, -suffix.length) || file.basename,
-        };
-      })
-      .filter((file): file is SettingListSpecialFile => file !== null)
-      .sort((left, right) => left.name.localeCompare(
-        right.name,
-        "zh-CN",
-        { numeric: true, sensitivity: "base" },
-      ));
-  }
-
   private async loadGroups(novelRoot: string): Promise<SettingListGroup[]> {
-    const folders = this.plugin.getSettingGroupsForNovel(novelRoot)
-      .sort((left, right) => left.name.localeCompare(
-        right.name,
-        "zh-CN",
-        { numeric: true, sensitivity: "base" },
-      ));
     const groups: SettingListGroup[] = [];
-    for (const folder of folders) {
-      try {
-        const index = await this.plugin.readSettingCollectionIndex(folder.path);
-        const tags = Object.values(index)[0] ?? [];
-        groups.push({
-          folder,
-          name: folder.name.replace(/^-+/u, "") || "设定集",
-          tagCount: tags.length,
-          recordCount: tags.reduce(
-            (sum, tag) => sum + tag.contain.length,
-            0,
-          ),
-        });
-      } catch (error) {
-        console.debug("Novel View: setting list index read skipped", error);
-        groups.push({
-          folder,
-          name: folder.name.replace(/^-+/u, "") || "设定集",
-          tagCount: 0,
-          recordCount: 0,
-        });
+    for (const folder of this.plugin.getSettingGroupsForNovel(novelRoot)) {
+      const index = await this.plugin.readSettingCollectionIndex(folder.path);
+      let tagCount = 0;
+      let recordCount = 0;
+      for (const tags of Object.values(index)) {
+        for (const tag of tags) {
+          tagCount += 1;
+          recordCount += tag.contain.length;
+        }
       }
+      groups.push({
+        folder,
+        name: folder.name.replace(/^-+/u, ""),
+        tagCount,
+        recordCount,
+      });
     }
-    return groups;
+    return groups.sort((left, right) => left.name.localeCompare(
+      right.name,
+      "zh-CN",
+      { numeric: true, sensitivity: "base" },
+    ));
   }
 
   private countTextMarks(novelRoot: string): number {

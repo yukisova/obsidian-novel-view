@@ -12,7 +12,7 @@ import {
   type DecorationSet,
 } from "@codemirror/view";
 
-export const PENDING_KEYWORD = "待修改部分";
+export const PENDING_KEYWORD = "对照组";
 
 export type PendingColor =
   | "green"
@@ -52,7 +52,7 @@ export interface PendingBlock {
   contentEndLine: number;
 }
 
-const OPEN_RE = /^(?:`{3,})(?:[ \t]*)待修改部分(.*)$/u;
+const OPEN_RE = /^(?:`{3,})(?:[ \t]*)(?:待修改部分|对照组)(.*)$/u;
 const CLOSE_RE = /^`{3,}[ \t]*$/u;
 
 function extractInfo(rest: string): {
@@ -223,7 +223,10 @@ export const pendingBlockExtension = StateField.define<DecorationSet>({
     transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
       const removed = transaction.startState.doc.sliceString(fromA, toA);
       const added = inserted.toString();
-      if (/[`\n]|待修改部分/u.test(removed) || /[`\n]|待修改部分/u.test(added)) {
+      if (
+        /[`\n]|待修改部分|对照组/u.test(removed)
+        || /[`\n]|待修改部分|对照组/u.test(added)
+      ) {
         structural = true;
       }
     });
