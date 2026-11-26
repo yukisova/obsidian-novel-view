@@ -127,6 +127,40 @@ export class SettingRecordDetailPanel {
     activeDocument.body.appendChild(root);
   }
 
+  private renderRichContent(container: HTMLElement, text: string): void {
+    const lines = text.replace(/\r\n?/gu, "\n").split("\n");
+    let list: HTMLUListElement | HTMLOListElement | null = null;
+    let listType: "ul" | "ol" | null = null;
+    const finishList = (): void => {
+      list = null;
+      listType = null;
+    };
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      const unordered = /^\s*[-*+]\s+(.+)$/u.exec(line);
+      const ordered = /^\s*\d+\.\s+(.+)$/u.exec(line);
+      if (unordered || ordered) {
+        const type = ordered ? "ol" : "ul";
+        if (!list || listType !== type) {
+          finishList();
+          list = type === "ol"
+            ? container.createEl("ol")
+            : container.createEl("ul");
+          listType = type;
+        }
+        list?.createEl("li", {
+          text: (unordered?.[1] ?? ordered?.[1] ?? "").trim(),
+        });
+        continue;
+      }
+      finishList();
+      if (line.trim()) {
+        const paragraph = container.createEl("p");
+        paragraph.setText(line);
+      }
+    }
+  }
+
   private render(): void {
     if (!this.root || !this.body || !this.title || !this.meta || !this.data) {
       return;
@@ -177,7 +211,7 @@ export class SettingRecordDetailPanel {
         });
       }
       if (entry.content) {
-        content.appendText(entry.content);
+        this.renderRichContent(content, entry.content);
       }
     }
     if (entry.fields.length > 0) {

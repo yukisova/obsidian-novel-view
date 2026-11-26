@@ -82,6 +82,10 @@ import {
   NovelEditorView,
 } from "./features/novel-editor/novel-editor-view";
 import {
+  ARTICLE_INFO_VIEW_TYPE,
+  ArticleInfoView,
+} from "./features/article-info/article-info-view";
+import {
   SETTING_COLLECTION_VIEW_TYPE,
   SettingCollectionView,
 } from "./features/setting-collection/setting-collection-view";
@@ -94,6 +98,7 @@ import {
   TextMarkCollectionView,
 } from "./features/text-marks/mark-collection-view";
 import { ModeSettingsPanel } from "./features/setting-collection/mode-settings-panel";
+import { maybeShowOnboarding } from "./app/onboarding";
 import {
   SearchPanelV2,
   type FinderContext,
@@ -126,6 +131,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private readonly articleUndoStack: Array<() => Promise<void>> = [];
   private readonly novelConfigs = new Map<string, NovelConfig>();
   private searchPanelV2: SearchPanelV2 | null = null;
+  private routingNovelFile = false;
   private settingKeywordTooltip: HTMLElement | null = null;
   private settingKeywordTooltipTimer: number | null = null;
   private readonly wordCountBaselines = new Map<string, number>();
@@ -139,7 +145,6 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private suppressSettingGroupFolderRename = false;
   private readonly forcingSourceLeaves = new WeakSet<WorkspaceLeaf>();
   private readonly sourceModeAttempts = new WeakMap<WorkspaceLeaf, number>();
-  private routingNovelFile = false;
   private finderNavigationUntil = 0;
   private historySaveChain: Promise<void> = Promise.resolve();
   private articleDragPaths: string[] = [];
@@ -151,7 +156,7 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   private modeSettingsPanel: ModeSettingsPanel | null = null;
 
   override addSettingTab(_tab: PluginSettingTab): void {
-    // Settings UI now lives in the in-product panels; no plugin tab is needed.
+    // 设置通过编辑器工具栏中的格式面板完成；不注册旧设置页。
   }
 
   async onload(): Promise<void> {
@@ -208,6 +213,56 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.registerView(TEXT_MARKS_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
       new TextMarkCollectionView(leaf, this)
     ));
+    this.registerView(ARTICLE_INFO_VIEW_TYPE, (leaf: WorkspaceLeaf) => (
+      new ArticleInfoView(leaf, this)
+    ));
+    this.addCommand({
+      id: "open-novel-editor",
+      name: "打开 NovelEditor",
+      callback: () => {
+        void this.openNovelEditorFromActiveFile();
+      },
+    });
+    this.registerEvent(this.app.workspace.on("file-open", (file) => {
+      if (!(file instanceof TFile)) {
+        return;
+      }
+      if (file.name === SETTING_COLLECTION_INDEX) {
+        const parent = this.normalizeFolderPath(file.parent?.path ?? "/");
+        if (this.settingGroups.has(parent)) {
+          void this.openSettingCollection(parent);
+          return;
+        }
+      }
+      if (this.isNovelArticleFile(file)) {
+        this.routeNovelFileOpen(file);
+      }
+    }));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      const active = leaf?.view;
+      if (active instanceof NovelEditorView) {
+        active.activate();
+        if (!active.isDarkRoomActive()) {
+          this.ensureArticleInfoView();
+        }
+        if (performance.now() >= this.finderNavigationUntil) {
+          this.searchPanelV2?.refreshForActiveEditor();
+        }
+        return;
+      }
+      const inSidebar = Boolean(
+        leaf?.view.containerEl.closest(
+          ".workspace-split.mod-left-split, .workspace-split.mod-right-split",
+        ),
+      );
+      if (!inSidebar) {
+        this.closeNovelFinder();
+      }
+    }));
+    this.registerEditorExtension(frontmatterCompartment.of([]));
+    await this.migrateNovelConfigs();
+    await this.loadNovelConfigs();
+    await this.loadWordCountBaselines();
     this.app.workspace.onLayoutReady(() => {
       for (const type of [
         "novelview-graph-editor",
@@ -241,49 +296,14 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.clearNativeNovelModeStyles();
     this.app.workspace.onLayoutReady(() => {
       const active = this.getActiveMarkdownView();
-      if (active?.file) {
+      if (active?.file && this.isNovelArticleFile(active.file)) {
         this.routeNovelFileOpen(active.file);
       }
       void this.initializeSettingGroups();
+      window.setTimeout(() => {
+        maybeShowOnboarding(this.app, this.manifest.version);
+      }, 1200);
     });
-    this.registerEvent(this.app.workspace.on("file-open", (file) => {
-      if (!(file instanceof TFile)) {
-        return;
-      }
-      if (file.name === SETTING_COLLECTION_INDEX) {
-        const parent = this.normalizeFolderPath(file.parent?.path ?? "/");
-        if (this.settingGroups.has(parent)) {
-          void this.openSettingCollection(parent);
-          return;
-        }
-      }
-      this.routeNovelFileOpen(file);
-    }));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
-      const active = leaf?.view;
-      if (active instanceof NovelEditorView) {
-        active.activate();
-        if (performance.now() >= this.finderNavigationUntil) {
-          this.searchPanelV2?.refreshForActiveEditor();
-        }
-        return;
-      }
-      const inSidebar = Boolean(
-        leaf?.view.containerEl.closest(
-          ".workspace-split.mod-left-split, .workspace-split.mod-right-split",
-        ),
-      );
-      if (!inSidebar) {
-        this.closeNovelFinder();
-      }
-      if (active instanceof MarkdownView && active.file) {
-        this.routeNovelFileOpen(active.file);
-      }
-    }));
-    this.registerEditorExtension(frontmatterCompartment.of([]));
-    await this.migrateNovelConfigs();
-    await this.loadNovelConfigs();
-    await this.loadWordCountBaselines();
     this.registerEvent(this.app.vault.on("create", (file) => {
       this.handleSettingGroupPathChange(file.path, null);
     }));
@@ -872,7 +892,84 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     this.searchPanelV2.open();
   }
 
-  openModeSettings(): void {
+  async focusArticleInfoFootnote(
+    filePath: string,
+    key: string,
+  ): Promise<void> {
+    this.ensureArticleInfoView();
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+      for (const leaf of this.app.workspace.getLeavesOfType(
+        ARTICLE_INFO_VIEW_TYPE,
+      )) {
+        if (leaf.view instanceof ArticleInfoView) {
+          leaf.view.focusFootnote(filePath, key);
+          return;
+        }
+      }
+    }
+  }
+
+  getOrderedNovelChapterFiles(currentPath: string): TFile[] {
+    const parent = this.normalizeFolderPath(
+      currentPath.split("/").slice(0, -1).join("/"),
+    );
+    const root = this.findNovelGroupRoot(parent);
+    if (!root) {
+      return [];
+    }
+    const model = this.getArticleListModel(root);
+    if (!model) {
+      return [];
+    }
+    const paths = [
+      ...model.volumes.flatMap((volume) => (
+        volume.articles.map((entry) => entry.path)
+      )),
+      ...model.articles.map((entry) => entry.path),
+    ];
+    return paths
+      .map((path) => this.app.vault.getAbstractFileByPath(path))
+      .filter((file): file is TFile => file instanceof TFile);
+  }
+
+  refreshArticleInfo(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(
+      ARTICLE_INFO_VIEW_TYPE,
+    )) {
+      if (leaf.view instanceof ArticleInfoView) {
+        leaf.view.refreshNow();
+      }
+    }
+  }
+
+  getActiveNovelEditorView(): NovelEditorView | null {
+    const active = this.app.workspace.getActiveViewOfType(NovelEditorView);
+    return active ?? null;
+  }
+
+  getNovelEditorViewForPath(path: string): NovelEditorView | null {
+    return this.findNovelEditorView(path);
+  }
+
+  private ensureArticleInfoView(): void {
+    const existing = this.app.workspace.getLeavesOfType(ARTICLE_INFO_VIEW_TYPE)[0];
+    if (existing) {
+      void this.app.workspace.revealLeaf(existing);
+      return;
+    }
+    const leaf = this.app.workspace.getRightLeaf(false)
+      ?? this.app.workspace.getRightLeaf(true);
+    if (!leaf) {
+      return;
+    }
+    void leaf.setViewState({
+      type: ARTICLE_INFO_VIEW_TYPE,
+      active: true,
+    }).then(() => this.app.workspace.revealLeaf(leaf));
+  }
+
+  openModeSettings(anchor?: HTMLElement): void {
     if (this.modeSettingsPanel) {
       return;
     }
@@ -882,16 +979,44 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
         lineHeight: Number(this.settings.lineHeight) || 1.8,
         paragraphSpacing: Number(this.settings.paragraphSpacing) || 0.65,
         firstLineIndent: Number(this.settings.firstLineIndent) || 2,
+        pageMarginMode: window.localStorage.getItem(
+          "novelview:page-margin-mode",
+        ) === "manual"
+          ? "manual"
+          : "auto",
+        pageChars: Math.min(
+          80,
+          Math.max(
+            24,
+            Number(window.localStorage.getItem("novelview:page-chars")) || 42,
+          ),
+        ),
       },
       (values) => {
         this.settings.fontSize = values.fontSize;
         this.settings.lineHeight = values.lineHeight;
         this.settings.paragraphSpacing = values.paragraphSpacing;
         this.settings.firstLineIndent = values.firstLineIndent;
+        window.localStorage.setItem(
+          "novelview:page-margin-mode",
+          values.pageMarginMode,
+        );
+        window.localStorage.setItem(
+          "novelview:page-chars",
+          String(values.pageChars),
+        );
         this.applyFormatSettingsLive();
+        for (const leaf of this.app.workspace.getLeavesOfType(
+          NOVEL_EDITOR_VIEW_TYPE,
+        )) {
+          if (leaf.view instanceof NovelEditorView) {
+            leaf.view.applyPageSettings();
+          }
+        }
         void this.saveSettings();
       },
       () => { this.modeSettingsPanel = null; },
+      anchor,
     );
   }
 
@@ -3817,6 +3942,20 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
   ): void {
     const menu = new Menu();
     if (targets.length > 0) {
+      if (targets.length === 1 && targets[0].kind === "article") {
+        const target = targets[0];
+        menu.addItem((item) => {
+          item
+            .setTitle("在新标签页打开（NovelEditor）")
+            .setIcon("external-link")
+            .onClick(() => {
+              const file = this.app.vault.getAbstractFileByPath(target.path);
+              if (file instanceof TFile) {
+                void this.openNovelEditorInNewTab(file);
+              }
+            });
+        });
+      }
       if (targets.length === 1 && onRename) {
         menu.addItem((item) => {
           item.setTitle("重命名").setIcon("pencil").onClick(onRename);
@@ -4094,32 +4233,70 @@ export default class NovelViewPlugin extends LegacyNovelViewPlugin {
     if (this.routingNovelFile) {
       return;
     }
-    if (!this.isNovelArticleFile(file)) {
-      return;
-    }
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeView || !activeView.file) {
-      return;
-    }
-    const leaf = activeView.leaf;
+    const activeMarkdown = this.getActiveMarkdownView();
+    const existing = this.app.workspace.getLeavesOfType(
+      NOVEL_EDITOR_VIEW_TYPE,
+    )[0];
     this.routingNovelFile = true;
-    window.setTimeout(() => {
-      void leaf.setViewState({
+    const open = async (): Promise<void> => {
+      if (existing) {
+        await existing.setViewState({
+          type: NOVEL_EDITOR_VIEW_TYPE,
+          state: { file: file.path, line: 1 },
+          active: true,
+        });
+        await this.app.workspace.revealLeaf(existing);
+        if (activeMarkdown?.leaf && activeMarkdown.leaf !== existing) {
+          activeMarkdown.leaf.detach();
+        }
+        return;
+      }
+      if (activeMarkdown?.file?.path === file.path) {
+        await activeMarkdown.leaf.setViewState({
+          type: NOVEL_EDITOR_VIEW_TYPE,
+          state: { file: file.path, line: 1 },
+          active: true,
+        });
+        return;
+      }
+      await this.openNovelEditor(file);
+    };
+    void open().finally(() => {
+      this.routingNovelFile = false;
+    });
+  }
+
+  private async openNovelEditorFromActiveFile(): Promise<void> {
+    const active = this.app.workspace.getActiveFile();
+    const fallback = this.getLastActiveMarkdownFile();
+    const file = active instanceof TFile ? active : fallback;
+    if (!file || !this.isNovelArticleFile(file)) {
+      new Notice("Novel View：请先打开一篇小说章节，再进入 NovelEditor。");
+      return;
+    }
+    await this.openNovelEditor(file);
+  }
+
+  async openNovelEditorInNewTab(file: TFile): Promise<void> {
+    const leaf = this.app.workspace.getLeaf("tab");
+    this.routingNovelFile = true;
+    try {
+      await leaf.setViewState({
         type: NOVEL_EDITOR_VIEW_TYPE,
         state: { file: file.path, line: 1 },
         active: true,
-      }).finally(() => {
-        this.routingNovelFile = false;
       });
-    }, 0);
+      await this.app.workspace.revealLeaf(leaf);
+    } finally {
+      this.routingNovelFile = false;
+    }
   }
 
   async openNovelEditor(file: TFile, line = 1): Promise<void> {
-    const workspace = this.app.workspace as typeof this.app.workspace & {
-      getMostRecentLeaf?: (root: unknown) => WorkspaceLeaf | null;
-    };
-    const leaf = workspace.getMostRecentLeaf?.(this.app.workspace.rootSplit)
-      ?? this.app.workspace.getLeaf("tab");
+    const existing = this.app.workspace.getLeavesOfType(
+      NOVEL_EDITOR_VIEW_TYPE,
+    )[0];
+    const leaf = existing ?? this.app.workspace.getLeaf("tab");
     this.routingNovelFile = true;
     try {
       await leaf.setViewState({

@@ -10,6 +10,7 @@ export interface TextPromptOptions {
   submitLabel?: string;
   initialValue?: string;
   onSubmit: (value: string) => void;
+  onClose?: () => void;
 }
 
 export class TextPromptModal extends Modal {
@@ -77,6 +78,7 @@ export class TextPromptModal extends Modal {
 
   override onClose(): void {
     this.contentEl.empty();
+    this.options.onClose?.();
   }
 
   private submit(): void {

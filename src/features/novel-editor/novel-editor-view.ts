@@ -14,6 +14,7 @@ import {
   historyKeymap,
 } from "@codemirror/commands";
 import {
+  Compartment,
   EditorSelection,
   EditorState,
   Prec,
@@ -50,7 +51,18 @@ import {
   setOutlineMarksEffect,
 } from "../../editor/outline-marks";
 import { settingKeywordExtension } from "../../editor/setting-keyword-extension";
+import {
+  nextFootnoteKey,
+  parseFootnoteReferences,
+  footnoteExtension,
+} from "../../editor/footnotes";
+import { quoteBlockExtension } from "../../editor/quote-block";
 import { TextPromptModal } from "../../ui/text-prompt-modal";
+import { confirmAction } from "../../ui/confirm-modal";
+import {
+  SeamlessController,
+  getSeamlessSections,
+} from "./seamless-controller";
 import {
   PENDING_COLOR_OPTIONS,
   pendingBlockExtension,
@@ -61,10 +73,20 @@ import {
   type PendingColor,
 } from "../../editor/pending-block";
 import type NovelViewPlugin from "../../main";
+import {
+  loadFootnoteNotes,
+  saveFootnoteNote,
+  type ArticleInfoSnapshot,
+} from "../article-info/model";
+import { countNovelCharacters } from "../../core/text/status";
 
 export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
 
 const sharedSaveChains = new Map<string, Promise<void>>();
+
+function loadChapterTitleFallback(path: string): string {
+  return path.split("/").pop()?.replace(/\.md$/iu, "") ?? "NovelEditor";
+}
 
 function moveCursorOneLine(view: EditorView, direction: -1 | 1): boolean {
   const state = view.state;
@@ -245,6 +267,20 @@ function buildProseDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { doc } = view.state;
   const visited = new Set<number>();
+  const forcedStarts = new Set<number>();
+  for (const section of getSeamlessSections(view.state)) {
+    let line = doc.lineAt(Math.min(section.from, doc.length));
+    while (
+      line.from < section.to
+      && !line.text.trim()
+      && line.number < doc.lines
+    ) {
+      line = doc.line(line.number + 1);
+    }
+    if (line.from < section.to && line.text.trim()) {
+      forcedStarts.add(line.number);
+    }
+  }
   for (const range of view.visibleRanges) {
     let line = doc.lineAt(range.from);
     while (line.from <= range.to) {
@@ -261,7 +297,10 @@ function buildProseDecorations(view: EditorView): DecorationSet {
           );
         } else if (classification.prose) {
           const classes: string[] = [];
-          if (classification.paragraphStart) {
+          if (
+            classification.paragraphStart
+            || forcedStarts.has(line.number)
+          ) {
             classes.push("novelview-editor-paragraph-start");
           }
           if (classification.paragraphEnd) {
@@ -396,6 +435,8 @@ export class NovelEditorView extends ItemView {
   private lastSavedBody = "";
   private pendingBlocks: PendingBlock[] = [];
   private pendingBlocksTimer: number | null = null;
+  private cursorSaveTimer: number | null = null;
+  private loadedCursor = false;
   private resizeObserver: ResizeObserver | null = null;
   private resizeFrame: number | null = null;
   private measureTimer: number | null = null;
@@ -405,7 +446,16 @@ export class NovelEditorView extends ItemView {
   private saveChain: Promise<void> = Promise.resolve();
   private outlineMarksTimer: number | null = null;
   private immersiveMode = false;
+  private readonly seamlessCompartment = new Compartment();
+  private readonly seamlessController: SeamlessController;
+  private seamlessButton: HTMLButtonElement | null = null;
   private immersiveButton: HTMLButtonElement | null = null;
+  private pureButton: HTMLButtonElement | null = null;
+  private darkRoomButton: HTMLButtonElement | null = null;
+  private pureMode = false;
+  private darkRoomMode = false;
+  private darkRoomDialogOpen = false;
+  private darkRoomTimer: number | null = null;
   private immersiveScrollFrame: number | null = null;
   private immersiveCenterFrame: number | null = null;
   private immersiveProgrammaticScrollTop: number | null = null;
@@ -417,6 +467,15 @@ export class NovelEditorView extends ItemView {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
+    const neighbors = Number(
+      window.localStorage.getItem("novelview:seamless-neighbors"),
+    );
+    this.seamlessController = new SeamlessController(
+      this.app,
+      this.plugin,
+      this.seamlessCompartment,
+      Number.isFinite(neighbors) ? Math.min(3, Math.max(0, neighbors)) : 1,
+    );
   }
 
   override getViewType(): string {
@@ -425,9 +484,10 @@ export class NovelEditorView extends ItemView {
 
   override getDisplayText(): string {
     if (!this.filePath) {
-      return "Novel View";
+      return "NovelEditor";
     }
-    return this.filePath.split("/").pop()?.replace(/\.md$/iu, "") ?? "Novel View";
+    return this.filePath.split("/").pop()?.replace(/\.md$/iu, "")
+      ?? "NovelEditor";
   }
 
   override getIcon(): string {
@@ -453,16 +513,24 @@ export class NovelEditorView extends ItemView {
     const nextFile = typeof state.file === "string" ? state.file : this.filePath;
     if (nextFile !== this.filePath) {
       await this.flushSave();
-      await this.flushOutlineMarks();
+      if (!this.seamlessController.enabled) {
+        await this.flushOutlineMarks();
+      }
     }
     this.filePath = nextFile;
     this.pendingLine = typeof state.line === "number" ? state.line : 1;
     result.history = true;
     await super.setState(state, result);
+    if (this.seamlessController.enabled) {
+      await this.seamlessController.jumpToPath(nextFile);
+      this.updateTabTitle();
+      return;
+    }
     await this.loadFile();
   }
 
   protected override async onOpen(): Promise<void> {
+    this.containerEl.addClass("novelview-editor-leaf");
     this.contentEl.empty();
     this.contentEl.addClass("novelview-novel-mode", "novelview-editor-view");
     this.contentEl.setCssProps({
@@ -472,6 +540,7 @@ export class NovelEditorView extends ItemView {
       "--novelview-first-line-indent": `${Number(this.plugin.settings.firstLineIndent) || 2}em`,
     });
     this.applySettings();
+    this.applyPageSettings();
     const toolbar = this.contentEl.createDiv({ cls: "novelview-editor-toolbar" });
     this.addToolbarButton(toolbar, "wand-2", "自动排版", () => this.autoFormat());
     this.addToolbarButton(toolbar, "search", "查找替换", () => {
@@ -480,17 +549,47 @@ export class NovelEditorView extends ItemView {
     this.addToolbarButton(toolbar, "image-plus", "插入图片", () => {
       void this.insertImage();
     });
-    this.addToolbarButton(toolbar, "settings-2", "格式设置", () => {
-      this.plugin.openModeSettings();
+    const settingsButton = this.addToolbarButton(
+      toolbar,
+      "settings-2",
+      "格式设置",
+      () => {
+        this.plugin.openModeSettings(settingsButton);
+      },
+    );
+    const modeBar = this.contentEl.createDiv({
+      cls: "novelview-editor-mode-bar",
     });
     this.immersiveButton = this.addToolbarButton(
-      toolbar,
+      modeBar,
       "focus",
-      "沉浸模式",
+      "打字模式",
       () => this.setImmersiveMode(!this.immersiveMode),
     );
     this.immersiveButton.toggleClass("is-active", this.immersiveMode);
     this.immersiveButton.setAttr("aria-pressed", String(this.immersiveMode));
+    this.pureButton = this.addToolbarButton(
+      modeBar,
+      "scan",
+      "纯粹模式：只显示主编辑区",
+      () => this.togglePureMode(),
+    );
+    this.darkRoomButton = this.addToolbarButton(
+      modeBar,
+      "moon",
+      "黑屋模式：限时全屏写作",
+      () => {
+        void this.toggleDarkRoomMode();
+      },
+    );
+    this.seamlessButton = this.addToolbarButton(
+      modeBar,
+      "layers",
+      "无缝模式：连续加载前后章节",
+      () => {
+        void this.toggleSeamlessMode();
+      },
+    );
     this.chapterTitleEl = this.contentEl.createDiv({
       cls: "novelview-editor-title is-editable",
       attr: {
@@ -636,6 +735,18 @@ export class NovelEditorView extends ItemView {
       }, 0);
     });
     this.contentEl.addEventListener("click", (event) => {
+      const footnote = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+        ".novelview-footnote-ref",
+      );
+      if (footnote) {
+        event.preventDefault();
+        event.stopPropagation();
+        const key = footnote.dataset.footnoteKey ?? "";
+        if (key) {
+          void this.plugin.focusArticleInfoFootnote(this.filePath, key);
+        }
+        return;
+      }
       const keyword = (event.target as HTMLElement | null)?.closest<HTMLElement>(
         ".novelview-setting-keyword",
       );
@@ -648,14 +759,31 @@ export class NovelEditorView extends ItemView {
         }
       }
     });
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      if (this.darkRoomMode && leaf && leaf !== this.leaf) {
+        void this.app.workspace.revealLeaf(this.leaf);
+      }
+    }));
     if (this.filePath) {
       await this.loadFile();
     }
   }
 
   protected override async onClose(): Promise<void> {
-    await this.flushSave();
-    await this.flushOutlineMarks();
+    if (this.cursorSaveTimer !== null) {
+      window.clearTimeout(this.cursorSaveTimer);
+      this.cursorSaveTimer = null;
+    }
+    this.saveCursor();
+    const seamlessWasEnabled = this.seamlessController.enabled;
+    if (seamlessWasEnabled) {
+      await this.seamlessController.disable();
+    } else {
+      await this.flushSave();
+    }
+    if (!seamlessWasEnabled) {
+      await this.flushOutlineMarks();
+    }
     if (this.outlineMarksTimer !== null) {
       window.clearTimeout(this.outlineMarksTimer);
       this.outlineMarksTimer = null;
@@ -672,6 +800,7 @@ export class NovelEditorView extends ItemView {
     this.tocList = null;
     this.tocHovered = false;
     this.pendingButton = null;
+    this.seamlessButton = null;
     this.pendingPanel = null;
     this.pendingInput = null;
     this.pendingTitleError = null;
@@ -686,6 +815,11 @@ export class NovelEditorView extends ItemView {
       window.clearTimeout(this.pendingBlocksTimer);
       this.pendingBlocksTimer = null;
     }
+    this.stopDarkRoom();
+    if (this.pureMode) {
+      this.pureMode = false;
+      activeDocument.body.removeClass("novelview-pure-mode");
+    }
     this.disconnectResizeObserver();
     this.clearImmersiveScrollFrame();
     this.clearImmersiveCenterFrame();
@@ -696,7 +830,204 @@ export class NovelEditorView extends ItemView {
     this.contentEl.empty();
   }
 
+  private togglePureMode(): void {
+    this.pureMode = !this.pureMode;
+    activeDocument.body.toggleClass("novelview-pure-mode", this.pureMode);
+    this.pureButton?.toggleClass("is-active", this.pureMode);
+    this.pureButton?.setAttr("aria-pressed", String(this.pureMode));
+  }
+
+  private async toggleDarkRoomMode(): Promise<void> {
+    if (this.darkRoomDialogOpen) {
+      return;
+    }
+    if (this.darkRoomMode) {
+      this.darkRoomDialogOpen = true;
+      try {
+        const confirmed = await confirmAction(
+          this.app,
+          "退出黑屋模式",
+          "确定要退出黑屋模式吗？",
+          "退出",
+        );
+        if (confirmed) {
+          this.stopDarkRoom();
+        }
+      } finally {
+        this.darkRoomDialogOpen = false;
+      }
+      return;
+    }
+    this.darkRoomDialogOpen = true;
+    new TextPromptModal(this.app, {
+      title: "黑屋模式",
+      description: "输入时长（分钟）。开始后会进入全屏，并在倒计时结束前阻止切换 Obsidian 页面。",
+      initialValue: "25",
+      placeholder: "25",
+      submitLabel: "开始",
+      onClose: () => {
+        this.darkRoomDialogOpen = false;
+      },
+      onSubmit: (value) => {
+        const minutes = Math.min(480, Math.max(1, Number(value) || 25));
+        this.startDarkRoom(minutes);
+      },
+    }).open();
+  }
+
+  private startDarkRoom(minutes: number): void {
+    this.stopDarkRoom();
+    this.darkRoomMode = true;
+    this.darkRoomButton?.addClass("is-active");
+    this.darkRoomButton?.setAttr("aria-pressed", "true");
+    activeDocument.body.addClass("novelview-dark-room");
+    const fullscreen = activeDocument.documentElement.requestFullscreen?.();
+    if (fullscreen) {
+      void fullscreen.catch(() => {
+        // 全屏不可用时仍保留黑屋遮罩与倒计时。
+      });
+    }
+    const end = Date.now() + minutes * 60_000;
+    const tick = (): void => {
+      const remaining = Math.max(0, end - Date.now());
+      if (this.darkRoomButton) {
+        const text = `${Math.ceil(remaining / 60_000)} 分钟`;
+        this.darkRoomButton.setAttr("title", `黑屋模式剩余 ${text}`);
+      }
+      if (remaining <= 0) {
+        this.stopDarkRoom();
+        new Notice("Novel View：黑屋模式结束。");
+      }
+    };
+    tick();
+    this.darkRoomTimer = window.setInterval(tick, 1_000);
+    new Notice(`Novel View：黑屋模式开始，持续 ${minutes} 分钟。`);
+  }
+
+  private stopDarkRoom(): void {
+    this.darkRoomMode = false;
+    this.darkRoomDialogOpen = false;
+    this.darkRoomButton?.removeClass("is-active");
+    this.darkRoomButton?.setAttr("aria-pressed", "false");
+    this.darkRoomButton?.setAttr("title", "黑屋模式：限时全屏写作");
+    activeDocument.body.removeClass("novelview-dark-room");
+    if (this.darkRoomTimer !== null) {
+      window.clearInterval(this.darkRoomTimer);
+      this.darkRoomTimer = null;
+    }
+    if (activeDocument.fullscreenElement) {
+      void activeDocument.exitFullscreen().catch(() => {});
+    }
+  }
+
+  getArticleInfo(): ArticleInfoSnapshot | null {
+    const view = this.editorView;
+    if (!view || !this.filePath) {
+      return null;
+    }
+    const center = this.seamlessController.enabled
+      ? this.seamlessController.getCenterSection()
+      : null;
+    const filePath = center?.path ?? this.filePath;
+    const body = center?.body ?? view.state.doc.toString();
+    const marks = getOutlineMarks(view.state).map((mark) => ({
+      label: mark.label,
+      start: mark.start,
+      end: mark.end,
+      line: view.state.doc.lineAt(mark.start).number,
+    }));
+    const pending = parsePendingBlocks(view.state).map((block) => ({
+      title: block.title,
+      from: block.openFrom,
+      to: block.closeTo,
+      line: block.openLine,
+    }));
+    const notes = loadFootnoteNotes(filePath);
+    const footnoteMap = new Map<string, {
+      key: string;
+      text: string;
+      line: number;
+    }>();
+    for (const reference of parseFootnoteReferences(body)) {
+      if (!footnoteMap.has(reference.key)) {
+        footnoteMap.set(reference.key, {
+          key: reference.key,
+          text: notes[reference.key] ?? "",
+          line: reference.line,
+        });
+      }
+    }
+    return {
+      filePath,
+      title: loadChapterTitleFallback(filePath),
+      summary: "",
+      wordCount: countNovelCharacters(body),
+      marks,
+      pending,
+      footnotes: [...footnoteMap.values()],
+    };
+  }
+
+  isDarkRoomActive(): boolean {
+    return this.darkRoomMode;
+  }
+
+  private updateTabTitle(): void {
+    const tab = this.containerEl.closest(".workspace-tab");
+    const title = tab?.querySelector<HTMLElement>(
+      ".workspace-tab-header-inner-title",
+    );
+    if (title) {
+      title.setText(this.getDisplayText());
+    }
+  }
+
+  private async toggleSeamlessMode(): Promise<void> {
+    if (this.seamlessController.enabled) {
+      const path = await this.seamlessController.disable();
+      this.contentEl.removeClass("is-seamless-mode");
+      this.seamlessButton?.removeClass("is-active");
+      if (path) {
+        this.filePath = path;
+      }
+      await this.loadFile();
+      return;
+    }
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    await this.flushSave();
+    await this.flushOutlineMarks();
+    const cursor = this.editorView.state.selection.main.head;
+    await this.seamlessController.enable(
+      this.editorView,
+      this.filePath,
+      cursor,
+    );
+    this.contentEl.addClass("is-seamless-mode");
+    this.seamlessButton?.addClass("is-active");
+  }
+
+  applyPageSettings(): void {
+    const mode = window.localStorage.getItem("novelview:page-margin-mode")
+      === "manual"
+      ? "manual"
+      : "auto";
+    const chars = Math.min(
+      80,
+      Math.max(
+        24,
+        Number(window.localStorage.getItem("novelview:page-chars")) || 42,
+      ),
+    );
+    this.contentEl.toggleClass("has-manual-page-width", mode === "manual");
+    this.contentEl.setCssProps({
+      "--novelview-page-chars": String(chars),
+    });
+  }
+
   activate(): void {
+    this.updateTabTitle();
     const file = this.app.vault.getAbstractFileByPath(this.filePath);
     if (file instanceof TFile) {
       this.plugin.setNovelEditorFile(file);
@@ -873,6 +1204,7 @@ export class NovelEditorView extends ItemView {
         state: EditorState.create({
           doc: body,
           extensions: [
+            this.seamlessCompartment.of([]),
             history(),
             drawSelection(),
             Prec.highest(keymap.of([
@@ -888,6 +1220,9 @@ export class NovelEditorView extends ItemView {
             keymap.of([...defaultKeymap, ...historyKeymap]),
             EditorView.lineWrapping,
             EditorView.updateListener.of((update) => {
+              if (this.seamlessController.enabled && update.docChanged) {
+                this.seamlessController.handleDocChanged();
+              }
               if (update.docChanged) {
                 this.schedulePendingBlocksRefresh();
               }
@@ -899,9 +1234,13 @@ export class NovelEditorView extends ItemView {
               if (update.docChanged || update.selectionSet) {
                 this.updatePendingUi();
               }
+              if (update.selectionSet && !this.loading) {
+                this.scheduleCursorSave();
+              }
               if (
                 this.immersiveMode
                 && !this.immersiveSyncing
+                && !this.seamlessController.isMutating
                 && (update.docChanged || update.selectionSet)
               ) {
                 this.scheduleImmersiveCenter();
@@ -910,6 +1249,8 @@ export class NovelEditorView extends ItemView {
             immersiveLineExtension,
             novelSearchHighlightsField,
             settingKeywordExtension,
+            footnoteExtension,
+            quoteBlockExtension,
             imageExtension(this.app, () => this.filePath),
             hrDecorationExtension,
             proseDecorationExtension,
@@ -947,15 +1288,25 @@ export class NovelEditorView extends ItemView {
         effects: setOutlineMarksEffect.of(outlineMarks),
       });
       this.observeEditorResize();
-      const lineNumber = Math.min(
-        Math.max(1, this.pendingLine),
-        this.editorView.state.doc.lines,
-      );
-      const line = this.editorView.state.doc.line(lineNumber);
-      this.editorView.dispatch({
-        selection: { anchor: line.from },
-        effects: EditorView.scrollIntoView(line.from, { y: "center" }),
-      });
+      const savedCursor = this.readSavedCursor();
+      if (this.pendingLine > 1 || savedCursor === null) {
+        const lineNumber = Math.min(
+          Math.max(1, this.pendingLine),
+          this.editorView.state.doc.lines,
+        );
+        const line = this.editorView.state.doc.line(lineNumber);
+        this.editorView.dispatch({
+          selection: { anchor: line.from },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        });
+      } else {
+        const at = Math.min(savedCursor, this.editorView.state.doc.length);
+        this.editorView.dispatch({
+          selection: { anchor: at },
+          effects: EditorView.scrollIntoView(at, { y: "center" }),
+        });
+      }
+      this.loadedCursor = true;
       this.lastSavedBody = body;
       this.editorView.scrollDOM.addEventListener("scroll", () => {
         this.updateTocVisibility();
@@ -972,6 +1323,7 @@ export class NovelEditorView extends ItemView {
       this.containerEl.querySelector<HTMLElement>(".view-header-title")
         ?.setText(this.getDisplayText());
       this.chapterTitleEl?.setText(this.getDisplayText());
+      this.updateTabTitle();
       this.renderToc();
       this.updatePendingUi();
     } catch (error) {
@@ -984,6 +1336,95 @@ export class NovelEditorView extends ItemView {
     } finally {
       this.loading = false;
     }
+  }
+
+  private cursorStorageKey(): string {
+    return `novelview:cursor:${this.filePath}`;
+  }
+
+  private readSavedCursor(): number | null {
+    try {
+      const value = Number(window.localStorage.getItem(this.cursorStorageKey()));
+      return Number.isFinite(value) && value >= 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private scheduleCursorSave(): void {
+    if (!this.loadedCursor) {
+      return;
+    }
+    if (this.cursorSaveTimer !== null) {
+      window.clearTimeout(this.cursorSaveTimer);
+    }
+    this.cursorSaveTimer = window.setTimeout(() => {
+      this.cursorSaveTimer = null;
+      this.saveCursor();
+    }, 180);
+  }
+
+  private saveCursor(): void {
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        this.cursorStorageKey(),
+        String(this.editorView.state.selection.main.head),
+      );
+    } catch {
+      // 本地存储不可用时忽略。
+    }
+  }
+
+  private wrapSelectionInQuote(): void {
+    if (!this.editorView) {
+      return;
+    }
+    const view = this.editorView;
+    const selection = view.state.selection.main;
+    if (selection.empty) {
+      const head = selection.head;
+      view.dispatch({
+        changes: { from: head, insert: "> " },
+        selection: { anchor: head + 2 },
+      });
+      view.focus();
+      return;
+    }
+    const doc = view.state.doc;
+    const start = doc.lineAt(selection.from);
+    const end = doc.lineAt(selection.to);
+    const lines: string[] = [];
+    for (let lineNumber = start.number; lineNumber <= end.number; lineNumber += 1) {
+      const line = doc.line(lineNumber);
+      lines.push(line.text.startsWith(">") ? line.text : `> ${line.text}`);
+    }
+    const replacement = lines.join("\n");
+    view.dispatch({
+      changes: { from: start.from, to: end.to, insert: replacement },
+      selection: { anchor: start.from + replacement.length },
+    });
+    view.focus();
+  }
+
+  private insertFootnote(): void {
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    const view = this.editorView;
+    const key = nextFootnoteKey(view.state.doc.toString());
+    const head = view.state.selection.main.head;
+    const reference = `[^${key}]`;
+    const filePath = this.filePath;
+    saveFootnoteNote(filePath, key, "");
+    view.dispatch({
+      changes: { from: head, insert: reference },
+      selection: { anchor: head + reference.length },
+    });
+    view.focus();
+    void this.plugin.focusArticleInfoFootnote(filePath, key);
   }
 
   private addOutlineMark(): void {
@@ -1055,6 +1496,9 @@ export class NovelEditorView extends ItemView {
   }
 
   private scheduleOutlineMarksSave(): void {
+    if (this.seamlessController.enabled) {
+      return;
+    }
     if (this.outlineMarksTimer !== null) {
       window.clearTimeout(this.outlineMarksTimer);
     }
@@ -1170,9 +1614,17 @@ export class NovelEditorView extends ItemView {
 
   private setImmersiveMode(enabled: boolean): void {
     if (enabled && this.plugin.isNovelFinderOpen()) {
-      new Notice("Novel View：NovelFinder 打开时无法进入沉浸模式。");
+      new Notice("Novel View：NovelFinder 打开时无法进入打字模式。");
       return;
     }
+    const restore = !enabled && this.editorView
+      ? {
+        head: this.editorView.state.selection.main.head,
+        before: this.editorView.coordsAtPos(
+          this.editorView.state.selection.main.head,
+        ),
+      }
+      : null;
     this.immersiveMode = enabled;
     this.contentEl.toggleClass("is-immersive", enabled);
     this.immersiveButton?.toggleClass("is-active", enabled);
@@ -1186,10 +1638,14 @@ export class NovelEditorView extends ItemView {
       this.clearImmersiveScrollFrame();
       this.clearImmersiveCenterFrame();
       this.immersiveProgrammaticScrollTop = null;
-      if (this.editorView) {
-        const head = this.editorView.state.selection.main.head;
-        this.editorView.dispatch({
-          effects: EditorView.scrollIntoView(head, { y: "center" }),
+      const view = this.editorView;
+      if (view && restore) {
+        this.scheduleEditorMeasure();
+        window.requestAnimationFrame(() => {
+          const after = view.coordsAtPos(restore.head);
+          if (restore.before && after) {
+            view.scrollDOM.scrollTop += after.top - restore.before.top;
+          }
         });
       }
     }
@@ -1210,7 +1666,11 @@ export class NovelEditorView extends ItemView {
   }
 
   private scheduleImmersiveCenter(): void {
-    if (!this.immersiveMode || this.immersiveCenterFrame !== null) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || this.immersiveCenterFrame !== null
+    ) {
       return;
     }
     this.immersiveCenterFrame = window.requestAnimationFrame(() => {
@@ -1221,7 +1681,11 @@ export class NovelEditorView extends ItemView {
 
   private centerImmersiveCursor(): void {
     const view = this.editorView;
-    if (!this.immersiveMode || !view) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !view
+    ) {
       return;
     }
     const head = view.state.selection.main.head;
@@ -1242,7 +1706,11 @@ export class NovelEditorView extends ItemView {
   }
 
   private handleImmersiveScroll(): void {
-    if (!this.immersiveMode || !this.editorView) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !this.editorView
+    ) {
       return;
     }
     if (this.immersiveProgrammaticScrollTop !== null) {
@@ -1264,7 +1732,11 @@ export class NovelEditorView extends ItemView {
 
   private syncCursorToImmersiveCenter(): void {
     const view = this.editorView;
-    if (!this.immersiveMode || !view) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !view
+    ) {
       return;
     }
     const scroller = view.scrollDOM;
@@ -1764,13 +2236,26 @@ export class NovelEditorView extends ItemView {
     }
     const selection = this.editorView.state.selection.main;
     const marks = this.outlineMarksAtSelection();
-    if (
-      (selection.empty || this.selectionOverlapsPending())
-      && marks.length === 0
-    ) {
+    if (this.selectionOverlapsPending() && marks.length === 0) {
       return;
     }
     const menu = new Menu();
+    if (!selection.empty) {
+      menu.addItem((item) => {
+        item
+          .setTitle("插入引用块")
+          .setIcon("quote")
+          .onClick(() => this.wrapSelectionInQuote());
+      });
+    }
+    if (!selection.empty || !this.selectionOverlapsPending()) {
+      menu.addItem((item) => {
+        item
+          .setTitle("插入脚注")
+          .setIcon("superscript")
+          .onClick(() => this.insertFootnote());
+      });
+    }
     if (!selection.empty && !this.selectionOverlapsPending()) {
       menu.addItem((item) => {
         item
@@ -1877,6 +2362,9 @@ export class NovelEditorView extends ItemView {
     if (this.loading) {
       return;
     }
+    if (this.seamlessController.enabled) {
+      return;
+    }
     if (this.saveTimer !== null) {
       window.clearTimeout(this.saveTimer);
     }
@@ -1887,6 +2375,10 @@ export class NovelEditorView extends ItemView {
   }
 
   private async flushSave(): Promise<void> {
+    if (this.seamlessController.enabled) {
+      await this.seamlessController.flush();
+      return;
+    }
     if (!this.editorView || !this.filePath) {
       return;
     }
