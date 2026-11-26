@@ -64,9 +64,11 @@ export class ModeSettingsPanel {
       Math.max(8, rect.left + rect.width / 2 - width / 2),
     );
     const top = Math.max(8, rect.top - height - 8);
-    this.root.style.left = `${left}px`;
-    this.root.style.top = `${top}px`;
-    this.root.style.transform = "none";
+    this.root.setCssStyles({
+      left: `${left}px`,
+      top: `${top}px`,
+      transform: "none",
+    });
   }
 
   private pageWidth(): void {

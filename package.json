@@ -1,6 +1,6 @@
 {
   "name": "novelview",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "main": "main.js",
   "scripts": {

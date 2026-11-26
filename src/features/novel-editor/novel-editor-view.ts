@@ -881,9 +881,9 @@ export class NovelEditorView extends ItemView {
     this.darkRoomButton?.addClass("is-active");
     this.darkRoomButton?.setAttr("aria-pressed", "true");
     activeDocument.body.addClass("novelview-dark-room");
-    const fullscreen = activeDocument.documentElement.requestFullscreen?.();
-    if (fullscreen) {
-      void fullscreen.catch(() => {
+    const requestFullscreen = activeDocument.documentElement.requestFullscreen;
+    if (requestFullscreen) {
+      void requestFullscreen.call(activeDocument.documentElement).catch(() => {
         // 全屏不可用时仍保留黑屋遮罩与倒计时。
       });
     }

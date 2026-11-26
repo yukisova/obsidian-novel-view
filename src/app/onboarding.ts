@@ -2,6 +2,7 @@ import {
   Component,
   MarkdownRenderer,
   Modal,
+  getLanguage,
   type App,
 } from "obsidian";
 import introduceCn from "../../docs/onboarding/INTRODUCE.cn.md";
@@ -19,7 +20,7 @@ interface OnboardingText {
 }
 
 function isChineseLocale(): boolean {
-  const stored = window.localStorage.getItem("language") ?? "";
+  const stored = getLanguage() ?? "";
   const locale = (stored || navigator.language || "").toLocaleLowerCase();
   return locale.startsWith("zh");
 }

@@ -845,9 +845,11 @@ export class SearchPanelV2 {
         }
         continue;
       }
-      const frontmatter = this.plugin.app.metadataCache.getFileCache(file)
+      const frontmatter: unknown = this.plugin.app.metadataCache.getFileCache(file)
         ?.frontmatter;
-      const raw = frontmatter?.["novelview-marks"];
+      const raw: unknown = frontmatter && typeof frontmatter === "object"
+        ? (frontmatter as Record<string, unknown>)["novelview-marks"]
+        : undefined;
       let marks: Array<{ start: number; end: number; label: string }> = [];
       if (typeof raw === "string") {
         try {

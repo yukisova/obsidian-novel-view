@@ -523,7 +523,7 @@ export class NovelSettingListView extends ItemView {
       },
     });
     input.value = initial;
-    const error = row.createEl("span", {
+    const error = row.createSpan({
       cls: "novelview-setting-inline-error",
     });
     nameEl.replaceWith(input);
@@ -624,9 +624,11 @@ export class NovelSettingListView extends ItemView {
       ) {
         continue;
       }
-      const frontmatter = this.app.metadataCache.getFileCache(file)
-        ?.frontmatter as Record<string, unknown> | undefined;
-      const raw: unknown = frontmatter?.[OUTLINE_MARKS_PROPERTY];
+      const frontmatter: unknown = this.app.metadataCache.getFileCache(file)
+        ?.frontmatter;
+      const raw: unknown = frontmatter && typeof frontmatter === "object"
+        ? (frontmatter as Record<string, unknown>)[OUTLINE_MARKS_PROPERTY]
+        : undefined;
       count += parseOutlineMarks(raw).length;
     }
     return count;
