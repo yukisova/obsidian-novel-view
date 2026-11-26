@@ -86,6 +86,7 @@ export function compileSearchExpression(options: SearchOptions): CompiledSearch 
   }
 }
 
+/** 在文本中查找全部匹配并返回行内上下文 */
 export function findSearchMatches(
   text: string,
   regex: RegExp,
@@ -155,6 +156,7 @@ export function findSearchMatches(
   return { matches, truncated };
 }
 
+/** 替换文本中的匹配并返回新文本与次数 */
 export function replaceSearchMatches(
   text: string,
   regex: RegExp,
@@ -175,10 +177,12 @@ export function replaceSearchMatches(
   return { text: replaced, count };
 }
 
+/** 转义字符串中的正则元字符供字面匹配 */
 export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** 统计正则在文本中匹配到的总次数 */
 function countMatches(text: string, regex: RegExp): number {
   let count = 0;
   let match: RegExpExecArray | null;
@@ -195,6 +199,7 @@ function countMatches(text: string, regex: RegExp): number {
   return count;
 }
 
+/** 返回每行起始偏移数组供行号定位 */
 function buildLineStarts(text: string): number[] {
   const starts = [0];
   for (let index = 0; index < text.length; index += 1) {
@@ -205,6 +210,7 @@ function buildLineStarts(text: string): number[] {
   return starts;
 }
 
+/** 用二分查找返回偏移量所在的行下标 */
 function findLineIndex(lineStarts: number[], offset: number): number {
   let low = 0;
   let high = lineStarts.length - 1;

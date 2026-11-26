@@ -20,11 +20,13 @@ let keywordRevision = 0;
 const activeViews = new Set<EditorView>();
 const refreshKeywordEffect = StateEffect.define<null>();
 
+/** 更新关键词表并递增版本号触发刷新 */
 export function setSettingKeywords(entries: SettingKeywordEntry[]): void {
   currentEntries = entries;
   keywordRevision += 1;
 }
 
+/** 通知所有活动编辑器刷新关键词装饰 */
 export function refreshSettingKeywords(): void {
   keywordRevision += 1;
   for (const view of activeViews) {
@@ -36,6 +38,7 @@ export function refreshSettingKeywords(): void {
   }
 }
 
+/** 计算每个关键词首次出现的位置 */
 function buildFirstOccurrencePositions(view: EditorView): Set<number> {
   const positions = new Set<number>();
   if (currentEntries.length === 0) {
@@ -63,13 +66,14 @@ function buildFirstOccurrencePositions(view: EditorView): Set<number> {
   return positions;
 }
 
+/** 为首现关键词生成彩色标记装饰 */
 function buildDecorations(
   view: EditorView,
   firstPositions: Set<number>,
 ): DecorationSet {
   if (
     firstPositions.size === 0
-    || !view.dom.closest(".novelview-novel-mode")
+    || !view.dom.closest(".novelview-editor-view")
   ) {
     return Decoration.none;
   }
@@ -118,6 +122,7 @@ class SettingKeywordPlugin {
   private refreshTimer: number | null = null;
   decorations: DecorationSet;
 
+  /** 注册视图并初始化首现位置与装饰 */
   constructor(view: EditorView) {
     this.view = view;
     activeViews.add(view);
@@ -125,6 +130,7 @@ class SettingKeywordPlugin {
     this.decorations = buildDecorations(view, this.firstPositions);
   }
 
+  /** 响应文档版本与视口变化刷新装饰 */
   update(update: ViewUpdate): void {
     const forced = update.transactions.some((transaction) => (
       transaction.effects.some((effect) => effect.is(refreshKeywordEffect))
@@ -149,6 +155,7 @@ class SettingKeywordPlugin {
     }
   }
 
+  /** 清理定时器并把视图移出活动列表 */
   destroy(): void {
     if (this.refreshTimer !== null) {
       window.clearTimeout(this.refreshTimer);
@@ -157,6 +164,7 @@ class SettingKeywordPlugin {
     activeViews.delete(this.view);
   }
 
+  /** 把高亮位置随文档变更映射到新偏移 */
   private mapPositions(
     changes: import("@codemirror/state").ChangeSet,
   ): Set<number> {
@@ -170,6 +178,7 @@ class SettingKeywordPlugin {
     return mapped;
   }
 
+  /** 防抖后向视图派发关键词刷新效果 */
   private scheduleRefresh(): void {
     if (this.refreshTimer !== null) {
       window.clearTimeout(this.refreshTimer);
@@ -187,6 +196,7 @@ class SettingKeywordPlugin {
     }, 140);
   }
 
+  /** 重算首现位置与装饰并同步版本号 */
   private recompute(view: EditorView): void {
     this.revision = keywordRevision;
     this.firstPositions = buildFirstOccurrencePositions(view);

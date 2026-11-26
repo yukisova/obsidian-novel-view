@@ -13,6 +13,7 @@ import type { OutlineMark } from "../core/model/outline-marks";
 
 export const setOutlineMarksEffect = StateEffect.define<OutlineMark[]>();
 
+/** 把大纲标记范围随文档映射到新位置 */
 function mapMarks(
   marks: OutlineMark[],
   transaction: import("@codemirror/state").Transaction,
@@ -32,9 +33,11 @@ function mapMarks(
 }
 
 export const outlineMarksField = StateField.define<OutlineMark[]>({
+  /** 状态字段初值为空的大纲标记列表 */
   create() {
     return [];
   },
+  /** 接收设置效果或映射已有标记范围 */
   update(value, transaction) {
     const replacement = transaction.effects.find(
       (effect): effect is StateEffect<OutlineMark[]> => (
@@ -48,6 +51,7 @@ export const outlineMarksField = StateField.define<OutlineMark[]>({
   },
 });
 
+/** 把大纲标记转换成不重叠的文本装饰 */
 function buildOutlineMarkDecorations(marks: OutlineMark[]): DecorationSet {
   const ranges = [...marks]
     .filter((mark) => mark.end > mark.start)
@@ -76,6 +80,7 @@ export const outlineMarksExtension = [
   EditorView.decorations.from(outlineMarksField, buildOutlineMarkDecorations),
 ];
 
+/** 读取当前编辑器状态下的大纲标记 */
 export function getOutlineMarks(state: EditorState): OutlineMark[] {
   return state.field(outlineMarksField);
 }

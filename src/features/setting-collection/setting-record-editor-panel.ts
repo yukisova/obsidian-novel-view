@@ -28,16 +28,29 @@ export class SettingRecordEditorPanel {
   private dragging = false;
   private moveListener: ((dx: number, dy: number) => void) | null = null;
 
+  /** 返回面板根元素供外部使用 */
   get element(): HTMLElement | null {
     return this.root;
   }
 
+  /** 注册面板联动移动回调 */
   setMoveListener(listener: (dx: number, dy: number) => void): void {
     this.moveListener = listener;
   }
 
+  /** 设置面板在页面中的坐标 */
   setPosition(left: number, top: number): void {
     if (!this.root) {
+      return;
+    }
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      this.root.setCssProps({
+        left: "8px",
+        top: "56px",
+        right: "auto",
+        width: "calc(100vw - 16px)",
+      });
+      this.positioned = true;
       return;
     }
     this.root.setCssProps({
@@ -48,6 +61,7 @@ export class SettingRecordEditorPanel {
     this.positioned = true;
   }
 
+  /** 按增量平移面板的显示位置 */
   moveBy(dx: number, dy: number): void {
     if (!this.root || (dx === 0 && dy === 0)) {
       return;
@@ -61,6 +75,7 @@ export class SettingRecordEditorPanel {
     this.positioned = true;
   }
 
+  /** 展示编辑面板并重新渲染 */
   show(data: SettingRecordEditorData): void {
     this.data = data;
     if (!this.root) {
@@ -69,6 +84,7 @@ export class SettingRecordEditorPanel {
     this.render(data);
   }
 
+  /** 关闭面板并触发关闭回调 */
   close(): void {
     if (!this.root) {
       return;
@@ -84,6 +100,7 @@ export class SettingRecordEditorPanel {
     onClose?.();
   }
 
+  /** 构建编辑面板的骨架结构 */
   private build(): void {
     const root = createDiv({ cls: "novelview-setting-record-editor-panel" });
     this.root = root;
@@ -101,7 +118,10 @@ export class SettingRecordEditorPanel {
       this.close();
     });
     header.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement | null)?.closest("button")) {
+      if (
+        window.matchMedia("(max-width: 700px)").matches
+        || (event.target as HTMLElement | null)?.closest("button")
+      ) {
         return;
       }
       this.startDrag(event);
@@ -112,6 +132,7 @@ export class SettingRecordEditorPanel {
     activeDocument.body.appendChild(root);
   }
 
+  /** 渲染记录编辑表单内容 */
   private render(data: SettingRecordEditorData): void {
     if (!this.body || !this.root) {
       return;
@@ -342,6 +363,7 @@ export class SettingRecordEditorPanel {
     });
   }
 
+  /** 提交草稿并处理校验错误 */
   private async submit(
     draft: SettingRecordDraft,
     error: HTMLElement,
@@ -360,6 +382,7 @@ export class SettingRecordEditorPanel {
     }
   }
 
+  /** 根据锚点计算面板位置 */
   private position(data: SettingRecordEditorData): void {
     if (!this.root || this.positioned) {
       return;
@@ -376,6 +399,7 @@ export class SettingRecordEditorPanel {
     this.positioned = true;
   }
 
+  /** 绑定标题栏拖拽移动逻辑 */
   private startDrag(event: PointerEvent): void {
     if (!this.root || !this.header || event.button !== 0) {
       return;

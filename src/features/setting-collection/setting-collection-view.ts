@@ -57,16 +57,19 @@ export class SettingCollectionView extends ItemView {
   private recordPreview: HTMLElement | null = null;
   private recordDragActive = false;
 
+  /** 初始化设定集视图与插件引用 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回设定集视图的类型标识 */
   override getViewType(): string {
     return SETTING_COLLECTION_VIEW_TYPE;
   }
 
+  /** 显示设定集名称作为标题 */
   override getDisplayText(): string {
     const folder = this.folderPath
       ? this.plugin.getSettingCollectionFolder(this.folderPath)
@@ -74,14 +77,17 @@ export class SettingCollectionView extends ItemView {
     return folder ? folder.name.replace(/^-+/u, "") || "设定集" : "设定集";
   }
 
+  /** 返回视图在侧栏显示的图标 */
   override getIcon(): string {
     return "library";
   }
 
+  /** 导出当前视图状态供恢复 */
   override getState(): Record<string, unknown> {
     return { folderPath: this.folderPath };
   }
 
+  /** 恢复视图状态并刷新内容 */
   override async setState(
     state: Record<string, unknown>,
     result: import("obsidian").ViewStateResult,
@@ -94,6 +100,7 @@ export class SettingCollectionView extends ItemView {
     await this.refresh();
   }
 
+  /** 关闭视图并释放浮层面板 */
   protected override async onClose(): Promise<void> {
     await Promise.resolve();
     this.recordEditorPanel?.close();
@@ -104,6 +111,7 @@ export class SettingCollectionView extends ItemView {
     this.contentEl.empty();
   }
 
+  /** 初始化内容区并绑定拖拽事件 */
   protected override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-setting-collection-view");
@@ -124,6 +132,7 @@ export class SettingCollectionView extends ItemView {
     await this.refresh();
   }
 
+  /** 重新渲染整个设定集视图 */
   async refresh(): Promise<void> {
     if (!this.contentEl.isConnected || !this.folderPath || this.refreshing) {
       return;
@@ -202,10 +211,12 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 生成标签的唯一定位键 */
   private tagStateKey(group: string, tag: string): string {
     return `${group}\u0000${tag}`;
   }
 
+  /** 刷新当前聚焦标签的样式 */
   private updateFocusedTags(): void {
     for (const element of this.contentEl.querySelectorAll<HTMLElement>(
       ".novelview-setting-collection-tag.is-active",
@@ -224,6 +235,7 @@ export class SettingCollectionView extends ItemView {
     element?.addClass("is-active");
   }
 
+  /** 在记录旁显示悬浮预览 */
   private showRecordPreview(row: HTMLElement, entry: import("../../core/model/setting-collection").SettingCollectionEntry): void {
     if (this.dragPayload) {
       return;
@@ -253,11 +265,13 @@ export class SettingCollectionView extends ItemView {
     this.recordPreview = preview;
   }
 
+  /** 移除记录悬浮预览浮层 */
   private hideRecordPreview(): void {
     this.recordPreview?.remove();
     this.recordPreview = null;
   }
 
+  /** 按关键词查找并展示详情 */
   async revealRecordDetail(
     group: string,
     tag: string,
@@ -279,6 +293,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 滚动定位到指定设定记录 */
   focusRecord(group: string, tag: string, keyword: string): void {
     const selector = [
       `[data-setting-group="${CSS.escape(group)}"]`,
@@ -307,6 +322,7 @@ export class SettingCollectionView extends ItemView {
     }, 1600);
   }
 
+  /** 为记录绑定指针拖拽交互 */
   private attachRecordPointerDrag(
     row: HTMLElement,
     payload: SettingDragPayload,
@@ -374,6 +390,7 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 更新记录拖拽落点提示 */
   private applyRecordPointerDropTarget(
     target: SettingDropTarget | null,
   ): void {
@@ -401,6 +418,7 @@ export class SettingCollectionView extends ItemView {
     this.dropTarget = null;
   }
 
+  /** 解析指针位置的拖拽落点 */
   private resolveRecordPointerDropTarget(
     element: HTMLElement,
     clientY: number,
@@ -459,6 +477,7 @@ export class SettingCollectionView extends ItemView {
     };
   }
 
+  /** 开始拖拽并写入载荷数据 */
   private startDrag(
     event: DragEvent,
     payload: SettingDragPayload,
@@ -480,6 +499,7 @@ export class SettingCollectionView extends ItemView {
     source?.addClass("is-dragging");
   }
 
+  /** 重置拖拽状态与相关样式 */
   private clearDragState(): void {
     this.clearDropTarget();
     this.dragPayload = null;
@@ -491,6 +511,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 清除拖拽落点的高亮样式 */
   private clearDropTarget(): void {
     this.dropTarget?.element.removeClass(
       "is-drop-before",
@@ -500,11 +521,13 @@ export class SettingCollectionView extends ItemView {
     this.dropTarget = null;
   }
 
+  /** 根据指针位置判断插入方向 */
   private dropMode(element: HTMLElement, event: DragEvent): "before" | "after" {
     const rect = element.getBoundingClientRect();
     return event.clientY < rect.top + rect.height / 2 ? "before" : "after";
   }
 
+  /** 解析拖拽目标与放置方式 */
   private resolveDropTarget(event: DragEvent): SettingDropTarget | null {
     const payload = this.dragPayload;
     const target = event.target as HTMLElement | null;
@@ -592,6 +615,7 @@ export class SettingCollectionView extends ItemView {
     };
   }
 
+  /** 拖拽经过时更新落点提示 */
   private handleDragOver(event: DragEvent): void {
     if (!this.dragPayload) {
       return;
@@ -610,6 +634,7 @@ export class SettingCollectionView extends ItemView {
     this.dropTarget = target;
   }
 
+  /** 处理拖拽释放并执行移动 */
   private async handleDrop(event: DragEvent): Promise<void> {
     const payload = this.dragPayload;
     if (!payload) {
@@ -625,6 +650,7 @@ export class SettingCollectionView extends ItemView {
     await this.performSettingDrop(payload, target);
   }
 
+  /** 执行分组标签或记录移动 */
   private async performSettingDrop(
     payload: SettingDragPayload,
     target: SettingDropTarget,
@@ -756,6 +782,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 保存拖拽后的索引并刷新 */
   private async persistDrop(
     settingRoot: string,
     index: SettingCollectionIndex,
@@ -769,6 +796,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 创建带图标的头部按钮 */
   private addHeaderButton(
     parent: HTMLElement,
     icon: string,
@@ -784,6 +812,7 @@ export class SettingCollectionView extends ItemView {
     return button;
   }
 
+  /** 按搜索词过滤记录显示 */
   private applySettingSearch(): void {
     const query = this.searchQuery.trim().toLocaleLowerCase();
     for (const list of this.contentEl.querySelectorAll<HTMLElement>(
@@ -825,6 +854,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 渲染设定分组及其标签 */
   private renderGroup(
     parent: HTMLElement,
     group: string,
@@ -845,6 +875,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 渲染标签卡片与记录行 */
   private renderTag(
     parent: HTMLElement,
     group: string,
@@ -1013,6 +1044,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 创建记录行内的小图标按钮 */
   private addSmallButton(
     parent: HTMLElement,
     icon: string,
@@ -1030,6 +1062,7 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 弹出标签的右键操作菜单 */
   private openTagMenu(event: MouseEvent, group: string, tag: string): void {
     const menu = new Menu();
     menu.addItem((item) => {
@@ -1045,6 +1078,7 @@ export class SettingCollectionView extends ItemView {
     menu.showAtMouseEvent(event);
   }
 
+  /** 弹出记录操作与详细文件菜单 */
   private openRecordMenu(
     event: MouseEvent,
     group: string,
@@ -1085,6 +1119,7 @@ export class SettingCollectionView extends ItemView {
     menu.showAtMouseEvent(event);
   }
 
+  /** 获取当前设定集目录与索引 */
   private async getFolder(): Promise<{ folderPath: string; index: SettingCollectionIndex } | null> {
     const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
     if (!folder) {
@@ -1095,6 +1130,7 @@ export class SettingCollectionView extends ItemView {
     return { folderPath: folder.path, index };
   }
 
+  /** 打开弹窗新建设定标签 */
   private createTag(group: string): void {
     new SettingTagModal(
       this.app,
@@ -1123,6 +1159,7 @@ export class SettingCollectionView extends ItemView {
     ).open();
   }
 
+  /** 打开弹窗编辑标签颜色名称 */
   private editTag(group: string, tagName: string): void {
     const folder = this.plugin.getSettingCollectionFolder(this.folderPath);
     if (!folder) {
@@ -1168,6 +1205,7 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 确认后删除标签及其记录 */
   private deleteTag(group: string, tagName: string): void {
     new SettingConfirmModal(
       this.app,
@@ -1190,6 +1228,7 @@ export class SettingCollectionView extends ItemView {
     ).open();
   }
 
+  /** 选择标签并新建设定记录 */
   private createRecord(
     group: string,
     tagName?: string,
@@ -1229,6 +1268,7 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 打开记录编辑面板新建记录 */
   private openRecordModal(
     settingRoot: string,
     group: string,
@@ -1283,6 +1323,7 @@ export class SettingCollectionView extends ItemView {
     this.bindRecordPanels();
   }
 
+  /** 解析目录后展示记录详情 */
   private openRecordDetail(
     group: string,
     tag: string,
@@ -1295,6 +1336,7 @@ export class SettingCollectionView extends ItemView {
     void this.showRecordDetail(folder, group, tag, entry);
   }
 
+  /** 把图片图标解析为资源地址 */
   private resolveSettingIconUrl(icon: string): string | null {
     const parsed = parseSettingIcon(icon);
     if (!parsed || parsed.kind !== "image") {
@@ -1306,6 +1348,7 @@ export class SettingCollectionView extends ItemView {
       : null;
   }
 
+  /** 在容器中渲染记录图标 */
   private renderSettingIcon(container: HTMLElement, icon: string): void {
     const parsed = parseSettingIcon(icon);
     if (!parsed) {
@@ -1323,6 +1366,7 @@ export class SettingCollectionView extends ItemView {
     }
   }
 
+  /** 保存上传图标并返回标识 */
   async uploadSettingRecordIcon(
     file: File,
     folderPath: string,
@@ -1351,6 +1395,7 @@ export class SettingCollectionView extends ItemView {
     return `image:${path}`;
   }
 
+  /** 绑定详情与编辑面板联动 */
   private bindRecordPanels(): void {
     this.recordDetailPanel?.setMoveListener((dx, dy) => {
       this.recordEditorPanel?.moveBy(dx, dy);
@@ -1361,6 +1406,7 @@ export class SettingCollectionView extends ItemView {
     this.arrangeRecordPanels();
   }
 
+  /** 并排调整详情与编辑面板位置 */
   private arrangeRecordPanels(): void {
     const detail = this.recordDetailPanel?.element;
     const editor = this.recordEditorPanel?.element;
@@ -1381,6 +1427,7 @@ export class SettingCollectionView extends ItemView {
     this.recordEditorPanel?.setPosition(editorLeft, detailRect.top);
   }
 
+  /** 展示记录详情与详细文件 */
   private async showRecordDetail(
     folder: TFolder,
     group: string,
@@ -1417,6 +1464,7 @@ export class SettingCollectionView extends ItemView {
     this.bindRecordPanels();
   }
 
+  /** 弹窗输入标题新建详细文件 */
   private createDetailFile(group: string, keyword: string): void {
     new SettingGroupModal(
       this.app,
@@ -1441,10 +1489,12 @@ export class SettingCollectionView extends ItemView {
     ).open();
   }
 
+  /** 转发到 editRecordAt */
   private editRecord(group: string, tagName: string, keyword: string): void {
     this.editRecordAt(this.folderPath, group, tagName, keyword);
   }
 
+  /** 在指定目录打开记录编辑面板 */
   private editRecordAt(
     folderPath: string,
     group: string,
@@ -1530,28 +1580,43 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 确认后删除记录与详细文件 */
   private deleteRecord(group: string, tagName: string, keyword: string): void {
+    const groupName = group;
+    const details = this.plugin.getSettingRecordDetailFiles(
+      this.folderPath,
+      groupName,
+      keyword,
+    );
     new SettingConfirmModal(
       this.app,
       "删除记录",
       `删除记录“${keyword}”？`,
       "删除",
       async () => {
-        const data = await this.getFolder();
-        if (!data) {
+        if (details.length === 0) {
+          await this.plugin.deleteSettingRecordFiles(this.folderPath, keyword);
+          await this.refresh();
           return;
         }
-        const tag = data.index[group]?.find((entry) => entry.tag === tagName);
-        if (!tag) {
-          return;
-        }
-        tag.contain = tag.contain.filter((entry) => entry.keyword !== keyword);
-        await this.plugin.writeSettingCollectionIndex(data.folderPath, data.index);
-        await this.refresh();
+        new SettingConfirmModal(
+          this.app,
+          "确认删除详细文件",
+          `该记录包含 ${details.length} 个详细设定文件，确认后将一并删除。`,
+          "全部删除",
+          async () => {
+            await this.plugin.deleteSettingRecordFiles(
+              this.folderPath,
+              keyword,
+            );
+            await this.refresh();
+          },
+        ).open();
       },
     ).open();
   }
 
+  /** 渲染设定集缺失时的提示 */
   private renderMissingCollection(): void {
     this.contentEl.createDiv({
       cls: "novelview-setting-collection-message",
@@ -1567,6 +1632,7 @@ export class SettingCollectionView extends ItemView {
     });
   }
 
+  /** 在内容区渲染提示消息 */
   private renderMessage(message: string): void {
     this.contentEl.createDiv({
       cls: "novelview-setting-collection-message",

@@ -29,10 +29,12 @@ export interface SettingCollectionTag {
 export type SettingCollectionIndex = Record<string, SettingCollectionTag[]>;
 export type SettingGroupTags = SettingCollectionTag[];
 
+/** 判断值是否为非空普通对象 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** 把颜色值统一转换为字符串 */
 function normalizeColor(value: unknown): string {
   if (typeof value === "string" || typeof value === "number") {
     return String(value);
@@ -40,6 +42,7 @@ function normalizeColor(value: unknown): string {
   return "";
 }
 
+/** 解析字段数组并过滤无名条目 */
 function parseFields(value: unknown): SettingField[] {
   if (!Array.isArray(value)) {
     return [];
@@ -62,6 +65,7 @@ function parseFields(value: unknown): SettingField[] {
   return fields;
 }
 
+/** 解析标注数组并校验区间有效性 */
 function parseMarks(value: unknown): SettingMark[] {
   if (!Array.isArray(value)) {
     return [];
@@ -83,6 +87,7 @@ function parseMarks(value: unknown): SettingMark[] {
   return marks;
 }
 
+/** 解析标签及其下的设定条目结构 */
 function parseTags(rawTags: unknown): SettingCollectionTag[] {
   if (!Array.isArray(rawTags)) {
     return [];
@@ -128,6 +133,7 @@ function parseTags(rawTags: unknown): SettingCollectionTag[] {
   return tags;
 }
 
+/** 兼容数组与对象两种标签输入格式 */
 export function parseSettingGroupTags(value: unknown): SettingGroupTags {
   if (Array.isArray(value)) {
     return parseTags(value);
@@ -138,6 +144,7 @@ export function parseSettingGroupTags(value: unknown): SettingGroupTags {
   return [];
 }
 
+/** 把分组映射解析为设定集合索引 */
 export function parseSettingCollectionIndex(value: unknown): SettingCollectionIndex {
   const result: SettingCollectionIndex = {};
   if (!isRecord(value)) {
@@ -153,6 +160,7 @@ export function parseSettingCollectionIndex(value: unknown): SettingCollectionIn
   return result;
 }
 
+/** 把设定集合索引输出为格式化文本 */
 export function serializeSettingCollectionIndex(
   index: SettingCollectionIndex,
 ): string {
@@ -196,10 +204,12 @@ export function serializeSettingGroupMarkdown(tags: SettingGroupTags): string {
   ].join("\n");
 }
 
+/** 返回空的设定集合索引对象 */
 export function emptySettingCollectionIndex(): SettingCollectionIndex {
   return {};
 }
 
+/** 清理设定组名称并生成合法目录名 */
 export function settingGroupFolderName(name: string): string {
   return name
     .trim()
@@ -222,6 +232,7 @@ export interface SettingKeywordMatch {
   entry: SettingKeywordEntry;
 }
 
+/** 汇总去重后的设定关键词及配色 */
 export function getSettingKeywordEntries(
   index: SettingCollectionIndex,
 ): SettingKeywordEntry[] {
@@ -255,6 +266,7 @@ export function getSettingKeywordEntries(
   return result;
 }
 
+/** 汇总全部设定关键词及其所属分组 */
 export function getAllSettingKeywordEntries(
   index: SettingCollectionIndex,
 ): SettingKeywordEntry[] {
@@ -282,6 +294,7 @@ export function getAllSettingKeywordEntries(
   return result;
 }
 
+/** 扫描正文并返回命中的关键词区间 */
 export function findSettingKeywordMatches(
   text: string,
   entries: SettingKeywordEntry[],
@@ -316,15 +329,82 @@ export function findSettingKeywordMatches(
 
 
 
-export const SETTING_DETAIL_FILE_SUFFIX = ".d.md";
+export const SETTING_RECORD_MARKER = "novelview-setting-record";
+export const SETTING_RECORD_META = "novelview-setting-meta";
 
-export function isSettingDetailFileName(name: string): boolean {
-  return name.length > SETTING_DETAIL_FILE_SUFFIX.length
-    && name.toLocaleLowerCase().endsWith(SETTING_DETAIL_FILE_SUFFIX);
+export interface ParsedSettingRecord {
+  entry: SettingCollectionEntry;
+  tag: string;
+  color: string;
 }
 
-export function settingDetailFileDisplayName(name: string): string {
-  return isSettingDetailFileName(name)
-    ? name.slice(0, -SETTING_DETAIL_FILE_SUFFIX.length)
-    : name.replace(/\.md$/u, "");
+/** 解析设定记录的前置元数据与正文 */
+export function parseSettingRecordMarkdown(
+  content: string,
+  keyword: string,
+): ParsedSettingRecord {
+  let tag = "未分组";
+  let color = "";
+  let icon: string | undefined;
+  let fields: SettingField[] = [];
+  let marks: SettingMark[] = [];
+  let body = content;
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(content);
+  if (match) {
+    body = content.slice(match[0].length);
+    const metaLine = /^novelview-setting-meta:\s*(.+)$/mu.exec(match[1] ?? "");
+    if (metaLine) {
+      try {
+        const meta = JSON.parse(metaLine[1] ?? "") as unknown;
+        if (isRecord(meta)) {
+          tag = typeof meta.tag === "string" && meta.tag.trim()
+            ? meta.tag.trim()
+            : tag;
+          color = normalizeColor(meta.color);
+          icon = typeof meta.icon === "string" && meta.icon.trim()
+            ? meta.icon.trim()
+            : undefined;
+          fields = parseFields(meta.fields);
+          marks = parseMarks(meta.marks);
+        }
+      } catch {
+        // 兼容手工编辑错误，保留默认记录。
+      }
+    }
+  }
+  return {
+    tag,
+    color,
+    entry: {
+      keyword,
+      content: body.replace(/\r\n?/gu, "\n").trim(),
+      fields,
+      marks,
+      ...(icon ? { icon } : {}),
+    },
+  };
+}
+
+/** 把设定记录序列化为带元数据的文档 */
+export function serializeSettingRecordMarkdown(
+  entry: SettingCollectionEntry,
+  tag: string,
+  color: string,
+): string {
+  const meta = JSON.stringify({
+    tag,
+    color,
+    ...(entry.icon ? { icon: entry.icon } : {}),
+    fields: entry.fields,
+    marks: entry.marks,
+  });
+  return [
+    "---",
+    `${SETTING_RECORD_MARKER}: true`,
+    `${SETTING_RECORD_META}: ${meta}`,
+    "---",
+    "",
+    entry.content,
+    "",
+  ].join("\n");
 }

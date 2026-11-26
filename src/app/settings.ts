@@ -1,6 +1,8 @@
 export type ParagraphMode = "line" | "blank-line";
 
 export interface NovelViewSettings {
+  /** 正文字号（px）。 */
+  fontSize: number;
   /** First-line indent in full-width character widths (em). */
   firstLineIndent: number;
   /** Visual line height for prose. */
@@ -16,6 +18,7 @@ export interface NovelViewSettings {
 }
 
 export const DEFAULT_SETTINGS: NovelViewSettings = {
+  fontSize: 16,
   firstLineIndent: 2,
   lineHeight: 1.8,
   paragraphSpacing: 0.65,
@@ -29,10 +32,18 @@ const MIN_LINE_HEIGHT = 1.2;
 const MAX_LINE_HEIGHT = 2.4;
 const MAX_PARAGRAPH_SPACING = 2;
 
+/** 校验并补全设置项的默认值与范围 */
 export function normalizeSettings(value: unknown): NovelViewSettings {
   const source = isRecord(value) ? value : {};
 
   return {
+    fontSize: normalizeNumber(
+      source.fontSize,
+      DEFAULT_SETTINGS.fontSize,
+      12,
+      28,
+      1,
+    ),
     firstLineIndent: normalizeNumber(
       source.firstLineIndent,
       DEFAULT_SETTINGS.firstLineIndent,
@@ -66,10 +77,12 @@ export function normalizeSettings(value: unknown): NovelViewSettings {
   };
 }
 
+/** 判断值是否为非空普通对象 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** 把数值限制在范围内并按步长取整 */
 function normalizeNumber(
   value: unknown,
   fallback: number,

@@ -25,16 +25,29 @@ export class SettingRecordDetailPanel {
   private positioned = false;
   private moveListener: ((dx: number, dy: number) => void) | null = null;
 
+  /** 返回面板根元素供外部使用 */
   get element(): HTMLElement | null {
     return this.root;
   }
 
+  /** 注册面板联动移动回调 */
   setMoveListener(listener: (dx: number, dy: number) => void): void {
     this.moveListener = listener;
   }
 
+  /** 设置面板在页面中的坐标 */
   setPosition(left: number, top: number): void {
     if (!this.root) {
+      return;
+    }
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      this.root.setCssProps({
+        left: "8px",
+        top: "56px",
+        right: "auto",
+        width: "calc(100vw - 16px)",
+      });
+      this.positioned = true;
       return;
     }
     this.root.setCssProps({
@@ -45,6 +58,7 @@ export class SettingRecordDetailPanel {
     this.positioned = true;
   }
 
+  /** 按增量平移面板的显示位置 */
   moveBy(dx: number, dy: number): void {
     if (!this.root || (dx === 0 && dy === 0)) {
       return;
@@ -58,6 +72,7 @@ export class SettingRecordDetailPanel {
     this.positioned = true;
   }
 
+  /** 展示记录详情并重新渲染 */
   show(data: SettingRecordDetailData): void {
     this.data = data;
     if (!this.root) {
@@ -66,6 +81,7 @@ export class SettingRecordDetailPanel {
     this.render();
   }
 
+  /** 关闭面板并清理内部状态 */
   close(): void {
     this.root?.remove();
     this.root = null;
@@ -78,6 +94,7 @@ export class SettingRecordDetailPanel {
     this.positioned = false;
   }
 
+  /** 构建详情面板的骨架结构 */
   private build(): void {
     const root = createDiv({ cls: "novelview-setting-record-detail-panel" });
     this.root = root;
@@ -116,7 +133,10 @@ export class SettingRecordDetailPanel {
       this.close();
     });
     header.addEventListener("pointerdown", (event) => {
-      if ((event.target as HTMLElement | null)?.closest("button")) {
+      if (
+        window.matchMedia("(max-width: 700px)").matches
+        || (event.target as HTMLElement | null)?.closest("button")
+      ) {
         return;
       }
       this.startDrag(event);
@@ -127,6 +147,42 @@ export class SettingRecordDetailPanel {
     activeDocument.body.appendChild(root);
   }
 
+  /** 渲染简易富文本段落与列表 */
+  private renderRichContent(container: HTMLElement, text: string): void {
+    const lines = text.replace(/\r\n?/gu, "\n").split("\n");
+    let list: HTMLUListElement | HTMLOListElement | null = null;
+    let listType: "ul" | "ol" | null = null;
+    const finishList = (): void => {
+      list = null;
+      listType = null;
+    };
+    for (const rawLine of lines) {
+      const line = rawLine.trimEnd();
+      const unordered = /^\s*[-*+]\s+(.+)$/u.exec(line);
+      const ordered = /^\s*\d+\.\s+(.+)$/u.exec(line);
+      if (unordered || ordered) {
+        const type = ordered ? "ol" : "ul";
+        if (!list || listType !== type) {
+          finishList();
+          list = type === "ol"
+            ? container.createEl("ol")
+            : container.createEl("ul");
+          listType = type;
+        }
+        list?.createEl("li", {
+          text: (unordered?.[1] ?? ordered?.[1] ?? "").trim(),
+        });
+        continue;
+      }
+      finishList();
+      if (line.trim()) {
+        const paragraph = container.createEl("p");
+        paragraph.setText(line);
+      }
+    }
+  }
+
+  /** 填充详情面板的内容区域 */
   private render(): void {
     if (!this.root || !this.body || !this.title || !this.meta || !this.data) {
       return;
@@ -177,7 +233,7 @@ export class SettingRecordDetailPanel {
         });
       }
       if (entry.content) {
-        content.appendText(entry.content);
+        this.renderRichContent(content, entry.content);
       }
     }
     if (entry.fields.length > 0) {
@@ -232,6 +288,7 @@ export class SettingRecordDetailPanel {
     }
   }
 
+  /** 绑定标题栏拖拽移动逻辑 */
   private startDrag(event: PointerEvent): void {
     if (!this.root || !this.header) {
       return;

@@ -3,6 +3,7 @@ import {
   Menu,
   TFile,
   Notice,
+  Platform,
   setIcon,
   type ViewStateResult,
   type WorkspaceLeaf,
@@ -86,28 +87,34 @@ export class NovelArticleListView extends ItemView {
     baseSelection: Set<string>;
   } | null = null;
 
+  /** 初始化文章列表视图并关闭导航 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回文章列表视图的类型标识 */
   override getViewType(): string {
     return ARTICLE_LIST_VIEW_TYPE;
   }
 
+  /** 提供标签页显示的文章列表标题 */
   override getDisplayText(): string {
     return "小说文章";
   }
 
+  /** 返回文章列表页签使用的图标 */
   override getIcon(): string {
     return "list";
   }
 
+  /** 保存文章列表所属小说组路径 */
   override getState(): Record<string, unknown> {
     return { folderPath: this.folderPath };
   }
 
+  /** 恢复小说组路径并刷新列表 */
   override async setState(
     state: Record<string, unknown>,
     result: ViewStateResult,
@@ -127,6 +134,7 @@ export class NovelArticleListView extends ItemView {
     this.scheduleRefresh();
   }
 
+  /** 注册事件与快捷键后渲染列表 */
   protected override async onOpen(): Promise<void> {
     await Promise.resolve();
     this.contentEl.empty();
@@ -244,6 +252,7 @@ export class NovelArticleListView extends ItemView {
     this.render();
   }
 
+  /** 清理定时器、浮层与拖拽状态 */
   protected override async onClose(): Promise<void> {
     await Promise.resolve();
     for (const timer of this.metaRefreshTimers.values()) {
@@ -265,6 +274,7 @@ export class NovelArticleListView extends ItemView {
     this.contentEl.removeClass("novelview-article-list-view");
   }
 
+  /** 在空闲帧合并多次刷新请求 */
   scheduleRefresh(): void {
     if (
       this.mutationDepth > 0
@@ -289,6 +299,7 @@ export class NovelArticleListView extends ItemView {
     });
   }
 
+  /** 进入变更状态并暂停自动刷新 */
   private beginMutation(): void {
     this.mutationDepth += 1;
     this.renderCooldownUntil = Math.max(this.renderCooldownUntil, Date.now() + 300);
@@ -302,6 +313,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 结束变更状态并安排刷新 */
   private endMutation(): void {
     this.mutationDepth = Math.max(0, this.mutationDepth - 1);
     if (this.mutationDepth > 0) {
@@ -311,6 +323,7 @@ export class NovelArticleListView extends ItemView {
     this.scheduleRefresh();
   }
 
+  /** 重建工具栏、头部与文章列表 */
   private render(): void {
     for (const timer of this.metaRefreshTimers.values()) {
       window.clearTimeout(timer);
@@ -357,6 +370,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 渲染返回、排序与导入导出按钮 */
   private renderToolbar(model: ArticleListModel): void {
     const toolbar = this.contentEl.createDiv({
       cls: "novelview-article-toolbar",
@@ -428,6 +442,7 @@ export class NovelArticleListView extends ItemView {
     settingsButton.addClass("novelview-article-toolbar-settings");
   }
 
+  /** 创建一个带图标的工具栏按钮 */
   private createToolbarButton(
     parent: HTMLElement,
     icon: string,
@@ -447,6 +462,7 @@ export class NovelArticleListView extends ItemView {
     return button;
   }
 
+  /** 渲染小说标题与正文总数 */
   private renderHeader(model: ArticleListModel): void {
     const header = this.contentEl.createDiv({
       cls: "novelview-article-header",
@@ -477,6 +493,7 @@ export class NovelArticleListView extends ItemView {
     });
   }
 
+  /** 绑定列表交互并渲染各卷内容 */
   private renderList(model: ArticleListModel): void {
     const list = this.contentEl.createDiv({
       cls: "novelview-article-list",
@@ -598,6 +615,7 @@ export class NovelArticleListView extends ItemView {
     this.pruneSelection();
   }
 
+  /** 渲染未归卷文章组成的分散卷 */
   private renderScatteredVolume(
     parent: HTMLElement,
     model: ArticleListModel,
@@ -684,6 +702,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 渲染单卷行及其拖放交互 */
   private renderVolumeRow(
     parent: HTMLElement,
     model: ArticleListModel,
@@ -700,7 +719,7 @@ export class NovelArticleListView extends ItemView {
         "aria-expanded": String(expanded),
       },
     });
-    row.setAttr("draggable", "true");
+    row.setAttr("draggable", String(!Platform.isMobile));
     row.addEventListener("mouseenter", () => {
       if (this.dragPayload) {
         return;
@@ -827,6 +846,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 按文章组渲染章节行并保持连续 */
   private renderArticleRows(
     parent: HTMLElement,
     articles: ArticleEntry[],
@@ -955,6 +975,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 在侧边显示文章组说明浮层 */
   private showGroupTooltip(anchor: HTMLElement, group: NovelArticleGroup): void {
     this.hideGroupTooltip();
     const tooltip = createDiv({ cls: "novelview-article-group-tooltip" });
@@ -986,11 +1007,13 @@ export class NovelArticleListView extends ItemView {
     this.groupTooltip = tooltip;
   }
 
+  /** 移除当前显示的文章组说明浮层 */
   private hideGroupTooltip(): void {
     this.groupTooltip?.remove();
     this.groupTooltip = null;
   }
 
+  /** 异步加载并显示卷简介浮层 */
   private async showVolumeTooltip(
     anchor: HTMLElement,
     folderPath: string,
@@ -1041,11 +1064,13 @@ export class NovelArticleListView extends ItemView {
     tooltip.addClass("is-visible");
   }
 
+  /** 移除当前显示的卷简介浮层 */
   private hideVolumeTooltip(): void {
     this.volumeTooltip?.remove();
     this.volumeTooltip = null;
   }
 
+  /** 判断文件是否属于当前小说组 */
   private isCurrentGroupFile(file: TFile): boolean {
     if (file.extension !== "md") {
       return false;
@@ -1056,6 +1081,7 @@ export class NovelArticleListView extends ItemView {
     return root === this.folderPath;
   }
 
+  /** 延迟刷新单篇文章的字数与状态 */
   private scheduleArticleMetaRefresh(path: string): void {
     const existing = this.metaRefreshTimers.get(path);
     if (existing !== undefined) {
@@ -1074,6 +1100,7 @@ export class NovelArticleListView extends ItemView {
     this.metaRefreshTimers.set(path, timer);
   }
 
+  /** 填充文章字数、对照组与状态 */
   private async fillArticleMeta(meta: HTMLElement, path: string): Promise<void> {
     const chapter = await this.plugin.getChapterMeta(path);
     if (!meta.isConnected) {
@@ -1096,6 +1123,7 @@ export class NovelArticleListView extends ItemView {
     }).setAttr("data-state", chapter.status);
   }
 
+  /** 渲染单篇文章行及其拖拽 */
   private renderArticleRow(
     parent: HTMLElement,
     article: ArticleEntry,
@@ -1111,7 +1139,7 @@ export class NovelArticleListView extends ItemView {
         title: article.path,
       },
     });
-    row.setAttr("draggable", "true");
+    row.setAttr("draggable", String(!Platform.isMobile));
     const icon = row.createSpan({ cls: "novelview-article-row-icon" });
     icon.setAttr("aria-hidden", "true");
     setIcon(icon, "file-text");
@@ -1213,6 +1241,7 @@ export class NovelArticleListView extends ItemView {
     });
   }
 
+  /** 把行内标题替换为输入框重命名 */
   private startInlineRename(target: ArticleListTarget): void {
     if (this.inlineRenameActive) {
       return;
@@ -1284,6 +1313,7 @@ export class NovelArticleListView extends ItemView {
     input.addEventListener("dblclick", (event) => event.stopPropagation());
   }
 
+  /** 处理多选与范围选择点击逻辑 */
   private handleSelectionClick(
     event: MouseEvent,
     key: string,
@@ -1316,6 +1346,7 @@ export class NovelArticleListView extends ItemView {
     return false;
   }
 
+  /** 选中锚点到目标之间的可见行 */
   private selectRange(key: string): void {
     const keys = this.visibleSelectionKeys();
     if (keys.length === 0) {
@@ -1341,12 +1372,14 @@ export class NovelArticleListView extends ItemView {
     this.updateSelectionClasses();
   }
 
+  /** 收集当前可见行的选择键 */
   private visibleSelectionKeys(): string[] {
     return [...this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")]
       .map((row) => row.dataset.selectKey)
       .filter((key): key is string => !!key);
   }
 
+  /** 根据选中集合更新行的样式 */
   private updateSelectionClasses(): void {
     for (const row of this.contentEl.querySelectorAll<HTMLElement>("[data-select-key]")) {
       const key = row.dataset.selectKey;
@@ -1354,6 +1387,7 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 把选中键转换为操作目标列表 */
   private collectSelectedTargets(): ArticleListTarget[] {
     const targets: ArticleListTarget[] = [];
     for (const key of this.selectedKeys) {
@@ -1365,6 +1399,7 @@ export class NovelArticleListView extends ItemView {
     return targets;
   }
 
+  /** 移除已不可见的选中键 */
   private pruneSelection(): void {
     const visible = new Set(this.visibleSelectionKeys());
     for (const key of [...this.selectedKeys]) {
@@ -1380,8 +1415,9 @@ export class NovelArticleListView extends ItemView {
     }
   }
 
+  /** 实现列表空白处的框选交互 */
   private startMarquee(event: PointerEvent, list: HTMLElement): void {
-    if (this.marquee) {
+    if (this.marquee || event.pointerType !== "mouse") {
       return;
     }
     const box = createDiv({ cls: "novelview-selection-box" });
@@ -1485,6 +1521,7 @@ export class NovelArticleListView extends ItemView {
     window.addEventListener("pointercancel", up);
   }
 
+  /** 显示列表空状态提示文字 */
   private renderMessage(text: string): void {
     this.contentEl.createDiv({
       cls: "novelview-article-message",
@@ -1496,6 +1533,7 @@ export class NovelArticleListView extends ItemView {
 
 
 
+/** 生成倒序展示的文章列表模型 */
 function reverseArticleModel(model: ArticleListModel): ArticleListModel {
   return {
     ...model,

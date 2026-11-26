@@ -18,35 +18,42 @@ export class NovelFinderView extends ItemView {
   private results: FinderResult[] = [];
   private context: FinderContext | null = null;
 
+  /** 初始化结果视图与插件引用 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回查找结果视图的类型标识 */
   getViewType(): string {
     return NOVEL_FINDER_VIEW_TYPE;
   }
 
+  /** 返回标签页显示的名称 */
   getDisplayText(): string {
     return "NovelFinder 结果";
   }
 
+  /** 返回标签页使用的图标名 */
   getIcon(): string {
     return "search";
   }
 
+  /** 视图打开时挂载样式并渲染 */
   async onOpen(): Promise<void> {
     this.contentEl.addClass("novelview-finder-results");
     this.render();
   }
 
+  /** 更新结果上下文并重新渲染 */
   setResults(context: FinderContext, results: FinderResult[]): void {
     this.context = context;
     this.results = results;
     this.render();
   }
 
+  /** 按当前范围渲染完整界面 */
   private render(): void {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-finder-results");
@@ -92,6 +99,7 @@ export class NovelFinderView extends ItemView {
     }
   }
 
+  /** 渲染查找条件与结果统计 */
   private renderHeader(context: FinderContext): void {
     const header = this.contentEl.createDiv({
       cls: "novelview-finder-header",
@@ -138,6 +146,7 @@ export class NovelFinderView extends ItemView {
     }
   }
 
+  /** 按章节分组渲染文件结果 */
   private renderFileResults(context: FinderContext): void {
     const list = this.contentEl.createDiv({
       cls: "novelview-finder-list novelview-finder-file-list",
@@ -176,6 +185,7 @@ export class NovelFinderView extends ItemView {
     }
   }
 
+  /** 渲染文字标记类结果卡片 */
   private renderMarkResults(): void {
     const list = this.contentEl.createDiv({
       cls: "novelview-finder-list novelview-finder-mark-list",
@@ -206,6 +216,7 @@ export class NovelFinderView extends ItemView {
     }
   }
 
+  /** 渲染对照组类结果卡片 */
   private renderPendingResults(): void {
     const list = this.contentEl.createDiv({
       cls: "novelview-finder-list novelview-finder-pending-list",
@@ -236,6 +247,7 @@ export class NovelFinderView extends ItemView {
     }
   }
 
+  /** 渲染设定关键词结果卡片 */
   private renderKeywordResults(): void {
     const list = this.contentEl.createDiv({
       cls: "novelview-finder-list novelview-finder-keyword-list",

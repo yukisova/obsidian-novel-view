@@ -3,6 +3,8 @@ export interface ModeSettingsValues {
   lineHeight: number;
   paragraphSpacing: number;
   firstLineIndent: number;
+  pageMarginMode: "auto" | "manual";
+  pageChars: number;
 }
 
 export class ModeSettingsPanel {
@@ -10,11 +12,19 @@ export class ModeSettingsPanel {
   private readonly onChange: (values: ModeSettingsValues) => void;
   private readonly values: ModeSettingsValues;
 
+  private readonly anchor?: HTMLElement;
+  private readonly reposition = (): void => {
+    this.positionAboveAnchor();
+  };
+
+  /** 初始化格式设置面板与控件 */
   constructor(
     initial: ModeSettingsValues,
     onChange: (values: ModeSettingsValues) => void,
     onClose: () => void,
+    anchor?: HTMLElement,
   ) {
+    this.anchor = anchor;
     this.values = { ...initial };
     this.onChange = onChange;
     this.root = createDiv({ cls: "novelview-mode-settings" });
@@ -24,20 +34,113 @@ export class ModeSettingsPanel {
     header.createSpan({ text: "格式设置" });
     header.createEl("button", { text: "×", attr: { type: "button" } })
       .addEventListener("click", () => {
-        this.root.remove();
-        onClose();
+        this.close(onClose);
       });
 
     this.slider("字体大小", "fontSize", 12, 28, 1, "px");
     this.slider("行距", "lineHeight", 1.2, 2.4, 0.1, "倍");
     this.slider("段距", "paragraphSpacing", 0, 2, 0.1, "em");
     this.slider("首行缩进", "firstLineIndent", 0, 8, 1, "字符");
+    this.pageWidth();
     activeDocument.body.appendChild(this.root);
+    window.addEventListener("resize", this.reposition);
+    window.requestAnimationFrame(() => this.positionAboveAnchor());
   }
 
+  /** 关闭面板并通知调用方 */
+  private close(onClose: () => void): void {
+    window.removeEventListener("resize", this.reposition);
+    this.root.remove();
+    onClose();
+  }
+
+  /** 把面板定位到锚点上方 */
+  private positionAboveAnchor(): void {
+    if (!this.anchor) {
+      return;
+    }
+    if (window.matchMedia("(max-width: 700px)").matches) {
+      this.root.setCssStyles({
+        left: "8px",
+        right: "8px",
+        top: "auto",
+        bottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+        width: "auto",
+        maxHeight: "min(70vh, 520px)",
+        overflowY: "auto",
+        transform: "none",
+      });
+      return;
+    }
+    const rect = this.anchor.getBoundingClientRect();
+    const width = this.root.offsetWidth || 300;
+    const height = this.root.offsetHeight || 160;
+    const left = Math.min(
+      window.innerWidth - width - 8,
+      Math.max(8, rect.left + rect.width / 2 - width / 2),
+    );
+    const top = Math.max(8, rect.top - height - 8);
+    this.root.setCssStyles({
+      left: `${left}px`,
+      top: `${top}px`,
+      transform: "none",
+    });
+  }
+
+  /** 构建页边距与页宽设置行 */
+  private pageWidth(): void {
+    const row = this.root.createDiv({
+      cls: "novelview-mode-settings-row novelview-mode-settings-page-row",
+    });
+    const head = row.createDiv({ cls: "novelview-mode-settings-label" });
+    head.createSpan({ text: "页边距" });
+    const autoLabel = row.createEl("label", {
+      cls: "novelview-mode-settings-auto",
+    });
+    const checkbox = autoLabel.createEl("input", {
+      attr: { type: "checkbox", "aria-label": "自动适应页边距" },
+    });
+    checkbox.checked = this.values.pageMarginMode === "auto";
+    autoLabel.createSpan({ text: "自动适应" });
+    const valueEl = head.createSpan({
+      cls: "novelview-mode-settings-page-value",
+      text: `${this.values.pageChars} 字`,
+    });
+    const range = row.createEl("input", {
+      cls: "novelview-mode-settings-page-range",
+      attr: {
+        type: "range",
+        min: "24",
+        max: "80",
+        step: "1",
+        "aria-label": "每行字符数",
+      },
+    });
+    range.value = String(this.values.pageChars);
+    const sync = (): void => {
+      const auto = this.values.pageMarginMode === "auto";
+      checkbox.checked = auto;
+      range.disabled = auto;
+      range.toggleClass("is-hidden", auto);
+      valueEl.toggleClass("is-hidden", auto);
+    };
+    sync();
+    checkbox.addEventListener("change", () => {
+      this.values.pageMarginMode = checkbox.checked ? "auto" : "manual";
+      sync();
+      this.onChange({ ...this.values });
+    });
+    range.addEventListener("input", () => {
+      this.values.pageChars = Math.round(Number(range.value) || 42);
+      valueEl.setText(`${this.values.pageChars} 字`);
+      this.onChange({ ...this.values });
+    });
+  }
+
+  /** 构建单个数值滑块设置行 */
   private slider(
     label: string,
-    key: keyof ModeSettingsValues,
+    key: "fontSize" | "lineHeight" | "paragraphSpacing" | "firstLineIndent",
     min: number,
     max: number,
     step: number,

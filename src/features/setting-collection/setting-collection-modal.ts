@@ -16,6 +16,7 @@ const TAG_COLORS = [
 type ErrorSetter = (message: string) => void;
 
 export class SettingGroupModal extends Modal {
+  /** 初始化设定组输入弹窗 */
   constructor(
     app: App,
     private readonly title: string,
@@ -26,6 +27,7 @@ export class SettingGroupModal extends Modal {
     super(app);
   }
 
+  /** 打开设定组名称输入界面 */
   onOpen(): void {
     this.setTitle(this.title);
     this.modalEl.addClass("novelview-setting-modal");
@@ -72,12 +74,14 @@ export class SettingGroupModal extends Modal {
     }, 0);
   }
 
+  /** 关闭弹窗并清空内部内容 */
   onClose(): void {
     this.contentEl.empty();
   }
 }
 
 export class SettingTagModal extends Modal {
+  /** 初始化标签名称与颜色弹窗 */
   constructor(
     app: App,
     private readonly title: string,
@@ -92,6 +96,7 @@ export class SettingTagModal extends Modal {
     super(app);
   }
 
+  /** 打开标签名称与颜色界面 */
   onOpen(): void {
     this.setTitle(this.title);
     this.modalEl.addClass("novelview-setting-modal");
@@ -192,6 +197,7 @@ export class SettingTagModal extends Modal {
     }, 0);
   }
 
+  /** 关闭弹窗并清空内部内容 */
   onClose(): void {
     this.contentEl.empty();
   }
@@ -206,6 +212,7 @@ export interface SettingRecordDraft {
 }
 
 export class SettingConfirmModal extends Modal {
+  /** 初始化带确认按钮的提示弹窗 */
   constructor(
     app: App,
     private readonly title: string,
@@ -216,6 +223,7 @@ export class SettingConfirmModal extends Modal {
     super(app);
   }
 
+  /** 打开确认提示操作界面 */
   onOpen(): void {
     this.setTitle(this.title);
     this.modalEl.addClass("novelview-setting-modal");
@@ -234,6 +242,7 @@ export class SettingConfirmModal extends Modal {
     });
   }
 
+  /** 关闭弹窗并清空内部内容 */
   onClose(): void {
     this.contentEl.empty();
   }

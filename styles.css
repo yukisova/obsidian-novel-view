@@ -1,106 +1,10 @@
-:root /* --------------------------------------------------------------------------
-   Novel mode typography
-   -------------------------------------------------------------------------- */
-
-.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line {
-  font-family: var(--font-text, var(--font-interface));
-  line-height: var(--novelview-line-height, 1.8);
-}.novelview-novel-mode.novelview-paragraph-mode-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-prose-line::before,
-.novelview-novel-mode.novelview-paragraph-mode-blank-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-paragraph-start::before{
-  content: "";
-  display: inline-block;
-  width: var(--novelview-first-line-indent, 2em);
-}:root .novelview-novel-mode.novelview-paragraph-mode-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-prose-line {
-  padding-bottom: var(--novelview-paragraph-spacing, 0.65em);
-}:root .novelview-novel-mode.novelview-paragraph-mode-blank-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-paragraph-end {
-  padding-bottom: var(--novelview-paragraph-spacing, 0.65em);
-}/*
- * Imported prose sometimes already starts with one or two full-width spaces.
- * Do not stack the display indent on top of that existing whitespace.
- */
-.novelview-novel-mode.novelview-paragraph-mode-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-prose-line.novelview-preindented::before,
-.novelview-novel-mode.novelview-paragraph-mode-blank-line
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-paragraph-start.novelview-preindented::before{
-  content: none;
-}:root /* Hide only the syntax tokens, :root never the prose they wrap. */
-.novelview-novel-mode.novelview-hide-markers
-  .markdown-source-view.mod-cm6
-  .cm-formatting {
-  padding-inline: 0;
-  border-width: 0;
-  font-size: 0;
-  letter-spacing: 0;
-}:root .novelview-novel-mode.novelview-hide-markers
-  .markdown-source-view.mod-cm6
-  .cm-inline-code.cm-formatting {
-  background: transparent;
-}:root .novelview-novel-mode.novelview-hide-line-numbers
-  .markdown-source-view.mod-cm6
-  .cm-lineNumbers {
-  display: none;
-}:root /* Lists/quotes keep native layout; only suppress first-line indentation. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-block-line::before {
-  content: none;
-}:root /* --------------------------------------------------------------------------
-   Caret position for empty paragraphs
-   -------------------------------------------------------------------------- */
-
-/*
- * A generated first-line spacer cannot move the caret on a line with no inline
- * text. Use left padding on empty lines so a fresh paragraph/caret is visually
- * indented before the first character is typed. Once text exists, :root the spacer
- * pseudo-element takes over.
- */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line.novelview-empty-line {
-  padding-inline-start: var(--novelview-first-line-indent, 2em);
-}:root /* --------------------------------------------------------------------------
-   Reading view
-   -------------------------------------------------------------------------- */
-
-.novelview-novel-mode .markdown-preview-view {
-  font-family: var(--font-text, var(--font-interface));
-  line-height: var(--novelview-line-height, 1.8);
-}:root .novelview-novel-mode .markdown-preview-view p {
-  margin-block: 0 var(--novelview-paragraph-spacing, 0.65em);
-  line-height: var(--novelview-line-height, 1.8);
-}.novelview-novel-mode .markdown-preview-view p::before{
-  content: "";
-  display: inline-block;
-  width: var(--novelview-first-line-indent, 2em);
-}:root .novelview-novel-mode .markdown-preview-view p:last-child {
-  margin-block-end: 0;
-}.novelview-novel-mode .markdown-preview-view li p::before,
-.novelview-novel-mode .markdown-preview-view .callout p::before,
-.novelview-novel-mode .markdown-preview-view table p::before,
-.novelview-novel-mode .markdown-preview-view blockquote p::before{
-  content: none;
-}:root .novelview-novel-mode .markdown-preview-view ul, :root .novelview-novel-mode .markdown-preview-view ol, :root .novelview-novel-mode .markdown-preview-view blockquote, :root .novelview-novel-mode .markdown-preview-view .callout {
-  margin-block: 0 var(--novelview-paragraph-spacing, 0.65em);
-  line-height: var(--line-height-normal, 1.5);
-}:root .novelview-novel-mode .markdown-preview-view li, :root .novelview-novel-mode .markdown-preview-view li > p, :root .novelview-novel-mode .markdown-preview-view blockquote, :root .novelview-novel-mode .markdown-preview-view blockquote p, :root .novelview-novel-mode .markdown-preview-view .callout, :root .novelview-novel-mode .markdown-preview-view .callout p, :root .novelview-novel-mode .markdown-preview-view .callout-title {
-  line-height: var(--line-height-normal, 1.5);
-}:root .novelview-novel-mode .markdown-preview-view li > p, :root .novelview-novel-mode .markdown-preview-view blockquote p, :root .novelview-novel-mode .markdown-preview-view .callout p {
-  margin-block: 0;
-}/* --------------------------------------------------------------------------
-   Novel workbench: chapter / reference / sticky cards
-   -------------------------------------------------------------------------- */
-
-.novelview-workbench{
+@charset "UTF-8";
+/** 导入的正文有时已带有一个或两个全角空格缩进。
+ * * 请勿在既有空白上重复叠加显示缩进。*/
+/*--------------------------------------------------------------------------
+ * 小说工作台：章节 / 参考资料 / 便签卡片
+ * --------------------------------------------------------------------------*/
+.novelview-workbench {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-auto-rows: 210px;
@@ -113,20 +17,26 @@
   padding: 16px 18px 28px;
   font-family: var(--font-interface);
   color: var(--text-normal);
-}.novelview-workbench-context{
-  grid-column: 1 / -1;
+}
+
+.novelview-workbench-context {
+  grid-column: 1/-1;
   margin-bottom: 0;
   padding: 10px 12px;
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 8px);
-}.novelview-workbench-context-label{
+}
+
+.novelview-workbench-context-label {
   color: var(--text-faint);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}.novelview-workbench-context-folder{
+}
+
+.novelview-workbench-context-folder {
   margin-top: 4px;
   overflow: hidden;
   color: var(--text-normal);
@@ -134,14 +44,18 @@
   font-size: 11.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-workbench-context-file{
+}
+
+.novelview-workbench-context-file {
   margin-top: 3px;
   overflow: hidden;
   color: var(--text-muted);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-workbench-button{
+}
+
+.novelview-workbench-button {
   height: 26px;
   padding: 0 10px;
   color: var(--text-normal);
@@ -152,19 +66,22 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-workbench-button:hover{
-  background: var(--interactive-hover);
-}/* --------------------------------------------------------------------------
-   Advanced find/replace: modeless panel and right-sidebar results
-   -------------------------------------------------------------------------- */
+}
 
-.novelview-search-panel{
+.novelview-workbench-button:hover {
+  background: var(--interactive-hover);
+}
+
+/*--------------------------------------------------------------------------
+ * 高级查找替换：非模态面板与右侧栏结果
+ * --------------------------------------------------------------------------*/
+.novelview-search-panel {
   position: fixed;
   top: 68px;
   left: 50%;
   z-index: 45;
   display: none;
-  width: min(640px, calc(100vw - 32px));
+  width: min(640px, 100vw - 32px);
   overflow: hidden;
   color: var(--text-normal);
   font-family: var(--font-interface);
@@ -173,16 +90,22 @@
   border-radius: var(--radius-m, 8px);
   box-shadow: 0 20px 58px rgba(0, 0, 0, 0.26);
   transform: translateX(-50%);
-}.novelview-search-panel.is-open{
+}
+
+.novelview-search-panel.is-open {
   display: block;
-}.novelview-search-header{
+}
+
+.novelview-search-header {
   display: flex;
   align-items: flex-start;
   gap: 9px;
   padding: 12px 14px 10px;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
-}.novelview-search-header-icon{
+}
+
+.novelview-search-header-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -190,18 +113,26 @@
   height: 24px;
   margin-top: 1px;
   color: var(--text-accent);
-}.novelview-search-header-icon svg{
+}
+
+.novelview-search-header-icon svg {
   width: 17px;
   height: 17px;
-}.novelview-search-title-block{
+}
+
+.novelview-search-title-block {
   flex: 1;
   min-width: 0;
-}.novelview-search-title{
+}
+
+.novelview-search-title {
   color: var(--text-normal);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.01em;
-}.novelview-search-scope{
+}
+
+.novelview-search-scope {
   margin-top: 3px;
   overflow: hidden;
   color: var(--text-faint);
@@ -209,7 +140,9 @@
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-search-close{
+}
+
+.novelview-search-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -223,15 +156,23 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-close:hover{
+}
+
+.novelview-search-close:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
-}.novelview-search-close svg{
+}
+
+.novelview-search-close svg {
   width: 15px;
   height: 15px;
-}.novelview-search-body{
+}
+
+.novelview-search-body {
   padding: 12px 14px 13px;
-}.novelview-search-row{
+}
+
+.novelview-search-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -241,17 +182,25 @@
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 5px);
-}.novelview-search-row:focus-within{
+}
+
+.novelview-search-row:focus-within {
   border-color: color-mix(in srgb, var(--interactive-accent) 55%, var(--background-modifier-border));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 13%, transparent);
-}.novelview-search-row-icon{
+}
+
+.novelview-search-row-icon {
   display: inline-flex;
   flex: 0 0 auto;
   color: var(--text-faint);
-}.novelview-search-row-icon svg{
+}
+
+.novelview-search-row-icon svg {
   width: 15px;
   height: 15px;
-}.novelview-search-input{
+}
+
+.novelview-search-input {
   flex: 1;
   min-width: 0;
   height: 34px;
@@ -264,13 +213,19 @@
   border-radius: 0;
   outline: none;
   box-shadow: none;
-}.novelview-search-input::placeholder{
+}
+
+.novelview-search-input::placeholder {
   color: var(--text-faint);
-}.novelview-search-input:focus{
+}
+
+.novelview-search-input:focus {
   border: none;
   outline: none;
   box-shadow: none;
-}.novelview-search-submit{
+}
+
+.novelview-search-submit {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -284,16 +239,24 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-submit:hover{
+}
+
+.novelview-search-submit:hover {
   background: var(--background-modifier-hover);
-}.novelview-search-submit svg{
+}
+
+.novelview-search-submit svg {
   width: 16px;
   height: 16px;
-}.novelview-search-options{
+}
+
+.novelview-search-options {
   display: flex;
   gap: 5px;
   margin: 0 0 8px 24px;
-}.novelview-search-option{
+}
+
+.novelview-search-option {
   min-width: 30px;
   height: 23px;
   padding: 0 7px;
@@ -306,21 +269,29 @@
   border-radius: 999px;
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-option:hover{
+}
+
+.novelview-search-option:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
-}.novelview-search-option.is-active{
+}
+
+.novelview-search-option.is-active {
   color: var(--text-accent);
   background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
   border-color: color-mix(in srgb, var(--interactive-accent) 40%, var(--background-modifier-border));
-}.novelview-search-footer{
+}
+
+.novelview-search-footer {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 11px;
   padding-top: 10px;
   border-top: 1px solid var(--background-modifier-border);
-}.novelview-search-status{
+}
+
+.novelview-search-status {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -328,13 +299,21 @@
   font-size: 10.5px;
   line-height: 1.45;
   text-overflow: ellipsis;
-}.novelview-search-status[data-tone="found"]{
+}
+
+.novelview-search-status[data-tone=found] {
   color: var(--text-accent);
-}.novelview-search-status[data-tone="error"]{
+}
+
+.novelview-search-status[data-tone=error] {
   color: var(--text-error, #c0392b);
-}.novelview-search-status[data-tone="empty"]{
+}
+
+.novelview-search-status[data-tone=empty] {
   color: var(--text-faint);
-}.novelview-search-replace-all{
+}
+
+.novelview-search-replace-all {
   flex: 0 0 auto;
   min-height: 27px;
   padding: 0 11px;
@@ -346,33 +325,47 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-replace-all:hover{
+}
+
+.novelview-search-replace-all:hover {
   background: var(--interactive-accent-hover, var(--interactive-accent));
-}.novelview-search-replace-all:disabled{
+}
+
+.novelview-search-replace-all:disabled {
   color: var(--text-faint);
   background: var(--background-secondary);
   cursor: not-allowed;
-}.novelview-search-results-view{
+}
+
+.novelview-search-results-view {
   height: 100%;
   padding: 12px 12px 30px;
   overflow-y: auto;
   color: var(--text-normal);
   font-family: var(--font-interface);
-}.novelview-search-results-header{
+}
+
+.novelview-search-results-header {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 10px;
-}.novelview-search-results-heading{
+}
+
+.novelview-search-results-heading {
   flex: 1;
   min-width: 0;
-}.novelview-search-results-kicker{
+}
+
+.novelview-search-results-kicker {
   color: var(--text-faint);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-}.novelview-search-results-query{
+}
+
+.novelview-search-results-query {
   margin-top: 3px;
   overflow: hidden;
   color: var(--text-normal);
@@ -380,11 +373,15 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-search-results-actions{
+}
+
+.novelview-search-results-actions {
   display: flex;
   flex: 0 0 auto;
   gap: 2px;
-}.novelview-search-results-action{
+}
+
+.novelview-search-results-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -397,13 +394,19 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-results-action:hover{
+}
+
+.novelview-search-results-action:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
-}.novelview-search-results-action svg{
+}
+
+.novelview-search-results-action svg {
   width: 15px;
   height: 15px;
-}.novelview-search-results-scope{
+}
+
+.novelview-search-results-scope {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -417,16 +420,22 @@
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 4px);
-}.novelview-search-results-scope span{
+}
+
+.novelview-search-results-scope span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-search-results-summary{
+}
+
+.novelview-search-results-summary {
   flex: 0 0 auto;
   color: var(--text-muted);
   font-family: var(--font-interface);
   font-variant-numeric: tabular-nums;
-}.novelview-search-results-truncated{
+}
+
+.novelview-search-results-truncated {
   margin-bottom: 9px;
   padding: 7px 9px;
   color: var(--color-orange, #b06c2f);
@@ -435,22 +444,30 @@
   background: color-mix(in srgb, var(--color-orange, #b06c2f) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-orange, #b06c2f) 25%, var(--background-modifier-border));
   border-radius: var(--radius-s, 4px);
-}.novelview-search-results-list{
+}
+
+.novelview-search-results-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-}.novelview-search-result-file{
+}
+
+.novelview-search-result-file {
   overflow: hidden;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 7px);
-}.novelview-search-result-file-header{
+}
+
+.novelview-search-result-file-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 7px 9px;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
-}.novelview-search-result-file-title{
+}
+
+.novelview-search-result-file-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -459,7 +476,9 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-search-result-file-count{
+}
+
+.novelview-search-result-file-count {
   flex: 0 0 auto;
   min-width: 17px;
   padding: 1px 5px;
@@ -470,7 +489,9 @@
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 999px;
-}.novelview-search-result{
+}
+
+.novelview-search-result {
   display: block;
   width: 100%;
   padding: 8px 9px;
@@ -482,42 +503,62 @@
   border-radius: 0;
   box-shadow: none;
   cursor: pointer;
-}.novelview-search-result + .novelview-search-result{
+}
+
+.novelview-search-result + .novelview-search-result {
   border-top: 1px solid var(--background-modifier-border);
-}.novelview-search-result:hover{
+}
+
+.novelview-search-result:hover {
   background: var(--background-modifier-hover);
-}.novelview-search-result-meta{
+}
+
+.novelview-search-result-meta {
   margin-bottom: 3px;
   color: var(--text-faint);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
-}.novelview-search-result-snippet{
+}
+
+.novelview-search-result-snippet {
   color: var(--text-muted);
   font-family: var(--font-text, var(--font-interface));
   font-size: 11.5px;
   line-height: 1.55;
   overflow-wrap: anywhere;
-}.novelview-search-result-snippet mark{
+}
+
+.novelview-search-result-snippet mark {
   padding: 0 1px;
   color: var(--text-normal);
   background: color-mix(in srgb, var(--color-yellow, #d4a72c) 28%, transparent);
   border-radius: 2px;
-}.novelview-search-results-message{
+}
+
+.novelview-search-results-message {
   padding: 18px 6px;
   color: var(--text-faint);
   font-size: 11px;
   line-height: 1.65;
   text-align: center;
-}.novelview-search-results-message[data-tone="error"]{
+}
+
+.novelview-search-results-message[data-tone=error] {
   color: var(--text-error, #c0392b);
   text-align: left;
-}.novelview-search-results-message[data-tone="loading"]{
+}
+
+.novelview-search-results-message[data-tone=loading] {
   color: var(--text-muted);
-}.novelview-replace-modal .novelview-replace-summary{
+}
+
+.novelview-replace-modal .novelview-replace-summary {
   color: var(--text-normal);
   font-size: 13px;
   line-height: 1.6;
-}.novelview-replace-modal .novelview-replace-sample{
+}
+
+.novelview-replace-modal .novelview-replace-sample {
   display: flex;
   align-items: flex-start;
   gap: 9px;
@@ -527,38 +568,42 @@
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 4px);
-}.novelview-replace-sample-label{
+}
+
+.novelview-replace-sample-label {
   flex: 0 0 auto;
   color: var(--text-faint);
   font-size: 10px;
-}.novelview-replace-sample code{
+}
+
+.novelview-replace-sample code {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--text-normal);
   font-size: 11px;
   background: transparent;
-}.novelview-replace-warning{
+}
+
+.novelview-replace-warning {
   color: var(--text-error, #c0392b);
   font-size: 11px;
   line-height: 1.55;
 }
 
-@media (max-width: 620px) {.novelview-search-panel{
+@media (max-width: 620px) {
+  .novelview-search-panel {
     top: 44px;
     width: calc(100vw - 16px);
-  }.novelview-search-results-view{
+  }
+  .novelview-search-results-view {
     padding: 10px 8px 24px;
   }
-}:root /* --------------------------------------------------------------------------
-   Novel mode: hidden Properties, :root floating vertical toolbar, :root novel groups
-   -------------------------------------------------------------------------- */
-
-/* Properties stay in the file but are not part of the novel reading surface. */
-.novelview-novel-mode .metadata-container, :root .novelview-novel-mode .markdown-preview-view .metadata-container, :root .novelview-novel-mode .markdown-source-view .metadata-container, :root .novelview-novel-mode .frontmatter, :root .novelview-novel-mode .markdown-preview-view .frontmatter, :root .novelview-novel-mode .cm-line.HyperMD-frontmatter, :root .novelview-novel-mode .cm-line.cm-frontmatter {
-  display: none;
-}.novelview-toolbar-host{
+}
+.novelview-toolbar-host {
   position: relative;
-}.novelview-floating-toolbar{
+}
+
+.novelview-floating-toolbar {
   position: absolute;
   top: 50%;
   left: 12px;
@@ -572,7 +617,9 @@
   border-radius: var(--radius-m, 8px);
   box-shadow: 0 8px 26px rgba(0, 0, 0, 0.14);
   transform: translateY(-50%);
-}.novelview-floating-toolbar-button{
+}
+
+.novelview-floating-toolbar-button {
   position: relative;
   display: flex;
   align-items: center;
@@ -586,20 +633,28 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-floating-toolbar-button:hover,
-.novelview-floating-toolbar-button:focus-visible{
+}
+
+.novelview-floating-toolbar-button:hover,
+.novelview-floating-toolbar-button:focus-visible {
   color: var(--text-accent);
   background: var(--background-modifier-hover);
   outline: none;
-}.novelview-floating-toolbar-icon{
+}
+
+.novelview-floating-toolbar-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}.novelview-floating-toolbar-icon svg{
+}
+
+.novelview-floating-toolbar-icon svg {
   width: 16px;
   height: 16px;
   stroke-width: 2;
-}.novelview-floating-toolbar-label{
+}
+
+.novelview-floating-toolbar-label {
   position: absolute;
   top: 50%;
   left: calc(100% + 9px);
@@ -617,21 +672,25 @@
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 120ms ease;
-}.novelview-floating-toolbar-button:hover .novelview-floating-toolbar-label,
-.novelview-floating-toolbar-button:focus-visible .novelview-floating-toolbar-label{
+}
+
+.novelview-floating-toolbar-button:hover .novelview-floating-toolbar-label,
+.novelview-floating-toolbar-button:focus-visible .novelview-floating-toolbar-label {
   opacity: 1;
-}.novelview-workbench-novel{
-  grid-column: 1 / -1;
+}
+
+.novelview-workbench-novel {
+  grid-column: 1/-1;
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
   padding: 14px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--interactive-accent) 7%, transparent), transparent 55%),
-    var(--background-primary);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--interactive-accent) 7%, transparent), transparent 55%), var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 8px);
-}.novelview-workbench-cover{
+}
+
+.novelview-workbench-cover {
   display: flex;
   flex: 0 0 92px;
   align-items: center;
@@ -643,11 +702,15 @@
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 5px);
-}.novelview-workbench-cover-image{
+}
+
+.novelview-workbench-cover-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}.novelview-workbench-cover-placeholder{
+}
+
+.novelview-workbench-cover-placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -655,56 +718,84 @@
   height: 34px;
   border: 1px dashed var(--background-modifier-border);
   border-radius: 50%;
-}.novelview-workbench-cover-placeholder svg{
+}
+
+.novelview-workbench-cover-placeholder svg {
   width: 19px;
   height: 19px;
-}.novelview-workbench-novel-body{
+}
+
+.novelview-workbench-novel-body {
   flex: 1 1 300px;
   min-width: 0;
-}.novelview-workbench-novel-name{
+}
+
+.novelview-workbench-novel-name {
   margin-top: 2px;
   color: var(--text-normal);
   font-family: var(--font-interface);
   font-size: 21px;
   font-weight: 600;
   line-height: 1.3;
-}.novelview-workbench-novel-description{
+}
+
+.novelview-workbench-novel-description {
   max-width: 54em;
   margin: 7px 0 6px;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;
-}.novelview-workbench-novel .novelview-workbench-context-folder{
+}
+
+.novelview-workbench-novel .novelview-workbench-context-folder {
   margin-top: 0;
-}.novelview-workbench-novel-actions{
+}
+
+.novelview-workbench-novel-actions {
   display: flex;
   gap: 7px;
   margin-top: 10px;
-}.novelview-setting-field{
+}
+
+.novelview-setting-field {
   margin: 12px 0;
-}.novelview-setting-label{
+}
+
+.novelview-setting-label {
   display: block;
   margin-bottom: 5px;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
-}.novelview-setting-input,
-.novelview-setting-textarea{
+}
+
+.novelview-setting-input,
+.novelview-setting-textarea {
   width: 100%;
-}.novelview-setting-textarea{
+}
+
+.novelview-setting-textarea {
   min-height: 86px;
   resize: vertical;
-}.novelview-setting-cover-row{
+}
+
+.novelview-setting-cover-row {
   display: flex;
   align-items: center;
   gap: 7px;
-}.novelview-setting-cover-row .novelview-setting-input{
+}
+
+.novelview-setting-cover-row .novelview-setting-input {
   flex: 1;
-}.novelview-setting-cover-row button{
+}
+
+.novelview-setting-cover-row button {
   flex: 0 0 auto;
   white-space: nowrap;
-}.novelview-setting-cover-preview{
+}
+
+.novelview-setting-cover-preview {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -716,35 +807,43 @@
   background: var(--background-secondary);
   border: 1px dashed var(--background-modifier-border);
   border-radius: var(--radius-s, 4px);
-}.novelview-setting-cover-image{
+}
+
+.novelview-setting-cover-image {
   max-width: 100%;
   max-height: 150px;
   border-radius: var(--radius-s, 4px);
   object-fit: contain;
-}.novelview-setting-error{
+}
+
+.novelview-setting-error {
   min-height: 1.2em;
   color: var(--text-error, #c0392b);
   font-size: 11px;
 }
 
-@media (max-width: 620px) {.novelview-floating-toolbar{
+@media (max-width: 620px) {
+  .novelview-floating-toolbar {
     left: 6px;
-  }.novelview-floating-toolbar-button{
+  }
+  .novelview-floating-toolbar-button {
     width: 28px;
     height: 28px;
-  }.novelview-workbench-novel{
+  }
+  .novelview-workbench-novel {
     gap: 10px;
     padding: 10px;
-  }.novelview-workbench-cover{
+  }
+  .novelview-workbench-cover {
     flex-basis: 72px;
     width: 72px;
     height: 98px;
   }
-}/* --------------------------------------------------------------------------
-   Article list, src gallery, article status, keyword links
-   -------------------------------------------------------------------------- */
-
-.novelview-article-list-view{
+}
+/*--------------------------------------------------------------------------
+ * 文章列表、素材库、文章状态、关键词链接
+ * --------------------------------------------------------------------------*/
+.novelview-article-list-view {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -755,14 +854,18 @@
   color: var(--text-normal);
   font-family: var(--font-interface);
   background-color: var(--background-secondary);
-}.novelview-article-toolbar{
+}
+
+.novelview-article-toolbar {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 2px;
   padding: 1px 1px 7px;
   border-bottom: 1px solid var(--background-modifier-border);
-}.novelview-article-toolbar-button{
+}
+
+.novelview-article-toolbar-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -775,23 +878,33 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-article-toolbar-button:hover{
+}
+
+.novelview-article-toolbar-button:hover {
   color: var(--text-accent);
   background: var(--background-modifier-hover);
-}.novelview-article-toolbar-button svg{
+}
+
+.novelview-article-toolbar-button svg {
   width: 15px;
   height: 15px;
-}.novelview-article-header{
+}
+
+.novelview-article-header {
   display: flex;
   flex: 0 0 auto;
   align-items: flex-start;
   gap: 6px;
   padding: 12px 4px 6px;
-}.novelview-article-title-block{
+}
+
+.novelview-article-title-block {
   flex: 1;
   min-width: 0;
-}.novelview-article-title,
-.novelview-src-title{
+}
+
+.novelview-article-title,
+.novelview-src-title {
   margin-top: 3px;
   overflow: hidden;
   color: var(--text-normal);
@@ -801,12 +914,16 @@
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-article-list{
+}
+
+.novelview-article-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-top: 2px;
-}.novelview-article-row{
+}
+
+.novelview-article-row {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -822,70 +939,100 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-article-row:hover{
+}
+
+.novelview-article-row:hover {
   background: var(--background-modifier-hover);
   border-color: var(--background-modifier-border);
-}.novelview-article-row-icon{
+}
+
+.novelview-article-row-icon {
   display: inline-flex;
   flex: 0 0 auto;
   color: var(--text-faint);
-}.novelview-article-row-icon svg{
+}
+
+.novelview-article-row-icon svg {
   width: 14px;
   height: 14px;
-}.novelview-article-volume .novelview-article-row-icon{
+}
+
+.novelview-article-volume .novelview-article-row-icon {
   color: var(--text-accent);
-}.novelview-article-row-name{
+}
+
+.novelview-article-row-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-article-message{
+}
+
+.novelview-article-message {
   padding: 20px 8px;
   color: var(--text-faint);
   font-size: 11px;
   line-height: 1.6;
   text-align: center;
-}/* src gallery in Main Area */
-.novelview-src-gallery-view{
+}
+
+/*主区域素材库*/
+.novelview-src-gallery-view {
   height: 100%;
   padding: 20px 22px 40px;
   overflow-y: auto;
   color: var(--text-normal);
   font-family: var(--font-interface);
-}.novelview-src-header{
+}
+
+.novelview-src-header {
   max-width: 1200px;
   margin: 0 auto 18px;
   padding: 0 2px 12px;
   border-bottom: 1px solid var(--background-modifier-border);
-}.novelview-src-grid{
+}
+
+.novelview-src-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
   max-width: 1200px;
   margin: 0 auto;
-}.novelview-src-card{
+}
+
+.novelview-src-card {
   overflow: hidden;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 8px);
-}.novelview-src-preview{
+}
+
+.novelview-src-preview {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4/3;
   overflow: hidden;
   background: var(--background-secondary);
-}.novelview-src-image{
+}
+
+.novelview-src-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}.novelview-src-file-icon{
+}
+
+.novelview-src-file-icon {
   color: var(--text-faint);
-}.novelview-src-file-icon svg{
+}
+
+.novelview-src-file-icon svg {
   width: 28px;
   height: 28px;
-}.novelview-src-name{
+}
+
+.novelview-src-name {
   padding: 7px 8px 3px;
   overflow: hidden;
   color: var(--text-muted);
@@ -893,11 +1040,15 @@
   font-size: 9.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-src-actions{
+}
+
+.novelview-src-actions {
   display: flex;
   gap: 4px;
   padding: 4px 7px 8px;
-}.novelview-src-button{
+}
+
+.novelview-src-button {
   min-height: 22px;
   padding: 0 7px;
   color: var(--text-muted);
@@ -908,45 +1059,63 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-src-button:hover{
+}
+
+.novelview-src-button:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
-}.novelview-src-message{
+}
+
+.novelview-src-message {
   padding: 30px 10px;
   color: var(--text-faint);
   font-size: 12px;
   line-height: 1.6;
   text-align: center;
-}.novelview-setting-select{
+}
+
+.novelview-setting-select {
   width: 100%;
-}.novelview-text-prompt-description{
+}
+
+.novelview-text-prompt-description {
   margin-top: 0;
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.55;
-}.novelview-text-prompt-input{
+}
+
+.novelview-text-prompt-input {
   width: 100%;
-}.novelview-text-prompt-error{
+}
+
+.novelview-text-prompt-error {
   min-height: 1.2em;
   color: var(--text-error, #c0392b);
   font-size: 11px;
 }
 
-@media (max-width: 520px) {.novelview-src-gallery-view{
+@media (max-width: 520px) {
+  .novelview-src-gallery-view {
     padding: 14px 12px 30px;
   }
-}.novelview-workbench-novel-title-row{
+}
+.novelview-workbench-novel-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-}.novelview-workbench-novel-title-row .novelview-workbench-novel-name{
+}
+
+.novelview-workbench-novel-title-row .novelview-workbench-novel-name {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-workbench-novel-state{
+}
+
+.novelview-workbench-novel-state {
   flex: 0 0 auto;
   padding: 1px 6px;
   color: var(--text-accent);
@@ -954,41 +1123,65 @@
   font-weight: 600;
   background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
   border-radius: 999px;
-}/* Novel group folder marker and locked contents */
-.nav-folder.novelview-novel-folder > .nav-folder-title{
+}
+
+/*小说组文件夹标记与锁定内容*/
+.nav-folder.novelview-novel-folder > .nav-folder-title {
   color: var(--text-accent);
-}/* Expandable article tree and drag/drop */
-.novelview-article-list{
+}
+
+/*可展开文章树与拖放*/
+.novelview-article-list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-bottom: 24px;
-}.novelview-article-volume-group{
+}
+
+.novelview-article-volume-group {
   margin: 2px 0;
-}.novelview-article-row{
+}
+
+.novelview-article-row {
   user-select: none;
-}.novelview-article-volume{
+}
+
+.novelview-article-volume {
   cursor: grab;
-}.novelview-article-file{
+}
+
+.novelview-article-file {
   cursor: grab;
   padding-left: 12px;
-}.novelview-article-row.is-dragging{
+}
+
+.novelview-article-row.is-dragging {
   opacity: 0.45;
-}.novelview-article-row.is-drop-target{
+}
+
+.novelview-article-row.is-drop-target {
   background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
   border-color: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
-}.novelview-article-volume-children{
+}
+
+.novelview-article-volume-children {
   margin-left: 13px;
   padding-left: 5px;
   border-left: 1px solid var(--background-modifier-border);
-}.novelview-article-volume-children .novelview-article-file{
+}
+
+.novelview-article-volume-children .novelview-article-file {
   padding-left: 8px;
-}.novelview-article-volume-empty{
+}
+
+.novelview-article-volume-empty {
   padding: 5px 8px 7px;
   color: var(--text-faint);
   font-family: var(--font-interface);
   font-size: 10.5px;
-}.novelview-article-row-count{
+}
+
+.novelview-article-row-count {
   flex: 0 0 auto;
   min-width: 16px;
   padding: 0 4px;
@@ -996,7 +1189,9 @@
   font-family: var(--font-interface);
   font-size: 9px;
   text-align: right;
-}.nav-folder-title.novelview-novel-folder-title::after{
+}
+
+.nav-folder-title.novelview-novel-folder-title::after {
   content: "小说组";
   margin-left: 5px;
   padding: 0 4px;
@@ -1007,47 +1202,33 @@
   background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 24%, transparent);
   border-radius: 999px;
-}/* 0.3.4 inspiration notes, outline card, forced mode */
-.novel-action.is-forced{
+}
+
+/*0.3.4 灵感笔记、大纲卡片、强制模式*/
+.novel-action.is-forced {
   opacity: 0.68;
-}:root /* 0.3.5 tables/images and scattered volume */
-.novelview-novel-mode .markdown-preview-view img {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}:root .novelview-novel-mode .markdown-preview-view table {
-  margin-left: auto;
-  margin-right: auto;
-}.novelview-novel-mode .markdown-preview-view .table-wrapper{
-  margin-left: auto;
-  margin-right: auto;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  img {
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-table-widget, :root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-table-widget
-  table {
-  margin-left: auto;
-  margin-right: auto;
-}.novelview-article-volume.is-scattered .novelview-article-row-icon{
+}
+
+.novelview-article-volume.is-scattered .novelview-article-row-icon {
   color: var(--text-muted);
-}.novelview-article-volume.is-scattered .novelview-article-row-name{
+}
+
+.novelview-article-volume.is-scattered .novelview-article-row-name {
   color: var(--text-muted);
   font-style: italic;
-}/* Article list focus + inline rename */
-.novelview-article-row.is-focused{
+}
+
+/*文章列表聚焦与行内重命名*/
+.novelview-article-row.is-focused {
   background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
   border-color: color-mix(in srgb, var(--interactive-accent) 26%, var(--background-modifier-border));
-}.novelview-article-row.is-focused .novelview-article-row-name{
+}
+
+.novelview-article-row.is-focused .novelview-article-row-name {
   color: var(--text-accent);
-}.novelview-inline-rename{
+}
+
+.novelview-inline-rename {
   flex: 1;
   min-width: 0;
   height: 21px;
@@ -1062,29 +1243,21 @@
 }
 
 @keyframes novelview-slide-in {
-  from { opacity: 0; transform: translateX(6px); }
-  to { opacity: 1; transform: translateX(0); }
-}:root /* Broader media/table centering for Obsidian wrappers */
-.novelview-novel-mode .markdown-preview-view .image-embed, :root .novelview-novel-mode .markdown-preview-view .internal-embed.image-embed, :root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-embed-block.cm-image, :root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-content .image-embed {
-  display: flex;
-  justify-content: center;
-  margin-left: auto;
-  margin-right: auto;
-  text-align: center;
-}:root .novelview-novel-mode .markdown-preview-view .table-wrapper {
-  width: fit-content;
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-}:root .novelview-novel-mode .markdown-preview-view ul ul, :root .novelview-novel-mode .markdown-preview-view ul ol, :root .novelview-novel-mode .markdown-preview-view ol ul, :root .novelview-novel-mode .markdown-preview-view ol ol {
-  margin-block: 0;
-}:root .novelview-novel-mode .markdown-preview-view li > ul, :root .novelview-novel-mode .markdown-preview-view li > ol {
-  margin-top: 0;
-  margin-bottom: 0;
-}:root .novelview-hidden-file-input {
+  from {
+    opacity: 0;
+    transform: translateX(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+:root .novelview-hidden-file-input {
   display: none;
-}/* Modeless description editor */
-.novelview-description-panel{
+}
+
+/*非模态简介编辑器*/
+.novelview-description-panel {
   position: fixed;
   display: flex;
   flex-direction: column;
@@ -1098,7 +1271,9 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m, 8px);
   box-shadow: var(--shadow-l, 0 12px 36px rgba(0, 0, 0, 0.18));
-}.novelview-description-header{
+}
+
+.novelview-description-header {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1107,13 +1282,17 @@
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
   cursor: move;
-}.novelview-description-kicker{
+}
+
+.novelview-description-kicker {
   flex: 0 0 auto;
   color: var(--text-accent);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.08em;
-}.novelview-description-title{
+}
+
+.novelview-description-title {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1121,7 +1300,9 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}.novelview-description-close{
+}
+
+.novelview-description-close {
   width: 22px;
   height: 22px;
   padding: 0;
@@ -1131,10 +1312,14 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-description-close:hover{
+}
+
+.novelview-description-close:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
-}.novelview-description-textarea{
+}
+
+.novelview-description-textarea {
   flex: 1;
   width: 100%;
   min-height: 0;
@@ -1147,20 +1332,28 @@
   background: var(--background-primary);
   border: none;
   outline: none;
-}.novelview-description-footer{
+}
+
+.novelview-description-footer {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   padding: 7px 9px;
   border-top: 1px solid var(--background-modifier-border);
-}/* Article list multi-selection */
-.novelview-article-row.is-selected{
+}
+
+/*文章列表多选*/
+.novelview-article-row.is-selected {
   color: var(--text-normal);
   background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
   border-color: color-mix(in srgb, var(--interactive-accent) 34%, var(--background-modifier-border));
-}.novelview-article-row.is-selected .novelview-article-row-name{
+}
+
+.novelview-article-row.is-selected .novelview-article-row-name {
   color: var(--text-accent);
-}.novelview-selection-box{
+}
+
+.novelview-selection-box {
   position: fixed;
   z-index: 900;
   display: none;
@@ -1168,27 +1361,43 @@
   background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 48%, transparent);
   border-radius: 3px;
-}.novelview-selection-box.is-visible{
+}
+
+.novelview-selection-box.is-visible {
   display: block;
-}/* Right-sidebar materials and link library */
-.novelview-src-gallery-view{
+}
+
+/*右侧栏素材与链接库*/
+.novelview-src-gallery-view {
   padding: 8px 9px 24px;
-}.novelview-src-header{
+}
+
+.novelview-src-header {
   max-width: none;
   margin: 0 0 10px;
   padding: 0 2px 8px;
-}.novelview-src-grid{
+}
+
+.novelview-src-grid {
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: 8px;
   max-width: none;
-}.novelview-src-actions{
+}
+
+.novelview-src-actions {
   gap: 4px;
-}.novelview-src-button.is-danger{
+}
+
+.novelview-src-button.is-danger {
   color: var(--text-error, #c0392b);
-}.novelview-src-button.is-danger:hover{
+}
+
+.novelview-src-button.is-danger:hover {
   background: color-mix(in srgb, var(--text-error, #c0392b) 10%, transparent);
-}/* Image source submenu */
-.novelview-toolbar-submenu{
+}
+
+/*图片来源子菜单*/
+.novelview-toolbar-submenu {
   position: absolute;
   left: calc(100% + 6px);
   z-index: 26;
@@ -1200,9 +1409,13 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s, 4px);
   box-shadow: var(--shadow-s, 0 6px 20px rgba(0, 0, 0, 0.16));
-}.novelview-toolbar-submenu.is-open{
+}
+
+.novelview-toolbar-submenu.is-open {
   display: flex;
-}.novelview-toolbar-submenu-button{
+}
+
+.novelview-toolbar-submenu-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1215,25 +1428,35 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-toolbar-submenu-button:hover,
-.novelview-toolbar-submenu-button:focus-visible{
+}
+
+.novelview-toolbar-submenu-button:hover,
+.novelview-toolbar-submenu-button:focus-visible {
   color: var(--text-accent);
   background: var(--background-modifier-hover);
   outline: none;
-}.novelview-toolbar-submenu-button svg{
+}
+
+.novelview-toolbar-submenu-button svg {
   width: 14px;
   height: 14px;
-}.novelview-floating-toolbar-button.is-active{
+}
+
+.novelview-floating-toolbar-button.is-active {
   color: var(--text-accent);
   background: var(--background-modifier-hover);
-}/* Source picker */
-.novelview-src-picker-grid{
+}
+
+/*素材选择器*/
+.novelview-src-picker-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 10px;
   max-height: min(65vh, 520px);
   overflow-y: auto;
-}.novelview-src-picker-card{
+}
+
+.novelview-src-picker-card {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -1247,58 +1470,84 @@
   border-radius: var(--radius-s, 4px);
   box-shadow: none;
   cursor: pointer;
-}.novelview-src-picker-card:hover{
+}
+
+.novelview-src-picker-card:hover {
   border-color: var(--interactive-accent);
-}.novelview-src-picker-preview{
+}
+
+.novelview-src-picker-preview {
   display: flex;
   align-items: center;
   justify-content: center;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 4/3;
   overflow: hidden;
   background: var(--background-primary);
   border-radius: 2px;
-}.novelview-src-picker-preview img{
+}
+
+.novelview-src-picker-preview img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}.novelview-src-picker-name{
+}
+
+.novelview-src-picker-name {
   overflow: hidden;
   font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}/* Larger material picker */
-.novelview-src-picker-modal{
-  width: min(920px, calc(100vw - 48px));
-  max-width: min(920px, calc(100vw - 48px));
-}.novelview-src-picker-modal .novelview-src-picker-grid{
+}
+
+/*大型素材选择器*/
+.novelview-src-picker-modal {
+  width: min(920px, 100vw - 48px);
+  max-width: min(920px, 100vw - 48px);
+}
+
+.novelview-src-picker-modal .novelview-src-picker-grid {
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 12px;
   max-height: min(70vh, 620px);
-}.novelview-src-picker-modal .novelview-src-picker-preview{
-  aspect-ratio: 4 / 3;
-}.novelview-src-picker-modal .novelview-src-picker-name{
+}
+
+.novelview-src-picker-modal .novelview-src-picker-preview {
+  aspect-ratio: 4/3;
+}
+
+.novelview-src-picker-modal .novelview-src-picker-name {
   padding: 1px 2px;
   font-size: 11px;
-}/* Inline material rename */
-.novelview-src-rename-input{
+}
+
+/*素材行内重命名*/
+.novelview-src-rename-input {
   width: 100%;
   min-width: 0;
   padding: 1px 3px;
   font-size: 11px;
-}.novelview-article-total{
+}
+
+.novelview-article-total {
   margin-top: 2px;
   color: var(--text-faint);
   font-size: 10px;
-}.novelview-article-toolbar-button.novelview-article-toolbar-back{
+}
+
+.novelview-article-toolbar-button.novelview-article-toolbar-back {
   width: auto;
   min-width: 27px;
   gap: 4px;
   padding: 0 7px;
-}.novelview-article-toolbar-back-label{
+}
+
+.novelview-article-toolbar-back-label {
   font-size: 10px;
   line-height: 1;
   white-space: nowrap;
-}.novelview-article-row-meta{
+}
+
+.novelview-article-row-meta {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -1307,22 +1556,30 @@
   color: var(--text-faint);
   font-size: 9px;
   white-space: nowrap;
-}.novelview-article-row-words{
+}
+
+.novelview-article-row-words {
   font-variant-numeric: tabular-nums;
-}.novelview-article-row-state{
+}
+
+.novelview-article-row-state {
   padding: 1px 4px;
   color: var(--text-accent);
   background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
   border-radius: 3px;
-}/* Materials empty state */
-.novelview-src-empty{
+}
+
+/*素材空状态*/
+.novelview-src-empty {
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: center;
   min-height: 260px;
   padding: 30px;
-}.novelview-src-empty-watermark{
+}
+
+.novelview-src-empty-watermark {
   max-width: 260px;
   color: color-mix(in srgb, var(--text-faint) 55%, transparent);
   font-family: var(--font-text, var(--font-interface));
@@ -1332,12 +1589,10 @@
   text-align: center;
   pointer-events: none;
   user-select: none;
-}/* Mode settings and scoped search */
-.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line{
-  font-size: var(--novelview-font-size, 16px);
-}.novelview-novel-mode .markdown-preview-view{
-  font-size: var(--novelview-font-size, 16px);
-}.novelview-mode-settings{
+}
+
+/*模式设置与限定范围搜索*/
+.novelview-mode-settings {
   position: fixed;
   top: 100px;
   left: 50%;
@@ -1351,14 +1606,18 @@
   border-radius: var(--radius-m, 8px);
   box-shadow: var(--shadow-l, 0 14px 40px rgba(0, 0, 0, 0.2));
   transform: translateX(-50%);
-}.novelview-mode-settings-header{
+}
+
+.novelview-mode-settings-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
-}.novelview-mode-settings-header button{
+}
+
+.novelview-mode-settings-header button {
   width: 22px;
   height: 22px;
   padding: 0;
@@ -1366,24 +1625,32 @@
   background: transparent;
   border: none;
   box-shadow: none;
-}.novelview-mode-settings-row{
+}
+
+.novelview-mode-settings-row {
   margin: 10px 0;
-}.novelview-mode-settings-label{
+}
+
+.novelview-mode-settings-label {
   display: flex;
   justify-content: space-between;
   margin-bottom: 4px;
   color: var(--text-muted);
   font-size: 10px;
-}.novelview-mode-settings-row input[type="range"]{
+}
+
+.novelview-mode-settings-row input[type=range] {
   width: 100%;
-}.novelview-search-v2{
+}
+
+.novelview-search-v2 {
   position: fixed;
   top: 80px;
   left: 50%;
   z-index: 1100;
   display: none;
   flex-direction: column;
-  width: min(680px, calc(100vw - 40px));
+  width: min(680px, 100vw - 40px);
   max-height: min(78vh, 700px);
   padding: 11px;
   color: var(--text-normal);
@@ -1393,16 +1660,22 @@
   border-radius: var(--radius-m, 8px);
   box-shadow: var(--shadow-l, 0 18px 48px rgba(0, 0, 0, 0.24));
   transform: translateX(-50%);
-}.novelview-search-v2.is-open{
+}
+
+.novelview-search-v2.is-open {
   display: flex;
-}.novelview-search-v2-header{
+}
+
+.novelview-search-v2-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 7px;
   font-size: 12px;
   font-weight: 600;
-}.novelview-search-v2-header button{
+}
+
+.novelview-search-v2-header button {
   width: 22px;
   height: 22px;
   padding: 0;
@@ -1410,257 +1683,107 @@
   background: transparent;
   border: none;
   box-shadow: none;
-}.novelview-search-v2-controls{
+}
+
+.novelview-search-v2-controls {
   display: grid;
   grid-template-columns: 110px 1fr 1fr;
   gap: 6px;
-}.novelview-search-v2-options{
+}
+
+.novelview-search-v2-options {
   display: flex;
   gap: 12px;
   margin: 8px 0;
   color: var(--text-muted);
   font-size: 10px;
-}.novelview-search-v2-options label{
+}
+
+.novelview-search-v2-options label {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}.novelview-search-v2-actions{
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}.novelview-search-v2-title{
-  margin: 10px 0 6px;
-  padding-top: 8px;
-  color: var(--text-muted);
-  font-size: 10px;
-  border-top: 1px solid var(--background-modifier-border);
-}.novelview-search-v2-results{
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 5px;
-  min-height: 120px;
-  overflow-y: auto;
-}.novelview-search-v2-card{
-  flex: 0 0 auto;
-  padding: 6px 8px;
-  overflow: hidden;
-  color: var(--text-normal);
-  text-align: left;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 4px);
-  box-shadow: none;
-  cursor: pointer;
-}.novelview-search-v2-card:hover{
-  border-color: var(--interactive-accent);
-}.novelview-search-v2-card-title{
-  color: var(--text-muted);
-  font-size: 9px;
-}.novelview-search-v2-card-snippet{
-  overflow: hidden;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}.novelview-search-v2-empty{
-  padding: 30px;
-  color: var(--text-faint);
-  font-size: 11px;
-  text-align: center;
-}:root /* Novel-mode heading cleanup and section TOC */
-.novelview-novel-mode .markdown-source-view.mod-cm6 .cm-formatting-header {
-  display: none;
-}.novelview-section-toc{
-  position: absolute;
-  top: 16px;
-  left: 50px;
-  z-index: 24;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-width: 210px;
-  max-height: 42vh;
-  padding: 6px;
-  overflow-y: auto;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 5px);
-  box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.1));
-}.novelview-section-toc.is-empty{
-  display: none;
-}.novelview-section-toc-title{
-  padding: 1px 4px 3px;
-  color: var(--text-faint);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}.novelview-section-toc-item{
-  display: block;
-  width: 100%;
-  padding: 3px 5px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 10px;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  box-shadow: none;
-  cursor: pointer;
-}.novelview-section-toc-item:hover{
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
-}/* Search result file grouping */
-.novelview-search-v2-file-group{
-  margin-bottom: 4px;
-}.novelview-search-v2-file-header{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 5px 7px;
-  color: var(--text-normal);
-  font-size: 11px;
-  text-align: left;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 4px);
-  box-shadow: none;
-  cursor: pointer;
-}.novelview-search-v2-file-header:hover,
-.novelview-search-v2-file-header.is-open{
-  border-color: var(--interactive-accent);
-}.novelview-search-v2-file-name{
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}.novelview-search-v2-file-count{
-  color: var(--text-faint);
-  font-size: 9px;
-}.novelview-search-v2-file-details{
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0 2px 12px;
-}.novelview-search-v2-file-details.is-collapsed{
-  display: none;
-}:root /* Horizontal rules only cancel first-line indentation. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line.HyperMD-hr::before {
-  content: none;
-}/* Focus-expanded TOC thumbnail */
-.novelview-section-toc{
-  width: 18px;
-  max-width: 18px;
-  padding: 5px 3px;
-  overflow: hidden;
-  opacity: 0.45;
-  cursor: pointer;
-  transition: width 140ms ease, max-width 140ms ease, opacity 140ms ease, padding 140ms ease;
-}.novelview-section-toc:hover{
-  opacity: 0.7;
-}.novelview-section-toc:focus,
-.novelview-section-toc:focus-within{
-  width: 210px;
-  max-width: 210px;
-  padding: 6px;
-  opacity: 1;
-  outline: none;
-  box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.1));
-}.novelview-section-toc-title{
-  display: none;
-}.novelview-section-toc:focus .novelview-section-toc-title,
-.novelview-section-toc:focus-within .novelview-section-toc-title{
-  display: block;
-}.novelview-section-toc-item{
-  width: 10px;
-  height: 4px;
-  min-height: 4px;
-  margin: 2px 0;
-  padding: 0;
-  overflow: hidden;
-  color: transparent;
-  background: color-mix(in srgb, var(--text-faint) 60%, transparent);
-  border-radius: 2px;
-  transition: width 140ms ease, height 140ms ease, padding 140ms ease;
-}.novelview-section-toc-item span{
-  display: block;
-  overflow: hidden;
-  font-size: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}.novelview-section-toc:focus .novelview-section-toc-item,
-.novelview-section-toc:focus-within .novelview-section-toc-item{
-  width: 100%;
-  height: auto;
-  min-height: 22px;
-  margin: 1px 0;
-  padding: 3px 5px;
-  color: var(--text-muted);
-  background: transparent;
-}.novelview-section-toc:focus .novelview-section-toc-item span,
-.novelview-section-toc:focus-within .novelview-section-toc-item span{
-  font-size: 10px;
-}.novelview-section-toc:focus .novelview-section-toc-item:hover,
-.novelview-section-toc:focus-within .novelview-section-toc-item:hover{
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
-}/* Advanced search is a global floating card, independent of MainArea size. */
-.novelview-search-v2{
+}
+
+/*搜索结果按文件分组*/
+/*聚焦展开的目录缩略图*/
+/*高级搜索为全局悬浮卡片，不依赖主区域尺寸。*/
+.novelview-search-v2 {
   top: 50%;
   left: 50%;
-  width: min(680px, calc(100vw - 48px));
+  width: min(680px, 100vw - 48px);
   height: auto;
   max-height: min(78vh, 700px);
   transform: translate(-50%, -50%);
-}/* Article drag insertion preview */
-.novelview-article-file.is-drop-before{
+}
+
+/*文章拖拽插入预览*/
+.novelview-article-file.is-drop-before {
   box-shadow: inset 0 2px 0 var(--interactive-accent);
-}.novelview-article-file.is-drop-after{
+}
+
+.novelview-article-file.is-drop-after {
   box-shadow: inset 0 -2px 0 var(--interactive-accent);
-}.novelview-article-volume-group.is-drop-volume{
+}
+
+.novelview-article-volume-group.is-drop-volume {
   background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
   outline: 1px dashed color-mix(in srgb, var(--interactive-accent) 55%, transparent);
   outline-offset: -2px;
   border-radius: var(--radius-s, 4px);
-}.novelview-search-v2-group{
+}
+
+.novelview-search-v2-group {
   margin: -3px 0 7px;
   color: var(--text-muted);
   font-family: var(--font-interface);
   font-size: 10px;
-}.novelview-search-v2-header{
+}
+
+.novelview-search-v2-header {
   cursor: move;
-}.novelview-workbench-novel{
+}
+
+.novelview-workbench-novel {
   padding: 22px;
   min-height: 230px;
-}.novelview-workbench-cover.is-clickable,
+}
+
+.novelview-workbench-cover.is-clickable,
 .novelview-workbench-novel-name.is-editable,
-.novelview-workbench-novel-description.is-editable{
+.novelview-workbench-novel-description.is-editable {
   cursor: text;
-}.novelview-workbench-cover.is-clickable{
+}
+
+.novelview-workbench-cover.is-clickable {
   cursor: pointer;
-}.novelview-workbench-novel-name.is-editable:focus,
-.novelview-workbench-novel-description.is-editable:focus{
+}
+
+.novelview-workbench-novel-name.is-editable:focus,
+.novelview-workbench-novel-description.is-editable:focus {
   outline: 1px dashed var(--interactive-accent);
   outline-offset: 3px;
   border-radius: 3px;
-}.novelview-workbench-novel-description.is-editable:empty::before{
+}
+
+.novelview-workbench-novel-description.is-editable:empty::before {
   color: var(--text-faint);
   content: attr(data-placeholder);
-}.novelview-workbench-cover{
+}
+
+.novelview-workbench-cover {
   flex-basis: 130px;
   width: 130px;
   height: 178px;
 }
 
-@media (min-width: 900px) {.novelview-workbench-novel{
+@media (min-width: 900px) {
+  .novelview-workbench-novel {
     min-height: 300px;
   }
-}/* Article groups inside the tree */
-.novelview-article-group{
+}
+/*树内文章分组*/
+.novelview-article-group {
   display: flex;
   gap: 4px;
   margin: 3px 0;
@@ -1668,7 +1791,9 @@
   border-radius: var(--radius-m, 8px);
   background: color-mix(in srgb, var(--background-primary) 70%, transparent);
   overflow: hidden;
-}.novelview-article-group-rail{
+}
+
+.novelview-article-group-rail {
   display: flex;
   flex: 0 0 24px;
   align-items: center;
@@ -1680,129 +1805,48 @@
   cursor: pointer;
   writing-mode: vertical-rl;
   text-orientation: mixed;
-}.novelview-article-group-rail:hover{
+}
+
+.novelview-article-group-rail:hover {
   color: var(--text-accent);
   background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
-}.novelview-article-group-name{
+}
+
+.novelview-article-group-name {
   max-height: 120px;
   overflow: hidden;
   font-family: var(--font-interface);
   font-size: 9px;
   letter-spacing: 0.06em;
   white-space: nowrap;
-}.novelview-article-group-content{
+}
+
+.novelview-article-group-content {
   flex: 1;
   min-width: 0;
   padding: 2px 3px;
-}.novelview-workbench-novel-stats{
+}
+
+.novelview-workbench-novel-stats {
   margin-top: auto;
   padding-top: 14px;
   color: var(--text-faint);
   font-family: var(--font-interface);
   font-size: 10px;
-}.novelview-volume-cards{
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 14px;
-}.novelview-volume-card{
-  overflow: hidden;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m, 8px);
-}.novelview-volume-header{
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 10px 12px;
-  color: var(--text-normal);
-  font-family: var(--font-interface);
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-  background: var(--background-secondary);
-  border: none;
-  box-shadow: none;
-  cursor: pointer;
-}.novelview-volume-chevron{
-  display: inline-flex;
-  color: var(--text-faint);
-}.novelview-volume-count{
-  margin-left: auto;
-  color: var(--text-faint);
-  font-size: 9px;
-  font-weight: 400;
-}.novelview-volume-body{
-  display: flex;
-  gap: 16px;
-  padding: 12px;
-}.novelview-volume-text{
-  flex: 1;
-  min-width: 0;
-}.novelview-volume-description,
-.novelview-volume-description.is-editable{
-  min-height: 1.5em;
-  color: var(--text-muted);
-  font-size: 11px;
-  line-height: 1.65;
-}.novelview-volume-description.is-editable:empty::before{
-  color: var(--text-faint);
-  content: attr(data-placeholder);
-}.novelview-volume-description.is-editable:focus{
-  outline: 1px dashed var(--interactive-accent);
-  outline-offset: 2px;
-}.novelview-volume-cover{
-  display: flex;
-  flex: 0 0 110px;
-  align-items: center;
-  justify-content: center;
-  width: 110px;
-  height: 150px;
-  overflow: hidden;
-  color: var(--text-faint);
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 5px);
-}.novelview-volume-cover img{
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}.novelview-volume-groups{
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}.novelview-volume-group{
-  padding: 7px 9px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s, 5px);
-}.novelview-volume-group.is-focused{
-  border-color: var(--interactive-accent);
-}.novelview-volume-group-name{
-  color: var(--text-normal);
-  font-size: 10px;
-  font-weight: 600;
-}.novelview-volume-group-description{
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 9.5px;
-  line-height: 1.5;
-}.novelview-article-group-modal .novelview-article-group-actions{
+}
+
+.novelview-article-group-modal .novelview-article-group-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
 }
 
-/* Workbench: novel hero grid */
+/*工作台：小说主视觉网格*/
 .novelview-workbench-novel {
   display: grid;
   grid-template-columns: minmax(180px, 250px) minmax(0, 1fr);
-  grid-template-areas:
-    "cover body"
-    "stats body";
+  grid-template-areas: "cover body" "stats body";
   align-items: start;
   gap: 16px 28px;
   padding: 28px;
@@ -1813,7 +1857,7 @@
   grid-area: cover;
   width: 100%;
   height: auto;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 2/3;
   min-height: 0;
 }
 
@@ -1842,187 +1886,19 @@
   font-size: 11px;
 }
 
-/* Workbench: one-at-a-time volume accordion */
-.novelview-volume-cards {
-  gap: 9px;
-  margin-top: 18px;
-}
-
-.novelview-volume-card {
-  transition: border-color 140ms ease, box-shadow 140ms ease;
-}
-
-.novelview-volume-card.is-expanded {
-  border-color: color-mix(in srgb, var(--interactive-accent) 42%, var(--background-modifier-border));
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.10);
-}
-
-.novelview-volume-header {
-  gap: 9px;
-  padding: 13px 15px;
-  font-size: 13px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary)),
-    var(--background-secondary)
-  );
-}
-
-.novelview-volume-header:hover {
-  background: var(--background-modifier-hover);
-}
-
-.novelview-volume-index {
-  min-width: 17px;
-  color: var(--text-faint);
-  font-family: var(--font-monospace);
-  font-size: 9px;
-  font-weight: 400;
-  text-align: right;
-}
-
-.novelview-volume-chevron {
-  color: var(--text-muted);
-}
-
-.novelview-volume-count {
-  padding: 1px 7px;
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
-}
-
-.novelview-volume-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, 230px);
-  gap: 22px;
-  padding: 18px;
-}
-
-.novelview-volume-text {
-  min-width: 0;
-}
-
-.novelview-volume-label {
-  margin: 2px 0 5px;
-  color: var(--text-faint);
-  font-family: var(--font-interface);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.novelview-volume-label + .novelview-volume-label,
-.novelview-volume-groups + .novelview-volume-label,
-.novelview-volume-description + .novelview-volume-label {
-  margin-top: 16px;
-}
-
-.novelview-volume-description {
-  min-height: 2.4em;
-  padding: 8px 10px;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.7;
-  background: var(--background-secondary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-s, 5px);
-}
-
-.novelview-volume-description.is-editable:focus {
-  background: var(--background-primary);
-  border-color: var(--interactive-accent);
-  outline: none;
-}
-
-.novelview-volume-groups {
-  gap: 7px;
-}
-
-.novelview-volume-group {
-  padding: 9px 11px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-left: 2px solid color-mix(in srgb, var(--interactive-accent) 45%, transparent);
-  border-radius: var(--radius-s, 5px);
-}
-
-.novelview-volume-group.is-focused {
-  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
-  border-color: var(--interactive-accent);
-  border-left-color: var(--interactive-accent);
-}
-
-.novelview-volume-group-name {
-  font-size: 11px;
-}
-
-.novelview-volume-group-description {
-  font-size: 10px;
-}
-
-.novelview-volume-cover {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 2 / 3;
-  justify-self: end;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
-
-.novelview-volume-empty {
-  padding: 10px 11px;
-  color: var(--text-faint);
-  font-size: 10.5px;
-  line-height: 1.65;
-  background: var(--background-secondary);
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: var(--radius-s, 5px);
-}
-
+/*工作台：单卷展开的手风琴*/
 @media (max-width: 720px) {
   .novelview-workbench-novel {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "cover"
-      "body"
-      "stats";
+    grid-template-areas: "cover" "body" "stats";
     padding: 16px;
   }
-
   .novelview-workbench-cover {
     width: min(210px, 70%);
   }
-
-  .novelview-volume-body {
-    grid-template-columns: 1fr;
-  }
-
-  .novelview-volume-cover {
-    width: min(190px, 70%);
-    justify-self: start;
-  }
 }
-
-/* Group descriptions appear when the group is focused. */
-.novelview-volume-group {
-  cursor: pointer;
-}
-
-.novelview-volume-group-description {
-  display: none;
-}
-
-.novelview-volume-group.is-focused .novelview-volume-group-description {
-  display: block;
-}
-
-.novelview-volume-group:focus-visible {
-  outline: 1px solid var(--interactive-accent);
-  outline-offset: -1px;
-}
-
-/* Workbench uses a normal vertical document flow, not fixed-height tiles. */
+/*分组聚焦时显示描述。*/
+/*工作台使用普通纵向文档流，不使用固定高度卡片。*/
 .novelview-workbench {
   display: block;
   width: 100%;
@@ -2045,30 +1921,6 @@
   box-sizing: border-box;
 }
 
-.novelview-workbench-cover-image,
-.novelview-volume-cover img {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: cover;
-}
-
-.novelview-volume-cards {
-  width: 100%;
-}
-
-.novelview-volume-body {
-  min-width: 0;
-  overflow: hidden;
-}
-
-.novelview-volume-cover {
-  max-width: 100%;
-  max-height: 320px;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
 .novelview-article-group.is-drop-group {
   border-color: var(--interactive-accent);
   background: color-mix(in srgb, var(--interactive-accent) 9%, transparent);
@@ -2079,7 +1931,7 @@
 .novelview-article-group-tooltip {
   position: fixed;
   z-index: 1200;
-  width: min(260px, calc(100vw - 24px));
+  width: min(260px, 100vw - 24px);
   padding: 9px 11px;
   color: var(--text-normal);
   font-family: var(--font-interface);
@@ -2115,7 +1967,7 @@
   z-index: 1200;
   display: flex;
   flex-direction: column;
-  width: min(280px, calc(100vw - 24px));
+  width: min(280px, 100vw - 24px);
   padding: 10px;
   color: var(--text-normal);
   font-family: var(--font-interface);
@@ -2195,7 +2047,7 @@
   position: fixed;
   z-index: 1300;
   width: 300px;
-  max-width: min(340px, calc(100vw - 24px));
+  max-width: min(340px, 100vw - 24px);
   padding: 9px 11px;
   color: var(--text-normal);
   font-family: var(--font-interface);
@@ -2257,7 +2109,7 @@
   pointer-events: none;
 }
 
-/* Workbench history card */
+/*工作台历史卡片*/
 .novelview-history {
   margin-top: 16px;
   padding: 18px;
@@ -2352,221 +2204,33 @@
   color: var(--color-red, #c0392b);
 }
 
-/* Distinct chapter status colors */
-.novelview-article-row-state[data-state="todo"] {
+/*章节状态颜色区分*/
+.novelview-article-row-state[data-state=todo] {
   color: var(--text-faint);
   background: color-mix(in srgb, var(--text-faint) 10%, transparent);
 }
 
-.novelview-article-row-state[data-state="draft"] {
+.novelview-article-row-state[data-state=draft] {
   color: var(--color-orange, #c26a1b);
   background: color-mix(in srgb, var(--color-orange, #c26a1b) 11%, transparent);
 }
 
-.novelview-article-row-state[data-state="outline"] {
+.novelview-article-row-state[data-state=outline] {
   color: var(--color-purple, #8064a2);
   background: color-mix(in srgb, var(--color-purple, #8064a2) 11%, transparent);
 }
 
-.novelview-article-row-state[data-state="revising"] {
+.novelview-article-row-state[data-state=revising] {
   color: var(--color-blue, #356c9a);
   background: color-mix(in srgb, var(--color-blue, #356c9a) 11%, transparent);
 }
 
-.novelview-article-row-state[data-state="done"] {
+.novelview-article-row-state[data-state=done] {
   color: var(--color-green, #4d7c56);
   background: color-mix(in srgb, var(--color-green, #4d7c56) 11%, transparent);
-}:root /* Novel mode: render body content as plain text, :root ignoring Markdown syntax. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
-    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
-    .cm-hashtag, .cm-url) {
-  font-size: 0;
-  letter-spacing: 0;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  :is(.cm-header, .cm-strong, .cm-em, .cm-link, .cm-inline-code,
-    .cm-highlight, .cm-strikethrough, .cm-quote) {
-  color: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  text-decoration: none;
-  background: transparent;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line:is(.HyperMD-header, .HyperMD-quote, .HyperMD-list-line) {
-  font-size: inherit;
-  font-weight: inherit;
-}:root .novelview-novel-mode
-  .markdown-preview-view
-  :is(h1, h2, h3, h4, h5, h6, strong, em, a, code, mark, del, th) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  text-decoration: none;
-  background: transparent;
-  border: none;
-}:root .novelview-novel-mode .markdown-preview-view :is(ul, ol) {
-  padding-inline-start: 0;
-  list-style: none;
-}:root .novelview-novel-mode .markdown-preview-view blockquote {
-  margin-inline: 0;
-  padding-inline: 0;
-  color: inherit;
-  border: none;
-  background: transparent;
 }
 
-.novelview-novel-mode .markdown-preview-view :is(a, button) {
-  pointer-events: none;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line:is(.HyperMD-codeblock, .HyperMD-codeblock-begin, .HyperMD-codeblock-end) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  background: transparent;
-}:root .novelview-novel-mode .markdown-preview-view :is(pre, pre code, table, thead, tbody, tr, td) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  background: transparent;
-  border: none;
-}:root /* Novel mode is a raw-text editor: keep every Markdown character visible. */
-.novelview-novel-mode.novelview-hide-markers
-  .markdown-source-view.mod-cm6
-  .cm-line
-  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
-    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
-    .cm-hashtag, .cm-url, .cm-formatting-code, .cm-formatting-code-block) {
-  display: inline;
-  padding: 0;
-  border: 0;
-  color: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  text-decoration: none;
-  background: transparent;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line
-  :is(.cm-header, .cm-strong, .cm-em, .cm-link, .cm-url, .cm-inline-code,
-    .cm-highlight, .cm-strikethrough, .cm-quote, .cm-hashtag,
-    .cm-formatting, .cm-formatting-header, .cm-formatting-list,
-    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
-    .cm-formatting-code, .cm-formatting-code-block) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  text-decoration: none;
-  background: transparent;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-line:is(.HyperMD-header, .HyperMD-codeblock, .HyperMD-codeblock-begin,
-    .HyperMD-codeblock-end, .HyperMD-quote, .HyperMD-list-line) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  background: transparent;
-}:root /* Reading view fallback: remove Markdown visual styling without deleting text. */
-.novelview-novel-mode .markdown-preview-view :is(h1, h2, h3, h4, h5, h6,
-  strong, em, a, code, pre, mark, del, th, td, blockquote) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  text-decoration: none;
-  background: transparent;
-  border: none;
-}:root /* Novel mode: force every CodeMirror line and token to plain text. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  .cm-line {
-  color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
-  font-size: var(--novelview-font-size, 16px);
-  font-style: normal;
-  font-weight: 400;
-  line-height: var(--novelview-line-height, 1.8);
-  letter-spacing: normal;
-  text-decoration: none;
-  text-transform: none;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  .cm-line
-  *:not(.cm-cursor):not(.cm-selectionBackground):not(.cm-widgetBuffer) {
-  color: inherit;
-  font-family: inherit;
-  font-size: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  line-height: inherit;
-  letter-spacing: inherit;
-  text-decoration: none;
-  text-transform: inherit;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-  margin: 0;
-}:root .novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  .cm-line
-  :is(.cm-formatting, .cm-formatting-header, .cm-formatting-list,
-    .cm-formatting-quote, .cm-formatting-link, .cm-formatting-link-string,
-    .cm-hashtag, .cm-url, .cm-formatting-code, .cm-formatting-code-block) {
-  display: inline;
-  font-size: inherit;
-  letter-spacing: inherit;
-}:root /* Keep YAML properties out of the novel-mode body. */
-.novelview-novel-mode .metadata-container, :root .novelview-novel-mode .frontmatter, :root .novelview-novel-mode .markdown-preview-view .metadata-container, :root .novelview-novel-mode .markdown-preview-view .frontmatter, :root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.cm-frontmatter, :root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line[class*="frontmatter"] {
-  display: none;
-}:root /* Restore the separator's visual line while keeping source characters intact. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  .cm-line.HyperMD-hr {
-  height: 1px;
-  margin: 14px 0;
-  padding: 0;
-  overflow: hidden;
-  color: transparent;
-  font-size: 0;
-  line-height: 1px;
-  border: none;
-  border-top: 1px solid var(--background-modifier-border);
-  box-shadow: none;
-  background: transparent;
-}:root /* Hide frontmatter lines in the novel-mode editor; the decoration makes them non-editable. */
-.novelview-novel-mode
-  .markdown-source-view.mod-cm6
-  .cm-content
-  .cm-line.novelview-hidden-frontmatter {
-  display: none;
-}:root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.frontmatter, :root .novelview-novel-mode .markdown-source-view.mod-cm6 .cm-line.metadata-container, :root .novelview-novel-mode .metadata-container, :root .novelview-novel-mode .frontmatter {
-  display: none;
-}
-
-/* Standalone novel editor view */
+/*独立小说编辑器视图*/
 .novelview-editor-view {
   display: flex;
   flex-direction: column;
@@ -2634,59 +2298,62 @@
   color: var(--text-faint);
   font-family: var(--font-interface);
   font-size: 12px;
-}:root /* Standalone editor: separators keep their visual divider appearance. */
-.novelview-editor-view .cm-line.novelview-editor-hr {
+}
+
+:root .novelview-editor-view .cm-line.novelview-editor-hr {
   height: auto;
-  min-height: calc(
-    var(--novelview-line-height, 1.8) * 1em + 1.2em
-  );
+  min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: var(--novelview-paragraph-spacing/2, 0.33em)var(--novelview-line-height, 1.8) 0;
   overflow: hidden;
   color: transparent;
-  font-size: 0;
-  line-height: 1.2em;
+  font-size: inherit;
+  line-height: 0;
   border-top: 1px solid var(--background-modifier-border);
   background: transparent;
 }
 
-/* Standalone editor: paragraph spacing and first-line indentation. */
-.novelview-editor-view.novelview-editor-paragraph-mode-line
-  .cm-line.novelview-editor-prose::before,
-.novelview-editor-view.novelview-editor-paragraph-mode-blank-line
-  .cm-line.novelview-editor-paragraph-start::before {
+/*独立编辑器：段距与首行缩进。*/
+.novelview-editor-view.novelview-editor-paragraph-mode-line .cm-line.novelview-editor-prose::before,
+.novelview-editor-view.novelview-editor-paragraph-mode-blank-line .cm-line.novelview-editor-paragraph-start::before {
   content: "";
   display: inline-block;
   width: var(--novelview-first-line-indent, 2em);
 }
 
-.novelview-editor-view.novelview-editor-paragraph-mode-line
-  .cm-line.novelview-editor-prose.novelview-editor-preindented::before,
-.novelview-editor-view.novelview-editor-paragraph-mode-blank-line
-  .cm-line.novelview-editor-paragraph-start.novelview-editor-preindented::before {
+.novelview-editor-view.novelview-editor-paragraph-mode-line .cm-line.novelview-editor-prose.novelview-editor-preindented::before,
+.novelview-editor-view.novelview-editor-paragraph-mode-blank-line .cm-line.novelview-editor-paragraph-start.novelview-editor-preindented::before {
   content: none;
-}:root .novelview-editor-view.novelview-editor-paragraph-mode-line
-  .cm-line.novelview-editor-prose {
-  padding-bottom: var(--novelview-paragraph-spacing, 0.65em);
-}:root .novelview-editor-view.novelview-editor-paragraph-mode-blank-line
-  .cm-line.novelview-editor-paragraph-end {
-  padding-bottom: var(--novelview-paragraph-spacing, 0.65em);
-}:root /* Standalone editor has no native line-number gutter. */
-.novelview-editor-view .cm-gutters {
+}
+
+:root .novelview-editor-view.novelview-editor-paragraph-mode-line .cm-line.novelview-editor-empty-line,
+:root .novelview-editor-view.novelview-editor-paragraph-mode-line .cm-line.novelview-editor-prose,
+:root .novelview-editor-view.novelview-editor-paragraph-mode-blank-line .cm-line.novelview-editor-paragraph-end {
+  padding-bottom: var(--novelview-paragraph-spacing, 0.66em);
+}
+
+:root .novelview-editor-view .cm-gutters {
   display: none;
-}:root /* Novel editor selection/caret visibility */
-.novelview-editor-view .cm-editor .cm-selectionBackground {
+}
+
+:root .novelview-editor-view .cm-editor .cm-selectionBackground {
   background: color-mix(in srgb, var(--interactive-accent) 38%, transparent);
-}:root .novelview-editor-view .cm-editor.cm-focused .cm-selectionBackground {
+}
+
+:root .novelview-editor-view .cm-editor.cm-focused .cm-selectionBackground {
   background: color-mix(in srgb, var(--interactive-accent) 48%, transparent);
-}:root .novelview-editor-view .cm-editor .cm-cursor {
+}
+
+:root .novelview-editor-view .cm-editor .cm-cursor {
   border-left: 2px solid var(--interactive-accent);
   margin-left: -1px;
-}:root .novelview-editor-view .cm-content ::selection {
+}
+
+:root .novelview-editor-view .cm-content ::selection {
   background: color-mix(in srgb, var(--interactive-accent) 40%, transparent);
 }
 
-/* Floating toolbar card, bottom-left */
+/*左下角悬浮工具栏卡片*/
 .novelview-editor-view {
   position: relative;
 }
@@ -2704,9 +2371,9 @@
   box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.16));
 }
 
-/* Title widget at the start of the document */
+/*文档开头的标题控件*/
 .novelview-editor-title {
-  margin: 0 0 0.85em;
+  margin: 3.5em 0 0.85em;
   padding: 0;
   color: var(--text-normal);
   font-family: var(--font-text, var(--font-interface));
@@ -2716,7 +2383,7 @@
   user-select: none;
 }
 
-/* Focus-only TOC card, top-right */
+/*右上角仅聚焦显示的目录卡片*/
 .novelview-editor-toc {
   position: absolute;
   top: 12px;
@@ -2736,16 +2403,6 @@
 
 .novelview-editor-toc.is-visible:not(.is-empty) {
   display: flex;
-}
-
-.novelview-editor-toc-title {
-  flex: 0 0 auto;
-  padding: 1px 5px 5px;
-  color: var(--text-faint);
-  font-family: var(--font-interface);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
 }
 
 .novelview-editor-toc-list {
@@ -2777,7 +2434,7 @@
   background: var(--background-modifier-hover);
 }
 
-/* Block image rendering inside the raw editor */
+/*原始编辑器内的块级图片渲染*/
 .novelview-editor-image {
   display: block;
   margin: 10px 0 16px;
@@ -2801,7 +2458,7 @@
   font-size: 10px;
 }
 
-/* TOC thumbnail/full-card states */
+/*目录缩略图与完整卡片状态*/
 .novelview-editor-toc {
   display: flex;
   width: 36px;
@@ -2822,7 +2479,9 @@
   max-width: 190px;
   max-height: 45vh;
   padding: 8px;
-}:root .novelview-editor-toc.is-empty {
+}
+
+:root .novelview-editor-toc.is-empty {
   display: none;
 }
 
@@ -2889,31 +2548,37 @@
   background: var(--background-modifier-hover);
 }
 
-/* Pending-revision code blocks */
+/*待修订代码块*/
 .novelview-editor-view .novelview-pending-green {
   --novelview-pending-bg: color-mix(in srgb, var(--color-green, #4caf50) 17%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-green, #4caf50) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-red {
   --novelview-pending-bg: color-mix(in srgb, var(--color-red, #f44336) 17%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-red, #f44336) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-orange {
   --novelview-pending-bg: color-mix(in srgb, var(--color-orange, #ff9800) 18%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-orange, #ff9800) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-yellow {
   --novelview-pending-bg: color-mix(in srgb, var(--color-yellow, #ffc107) 18%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-yellow, #ffc107) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-blue {
   --novelview-pending-bg: color-mix(in srgb, var(--color-blue, #2196f3) 17%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-blue, #2196f3) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-purple {
   --novelview-pending-bg: color-mix(in srgb, var(--color-purple, #9c27b0) 17%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-purple, #9c27b0) 62%, transparent);
 }
+
 .novelview-editor-view .novelview-pending-brown {
   --novelview-pending-bg: color-mix(in srgb, var(--color-brown, #795548) 19%, transparent);
   --novelview-pending-border: color-mix(in srgb, var(--color-brown, #795548) 62%, transparent);
@@ -2945,13 +2610,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}:root .novelview-editor-view .cm-line.novelview-pending-content {
+}
+
+:root .novelview-editor-view .cm-line.novelview-pending-content {
   padding-right: 12px;
   padding-left: 12px;
   background: var(--novelview-pending-bg);
   border-left: 1px solid var(--novelview-pending-border);
   border-right: 1px solid var(--novelview-pending-border);
-}:root .novelview-editor-view .cm-line.novelview-pending-content.novelview-pending-last {
+}
+
+:root .novelview-editor-view .cm-line.novelview-pending-content.novelview-pending-last {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--novelview-pending-border);
   border-radius: 0 0 8px 8px;
@@ -3077,7 +2746,7 @@
   background: color-mix(in srgb, var(--text-error) 12%, transparent);
 }
 
-/* Keep the TOC and pending controls clear of Obsidian's right overlay/scrollbar. */
+/*确保目录与待修订控件避开 Obsidian 右侧覆盖层和滚动条。*/
 .novelview-editor-view .novelview-editor-toc {
   right: 56px;
 }
@@ -3088,40 +2757,34 @@
 
 .novelview-editor-view .novelview-pending-panel {
   right: 92px;
-}:root /* Keep a pending block's inner separator inside its colored background. */
-.novelview-editor-view
-  .cm-line.novelview-pending-content.novelview-editor-hr {
-  height: 1px;
+}
+
+:root .novelview-editor-view .cm-line.novelview-pending-content.novelview-editor-hr {
+  height: auto;
   margin: 0;
-  padding: 0 12px;
+  padding: 0 12px var(--novelview-paragraph-spacing, 0.65em);
   overflow: hidden;
   color: transparent;
-  font-size: 0;
-  line-height: 1px;
+  font-size: inherit;
+  line-height: var(--novelview-line-height, 1.8);
   background: var(--novelview-pending-bg);
   border-top: 1px solid var(--novelview-pending-border);
-}:root /* Empty lines also show the first-line indent so the caret is not flush-left. */
-.novelview-editor-view
-  .cm-line.novelview-editor-empty-line {
+}
+
+:root .novelview-editor-view .cm-line.novelview-editor-empty-line {
   padding-left: var(--novelview-first-line-indent, 2em);
 }
 
-/* TOC pending-revision buttons use the matching block color. */
-.novelview-editor-view
-  .novelview-editor-toc-item.novelview-editor-toc-pending {
+/*目录中的待修订按钮使用对应块颜色。*/
+.novelview-editor-view .novelview-editor-toc-item.novelview-editor-toc-pending {
   color: var(--text-normal);
   background: var(--novelview-pending-bg);
   border-color: var(--novelview-pending-border);
 }
 
-.novelview-editor-view
-  .novelview-editor-toc-item.novelview-editor-toc-pending:hover {
+.novelview-editor-view .novelview-editor-toc-item.novelview-editor-toc-pending:hover {
   border-color: var(--novelview-pending-border);
-  background: color-mix(
-    in srgb,
-    var(--novelview-pending-border) 22%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--novelview-pending-border) 22%, transparent);
 }
 
 .novelview-pending-panel-error {
@@ -3135,7 +2798,7 @@
   display: none;
 }
 
-/* Setting-group folder in the native file explorer */
+/*原生文件浏览器中的设定组文件夹*/
 .nav-folder.novelview-setting-folder > .nav-folder-title {
   color: var(--text-accent);
 }
@@ -3157,8 +2820,7 @@
   display: none;
 }
 
-
-/* Setting collection sidebar */
+/*设定集侧栏*/
 .novelview-setting-collection-view {
   padding: 10px 12px 24px;
   font-family: var(--font-interface);
@@ -3230,16 +2892,6 @@
   border-radius: 7px;
 }
 
-.novelview-setting-collection-group-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-  color: var(--text-normal);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .novelview-setting-collection-count {
   color: var(--text-faint);
   font-size: 9px;
@@ -3295,14 +2947,7 @@
   line-height: 1.6;
 }
 
-/* Setting collection CRUD */
-.novelview-setting-collection-group-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
+/*设定集增删改查*/
 .novelview-setting-collection-actions {
   display: flex;
   align-items: center;
@@ -3334,17 +2979,6 @@
 .novelview-setting-collection-small-button svg {
   width: 12px;
   height: 12px;
-}
-
-.novelview-setting-modal .novelview-setting-modal-input,
-.novelview-setting-modal .novelview-setting-modal-textarea {
-  width: 100%;
-  margin: 4px 0;
-}
-
-.novelview-setting-modal-textarea {
-  min-height: 90px;
-  resize: vertical;
 }
 
 .novelview-setting-modal-color {
@@ -3382,7 +3016,7 @@
   font-size: 10px;
 }
 
-/* Setting-record keyword links in the novel editor */
+/*小说编辑器中的设定记录关键词链接*/
 .novelview-setting-keyword {
   font-weight: 600;
   text-decoration: none;
@@ -3437,7 +3071,7 @@
   border-radius: 4px;
 }
 
-/* Setting collection drag/drop */
+/*设定集拖放*/
 .novelview-setting-collection-drag-grip {
   display: inline-flex;
   flex: 0 0 auto;
@@ -3493,32 +3127,17 @@
 .novelview-setting-collection-tag.is-drop-inside {
   outline: 1px dashed var(--interactive-accent);
   outline-offset: -2px;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 9%,
-    var(--background-secondary)
-  );
+  background: color-mix(in srgb, var(--interactive-accent) 9%, var(--background-secondary));
 }
 
 .novelview-setting-collection-entry.is-drop-inside {
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
 }
 
-/* Hover-driven setting collection cards */
-.novelview-setting-collection-group-body,
+/*悬停驱动的设定集卡片*/
 .novelview-setting-collection-tag-body {
   display: none;
   animation: novelview-setting-reveal 0.12s ease-out;
-}
-
-.novelview-setting-collection-group:hover > .novelview-setting-collection-group-body,
-.novelview-setting-collection-group.is-focused > .novelview-setting-collection-group-body,
-.is-setting-dragging .novelview-setting-collection-group-body {
-  display: block;
 }
 
 .novelview-setting-collection-tag:hover > .novelview-setting-collection-tag-body,
@@ -3563,8 +3182,6 @@
   transition: opacity 0.1s ease;
 }
 
-.novelview-setting-collection-group:hover > .novelview-setting-collection-group-title > .novelview-setting-collection-actions,
-.novelview-setting-collection-group.is-focused > .novelview-setting-collection-group-title > .novelview-setting-collection-actions,
 .novelview-setting-collection-tag:hover > .novelview-setting-collection-tag-title > .novelview-setting-collection-actions,
 .novelview-setting-collection-tag.is-focused > .novelview-setting-collection-tag-title > .novelview-setting-collection-actions,
 .is-setting-dragging .novelview-setting-collection-actions {
@@ -3572,18 +3189,12 @@
   pointer-events: auto;
 }
 
-.novelview-setting-collection-group-title,
 .novelview-setting-collection-tag-title {
   cursor: default;
 }
 
-.novelview-setting-collection-group:hover > .novelview-setting-collection-group-title,
 .novelview-setting-collection-tag:hover > .novelview-setting-collection-tag-title {
   color: var(--text-normal);
-}
-
-.novelview-setting-collection-group-body {
-  margin-top: 2px;
 }
 
 .novelview-setting-collection-tag-body {
@@ -3600,22 +3211,19 @@
     transform: translateY(0);
   }
 }
-
 @media (hover: none) {
-  .novelview-setting-collection-group-body,
-  .novelview-setting-collection-tag-body,
-  .novelview-setting-collection-content {
-    display: block;
-  }
-
   .novelview-setting-collection-actions {
     opacity: 1;
     pointer-events: auto;
   }
+  .novelview-setting-collection-drag-grip {
+    display: none;
+  }
+  .novelview-selection-box.is-visible {
+    display: none;
+  }
 }
-
-
-/* Shared modal form fields */
+/*共享模态表单字段*/
 .novelview-form-field {
   margin: 10px 0;
 }
@@ -3646,7 +3254,7 @@
   background: var(--interactive-accent-hover);
 }
 
-/* Setting-record detail files */
+/*设定记录详细文件*/
 .novelview-setting-collection-entry {
   padding-right: 38px;
 }
@@ -3673,56 +3281,7 @@
   height: 17px;
 }
 
-.novelview-setting-collection-details {
-  display: none;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px 5px;
-  margin-top: 5px;
-  padding-top: 5px;
-  border-top: 1px dashed var(--background-modifier-border);
-}
-
-.novelview-setting-collection-entry:hover > .novelview-setting-collection-details,
-.novelview-setting-collection-entry.is-focused > .novelview-setting-collection-details {
-  display: grid;
-}
-
-.novelview-setting-collection-detail-file {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-  padding: 2px 4px;
-  color: var(--text-muted);
-  font-size: 10px;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-setting-collection-detail-file:hover {
-  color: var(--text-accent);
-  background: var(--background-modifier-hover);
-}
-
-.novelview-setting-collection-detail-file span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-setting-collection-detail-file svg {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 auto;
-}
-
-/* Dynamic tooltip positioning */
+/*动态提示定位*/
 .novelview-article-group-tooltip,
 .novelview-volume-tooltip {
   visibility: hidden;
@@ -3733,165 +3292,18 @@
   visibility: visible;
 }
 
-/* Setting record fields, relations and marked spans */
-.novelview-setting-collection-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  margin-top: 5px;
-}
-
-.novelview-setting-collection-field {
-  display: inline-flex;
-  gap: 3px;
-  max-width: 100%;
-  padding: 2px 5px;
-  font-size: 9px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-}
-
-.novelview-setting-collection-field-name {
-  color: var(--text-faint);
-}
-
-.novelview-setting-collection-field-value {
-  overflow: hidden;
-  color: var(--text-normal);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-setting-collection-relations {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.novelview-setting-collection-relation {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-setting-collection-relation-label {
-  color: var(--text-accent);
-  font-weight: 600;
-}
-
-.novelview-setting-collection-relation-target {
-  color: var(--text-muted);
-}
-
-.novelview-setting-collection-relation-direction {
-  margin-left: auto;
-  padding: 0 4px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
-}
-
+/*设定记录字段、关系与标记文本*/
 .novelview-setting-modal-label {
   margin-top: 8px;
   color: var(--text-muted);
   font-size: 10px;
 }
 
-.novelview-setting-mark-tools {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-}
-
-.novelview-setting-mark-tools input {
-  flex: 1;
-}
-
-.novelview-setting-marks {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-}
-
-.novelview-setting-mark-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 4px;
-  font-size: 9px;
-  background: var(--background-secondary);
-  border-radius: 4px;
-}
-
-.novelview-setting-mark-attribute {
-  color: var(--text-accent);
-  font-weight: 600;
-}
-
-.novelview-setting-mark-text {
-  overflow: hidden;
-  color: var(--text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-setting-mark-row button {
-  margin-left: auto;
-  font-size: 8px;
-}
-
-/* Improved setting record editor */
-.novelview-setting-record-modal {
-  width: min(620px, calc(100vw - 60px));
-}
-
-.novelview-setting-record-fields,
-.novelview-setting-record-relations {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-}
-
+/*改进的设定记录编辑器*/
 .novelview-setting-record-field-row {
   display: grid;
   grid-template-columns: minmax(90px, 0.8fr) minmax(120px, 1.2fr) 24px;
   gap: 4px;
-}
-
-.novelview-setting-record-relation-row {
-  display: grid;
-  grid-template-columns: minmax(80px, 0.9fr) minmax(90px, 1fr) minmax(80px, 0.9fr) 48px 24px;
-  gap: 3px;
-}
-
-.novelview-setting-record-field-row input,
-.novelview-setting-record-relation-row input,
-.novelview-setting-record-relation-row select {
-  min-width: 0;
-  height: 26px;
-  font-size: 10px;
-}
-
-.novelview-setting-record-field-row button,
-.novelview-setting-record-relation-row button {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  color: var(--text-faint);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.novelview-setting-record-field-row button:hover,
-.novelview-setting-record-relation-row button:hover {
-  color: var(--text-error);
-  background: var(--background-modifier-hover);
 }
 
 .novelview-setting-row-add {
@@ -3908,15 +3320,18 @@
 .novelview-setting-row-add:hover {
   color: var(--text-accent);
   border-color: var(--interactive-accent);
-}:root /* Novel groups are entry points only; their contents and setting folders stay hidden. */
-.nav-folder.novelview-setting-folder {
+}
+
+:root .nav-folder.novelview-setting-folder {
   display: none;
-}:root .nav-folder.novelview-novel-folder
-  > .nav-folder-title
-  :is(.nav-folder-collapse-indicator, .collapse-icon) {
+}
+
+:root .nav-folder.novelview-novel-folder > .nav-folder-title :is(.nav-folder-collapse-indicator,
+.collapse-icon) {
   display: none;
-}:root .nav-folder.novelview-novel-folder
-  > .nav-folder-children {
+}
+
+:root .nav-folder.novelview-novel-folder > .nav-folder-children {
   display: none;
 }
 
@@ -3927,23 +3342,7 @@
   margin-top: 10px;
 }
 
-/* Setting record detail floating card */
-.novelview-setting-record-detail-modal {
-  width: min(560px, calc(100vw - 60px));
-}
-
-.novelview-setting-record-detail-header {
-  margin-bottom: 12px;
-}
-
-.novelview-setting-record-detail-title {
-  color: var(--text-normal);
-  font-family: var(--font-text, var(--font-interface));
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
+/*设定记录详情悬浮卡片*/
 .novelview-setting-record-detail-meta {
   display: flex;
   gap: 8px;
@@ -3982,15 +3381,6 @@
   letter-spacing: 0.08em;
 }
 
-.novelview-setting-record-detail-field,
-.novelview-setting-record-detail-relation {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0;
-  font-size: 12px;
-}
-
 .novelview-setting-record-detail-field-name {
   min-width: 70px;
   color: var(--text-muted);
@@ -3998,20 +3388,6 @@
 
 .novelview-setting-record-detail-field-value {
   color: var(--text-normal);
-}
-
-.novelview-setting-record-detail-relation-type {
-  color: var(--text-accent);
-  font-weight: 600;
-}
-
-.novelview-setting-record-detail-direction {
-  margin-left: auto;
-  padding: 0 6px;
-  color: var(--text-faint);
-  font-size: 9px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
 }
 
 .novelview-setting-record-detail-files {
@@ -4029,14 +3405,7 @@
   white-space: nowrap;
 }
 
-.novelview-setting-record-detail-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  margin-top: 18px;
-}
-
-/* Non-modal floating setting record detail card */
+/*非模态设定记录详情悬浮卡片*/
 .novelview-setting-record-detail-panel {
   position: fixed;
   top: 100px;
@@ -4044,7 +3413,7 @@
   z-index: 1200;
   display: flex;
   flex-direction: column;
-  width: min(440px, calc(100vw - 40px));
+  width: min(440px, 100vw - 40px);
   max-height: min(72vh, 680px);
   overflow: hidden;
   color: var(--text-normal);
@@ -4138,29 +3507,17 @@
   font-size: 14px;
 }
 
-.novelview-setting-record-detail-relation-icon {
-  display: inline-flex;
-  color: var(--interactive-accent);
-}
-
-.novelview-setting-record-detail-relation-icon svg {
-  width: 12px;
-  height: 12px;
-}
-
 .novelview-search-v2.is-positioned {
   transform: none;
 }
 
-/* Record detail card metadata and relation targets */
+/*记录详情卡片元数据与关系目标*/
 .novelview-setting-record-detail-panel-actions button.is-hidden {
   display: none;
 }
 
-.novelview-setting-record-detail-panel-meta
-  .novelview-setting-record-detail-meta-group,
-.novelview-setting-record-detail-panel-meta
-  .novelview-setting-record-detail-meta-tag {
+.novelview-setting-record-detail-panel-meta .novelview-setting-record-detail-meta-group,
+.novelview-setting-record-detail-panel-meta .novelview-setting-record-detail-meta-tag {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -4168,15 +3525,13 @@
   border-radius: 999px;
 }
 
-.novelview-setting-record-detail-panel-meta
-  .novelview-setting-record-detail-meta-group {
+.novelview-setting-record-detail-panel-meta .novelview-setting-record-detail-meta-group {
   color: var(--text-muted);
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
 }
 
-.novelview-setting-record-detail-panel-meta
-  .novelview-setting-record-detail-meta-tag {
+.novelview-setting-record-detail-panel-meta .novelview-setting-record-detail-meta-tag {
   color: var(--text-accent);
   background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 28%, transparent);
@@ -4186,37 +3541,6 @@
 .novelview-setting-record-detail-meta-tag svg {
   width: 10px;
   height: 10px;
-}
-
-.novelview-setting-record-detail-relation-target {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
-  padding: 1px 4px;
-  color: var(--text-normal);
-  font-size: 12px;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 3px;
-  box-shadow: none;
-  cursor: pointer;
-}
-
-.novelview-setting-record-detail-relation-target:hover {
-  background: var(--background-modifier-hover);
-}
-
-.novelview-setting-record-detail-relation-group {
-  color: var(--text-faint);
-  font-size: 9px;
-}
-
-.novelview-setting-record-detail-relation-name {
-  color: var(--text-normal);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 .novelview-setting-record-detail-files button {
@@ -4241,50 +3565,18 @@
   white-space: nowrap;
 }
 
-/* Record detail field/relation grids */
+/*记录详情字段与关系网格*/
 .novelview-setting-record-detail-fields-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 4px 10px;
 }
 
-.novelview-setting-record-detail-relations-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 6px;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 6px;
-  text-align: center;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-}
-
-.novelview-setting-record-detail-relation-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target {
-  justify-content: center;
-}
-
 .novelview-setting-record-detail-panel-body {
   font-family: var(--font-text, var(--font-interface));
 }
 
-/* Floating record editor */
+/*悬浮记录编辑器*/
 .novelview-setting-record-editor-panel {
   position: fixed;
   top: 100px;
@@ -4292,7 +3584,7 @@
   z-index: 1250;
   display: flex;
   flex-direction: column;
-  width: min(430px, calc(100vw - 36px));
+  width: min(430px, 100vw - 36px);
   max-height: min(82vh, 760px);
   overflow: hidden;
   color: var(--text-normal);
@@ -4371,35 +3663,11 @@
   gap: 4px;
 }
 
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-field-row {
+.novelview-setting-record-editor-panel .novelview-setting-record-field-row {
   grid-template-columns: minmax(56px, 0.8fr) minmax(60px, 1.2fr) 20px;
 }
 
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-field-row input {
-  height: 24px;
-  font-size: 9px;
-}
-
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-relation-row {
-  grid-template-columns: minmax(66px, 0.9fr) minmax(72px, 1fr) minmax(56px, 0.8fr) 42px 20px;
-}
-
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-relation-row input,
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-relation-row select {
-  height: 24px;
-  font-size: 9px;
-}
-
-.novelview-setting-record-editor-panel .novelview-setting-mark-tools {
-  margin-top: 2px;
-}
-
-.novelview-setting-record-editor-panel .novelview-setting-mark-tools input {
+.novelview-setting-record-editor-panel .novelview-setting-record-field-row input {
   height: 24px;
   font-size: 9px;
 }
@@ -4424,111 +3692,10 @@
   user-select: none;
 }
 
-/* Only the relation target button is centered; the relation label stays top-left. */
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  gap: 6px;
-  text-align: left;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-top {
-  align-self: flex-start;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target {
-  align-self: flex-start;
-  align-items: center;
-  justify-content: flex-start;
-  min-height: 24px;
-  margin-top: 2px;
-}
-
-/* Center only the target button inside the relation card. */
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  align-items: start;
-  justify-content: stretch;
-  min-height: 66px;
-  text-align: left;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-top {
-  align-self: start;
-  justify-self: start;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target {
-  align-self: center;
-  justify-self: center;
-  align-items: center;
-  justify-content: center;
-  min-height: 24px;
-  margin-top: 2px;
-}
-
-/* Relations follow the same two-column row rhythm as attribute fields. */
-.novelview-setting-record-detail-relations-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 4px 10px;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  min-height: 0;
-  padding: 3px 0;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-top {
-  align-self: center;
-  justify-self: start;
-  flex: 0 0 auto;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target {
-  align-self: center;
-  justify-self: start;
-  justify-content: flex-start;
-  min-height: 0;
-  margin-top: 0;
-  padding: 0;
-}
-
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target:hover {
-  background: transparent;
-  color: var(--text-accent);
-}
-
-/* Record editor highlighted text and relation editor */
-.novelview-setting-editor-content-wrap {
-  position: relative;
-  min-height: 84px;
-  margin-bottom: 5px;
-}
-
-.novelview-setting-editor-highlight,
+/*仅关系目标按钮居中，关系标签保持左上角。*/
+/*仅居中关系卡片内的目标按钮。*/
+/*关系与属性字段保持相同的双列行节奏。*/
+/*记录编辑器高亮文本与关系编辑器*/
 .novelview-setting-editor-textarea {
   box-sizing: border-box;
   width: 100%;
@@ -4540,16 +3707,6 @@
   overflow-wrap: anywhere;
 }
 
-.novelview-setting-editor-highlight {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  color: transparent;
-  pointer-events: none;
-  border: 1px solid transparent;
-  border-radius: var(--input-radius, 4px);
-}
-
 .novelview-setting-editor-textarea {
   position: relative;
   min-height: 84px;
@@ -4558,158 +3715,23 @@
   background: transparent;
 }
 
-.novelview-setting-editor-mark {
-  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--interactive-accent) 55%, transparent);
-  border-radius: 2px;
-}
-
-.novelview-setting-editor-mark::after {
-  content: attr(data-attribute);
-  margin-left: 2px;
-  color: var(--text-accent);
-  font-size: 7px;
-  vertical-align: super;
-}
-
-.novelview-setting-mark-row {
-  outline: none;
-}
-
-.novelview-setting-mark-row:focus,
-.novelview-setting-mark-row:focus-within {
-  background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-secondary));
-}
-
-.novelview-setting-mark-remove {
-  visibility: hidden;
-}
-
-.novelview-setting-mark-row:hover .novelview-setting-mark-remove,
-.novelview-setting-mark-row:focus .novelview-setting-mark-remove,
-.novelview-setting-mark-row:focus-within .novelview-setting-mark-remove {
-  visibility: visible;
-}
-
-.novelview-setting-relation-editor-card {
-  margin-top: 6px;
-  padding: 6px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-}
-
-.novelview-setting-relation-editor-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 600;
-}
-
-.novelview-setting-relation-editor-header button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  color: var(--text-faint);
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.novelview-setting-relation-editor-header button:hover {
-  color: var(--text-error);
-}
-
-.novelview-setting-relation-editor-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px 6px;
-}
-
-.novelview-setting-relation-editor-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.novelview-setting-relation-editor-label {
-  color: var(--text-faint);
-  font-size: 8px;
-}
-
-.novelview-setting-relation-editor-field select,
-.novelview-setting-relation-editor-field input {
-  width: 100%;
-  min-width: 0;
-  height: 24px;
-  font-size: 9px;
-}
-
-.novelview-setting-relation-editor-direction {
-  display: flex;
-  gap: 2px;
-}
-
-.novelview-setting-relation-direction-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 24px;
-  padding: 0;
-  color: var(--text-muted);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  box-shadow: none;
-}
-
-.novelview-setting-relation-direction-button.is-active {
-  color: var(--text-on-accent);
-  background: var(--interactive-accent);
-  border-color: var(--interactive-accent);
-}
-
-.novelview-setting-relation-direction-button svg {
-  width: 12px;
-  height: 12px;
-}
-
-/* Both cards use the interface font throughout. */
+/*两种卡片全程使用界面字体。*/
 .novelview-setting-record-detail-panel-title,
 .novelview-setting-record-detail-panel-body,
 .novelview-setting-record-detail-content {
   font-family: var(--font-interface);
 }
 
-.novelview-setting-record-detail-relations-grid
-  .novelview-setting-record-detail-relation-target {
-  padding: 2px 8px;
-}:root /* Let the highlight layer show through the editor textarea. */
-.novelview-setting-record-editor-panel
-  textarea.novelview-setting-editor-textarea {
+:root .novelview-setting-record-editor-panel textarea.novelview-setting-editor-textarea {
   background: transparent;
   background-color: transparent;
 }
 
-.novelview-setting-record-editor-panel
-  .novelview-setting-editor-highlight {
-  z-index: 0;
-}
-
-.novelview-setting-record-editor-panel
-  .novelview-setting-editor-textarea {
+.novelview-setting-record-editor-panel .novelview-setting-editor-textarea {
   z-index: 1;
 }
 
-/* Tag editor color layout */
+/*标签编辑器颜色布局*/
 .novelview-setting-modal-label {
   margin: 7px 0 2px;
   color: var(--text-muted);
@@ -4754,33 +3776,24 @@
 }
 
 .novelview-setting-modal-swatch.is-selected {
-  box-shadow:
-    0 0 0 2px var(--background-primary),
-    0 0 0 4px var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 4px var(--interactive-accent);
 }
 
-.novelview-setting-color-0 { background: #e74c3c; }
-.novelview-setting-color-1 { background: #e67e22; }
-.novelview-setting-color-2 { background: #f1c40f; }
-.novelview-setting-color-3 { background: #2ecc71; }
-.novelview-setting-color-4 { background: #3498db; }
-.novelview-setting-color-5 { background: #9b59b6; }:root /* Plain introduction editor with no mark-highlight overlay. */
-.novelview-setting-record-editor-panel
-  textarea.novelview-setting-editor-textarea {
+:root .novelview-setting-record-editor-panel textarea.novelview-setting-editor-textarea {
   background: var(--background-modifier-form-field, var(--background-primary));
   background-color: var(--background-modifier-form-field, var(--background-primary));
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--input-radius, 4px);
 }
 
-/* Setting field order and content-driven detail layout */
+/*设定字段顺序与内容驱动详情布局*/
 .novelview-setting-record-detail-fields-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .novelview-setting-record-detail-field.is-medium,
 .novelview-setting-record-detail-field.is-long {
-  grid-column: 1 / -1;
+  grid-column: 1/-1;
 }
 
 .novelview-setting-record-detail-field.is-medium {
@@ -4795,15 +3808,13 @@
   padding: 5px 0;
 }
 
-.novelview-setting-record-detail-field.is-long
-  .novelview-setting-record-detail-field-name {
+.novelview-setting-record-detail-field.is-long .novelview-setting-record-detail-field-name {
   min-width: 0;
   color: var(--text-muted);
   font-size: 9px;
 }
 
-.novelview-setting-record-detail-field.is-long
-  .novelview-setting-record-detail-field-value {
+.novelview-setting-record-detail-field.is-long .novelview-setting-record-detail-field-value {
   font-family: var(--font-interface);
   font-size: 13px;
   line-height: 1.7;
@@ -4842,12 +3853,11 @@
   height: 10px;
 }
 
-.novelview-setting-record-editor-panel
-  .novelview-setting-record-field-row {
+.novelview-setting-record-editor-panel .novelview-setting-record-field-row {
   grid-template-columns: minmax(48px, 0.9fr) minmax(54px, 1.1fr) 54px;
 }
 
-/* Outline chapter text marks */
+/*大纲章节文本标记*/
 .novelview-editor-toolbar-button.is-hidden {
   display: none;
 }
@@ -4871,32 +3881,19 @@
   background: var(--interactive-accent);
   border-radius: 3px;
   user-select: none;
-}:root /* Make preset tag colors win over generic button theme backgrounds. */
-.novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-0 {
-  background-color: #e74c3c;
-}:root .novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-1 {
-  background-color: #e67e22;
-}:root .novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-2 {
-  background-color: #f1c40f;
-}:root .novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-3 {
-  background-color: #2ecc71;
-}:root .novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-4 {
-  background-color: #3498db;
-}:root .novelview-setting-modal
-  .novelview-setting-modal-swatch.novelview-setting-color-5 {
-  background-color: #9b59b6;
 }
 
-/* Editable chapter title outside the CodeMirror document. */
+/*CodeMirror 文档外的可编辑章节标题。*/
 .novelview-editor-view .novelview-editor-title {
+  box-sizing: border-box;
   flex: 0 0 auto;
-  margin: 0 24px 4px;
-  padding: 8px 0 6px;
+  width: calc(100% - 48px);
+  margin: 20px 24px 0;
+  padding: 10px 0 9px;
+  min-height: 52px;
+  color: var(--text-normal);
+  font-size: calc(var(--novelview-font-size, 16px) * 1.3);
+  border-bottom: 1px solid var(--background-modifier-border);
   cursor: text;
   outline: none;
   user-select: text;
@@ -4906,10 +3903,10 @@
   border-bottom: 1px solid var(--interactive-accent);
 }
 
-/* Keyword hover card: pagination and compact detail buttons. */
+/*关键词悬停卡片：分页与紧凑详情按钮。*/
 .novelview-setting-keyword-tooltip {
   width: 290px;
-  max-width: min(330px, calc(100vw - 24px));
+  max-width: min(330px, 100vw - 24px);
   padding: 8px 10px;
 }
 
@@ -4954,23 +3951,9 @@
   line-height: 1.3;
 }
 
-/* NovelFinder search card and right-sidebar results */
+/*NovelFinder 搜索卡片与右侧栏结果*/
 .novelview-search-v2-controls {
   grid-template-columns: 112px minmax(0, 1fr);
-}
-
-.novelview-search-v2-replace-row {
-  display: flex;
-  margin-top: 5px;
-}
-
-.novelview-search-v2-replace-row input {
-  width: 100%;
-}
-
-.novelview-search-v2-results {
-  min-height: 40px;
-  max-height: 90px;
 }
 
 .novelview-finder-results {
@@ -5002,61 +3985,13 @@
   margin-top: 8px;
 }
 
-.novelview-finder-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 6px 7px;
-  text-align: left;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 5px;
-  box-shadow: none;
-}
-
-.novelview-finder-card:hover {
-  border-color: var(--interactive-accent);
-}
-
-.novelview-finder-card-title {
-  overflow: hidden;
-  color: var(--text-normal);
-  font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-finder-card-detail {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 9px;
-  line-height: 1.45;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.novelview-finder-card-meta {
-  display: flex;
-  gap: 6px;
-  color: var(--text-faint);
-  font-size: 8px;
-}
-
-.novelview-finder-card-meta span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .novelview-finder-empty {
   padding: 10px 2px;
   color: var(--text-faint);
   font-size: 9px;
 }
 
-/* NovelFinder card header and compact controls */
+/*NovelFinder 卡片标题与紧凑控件*/
 .novelview-search-v2-heading {
   display: flex;
   flex-direction: column;
@@ -5079,11 +4014,7 @@
   white-space: nowrap;
 }
 
-.novelview-search-v2-replace-row.is-hidden {
-  display: none;
-}
-
-/* NovelFinder right-sidebar header */
+/*NovelFinder 右侧栏标题*/
 .novelview-finder-title-row {
   display: flex;
   align-items: center;
@@ -5170,8 +4101,7 @@
   font-size: 9px;
 }
 
-/* Shared result rows */
-.novelview-finder-file-group,
+/*共享结果行*/
 .novelview-finder-mark-card,
 .novelview-finder-pending-card,
 .novelview-finder-keyword-card {
@@ -5179,7 +4109,6 @@
   border-radius: 6px;
 }
 
-.novelview-finder-file-header,
 .novelview-finder-mark-top,
 .novelview-finder-pending-top,
 .novelview-finder-keyword-top {
@@ -5188,105 +4117,16 @@
   gap: 5px;
 }
 
-.novelview-finder-file-header {
-  padding: 5px 7px;
-  background: var(--background-secondary);
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.novelview-finder-file-icon {
-  display: inline-flex;
-  color: var(--text-muted);
-}
-
-.novelview-finder-file-icon svg {
-  width: 11px;
-  height: 11px;
-}
-
-.novelview-finder-file-name {
-  overflow: hidden;
-  flex: 1;
-  color: var(--text-normal);
-  font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.novelview-finder-file-count,
 .novelview-finder-location {
   color: var(--text-faint);
   font-size: 8px;
   white-space: nowrap;
 }
 
-.novelview-finder-file-path {
-  padding: 2px 7px;
-  color: var(--text-faint);
-  font-size: 8px;
-  background: var(--background-secondary);
-}
-
-.novelview-finder-match {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  width: 100%;
-  padding: 4px 7px;
-  color: var(--text-normal);
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.novelview-finder-match + .novelview-finder-match {
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.novelview-finder-match:hover {
-  background: var(--background-modifier-hover);
-}
-
-.novelview-finder-line {
-  flex: 0 0 auto;
-  color: var(--text-faint);
-  font-family: var(--font-monospace, monospace);
-  font-size: 8px;
-}
-
-.novelview-finder-snippet {
-  min-width: 0;
-  font-size: 9px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.novelview-finder-snippet mark {
-  padding: 0 1px;
-  color: var(--text-normal);
-  background: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
-  border-radius: 2px;
-}
-
-/* Chapter mode: single-column ordered lines */
-.novelview-finder-results.is-scope-chapter .novelview-finder-file-group {
-  border-left: 2px solid var(--interactive-accent);
-}
-
-/* Volume mode: file sections with compact headers */
-.novelview-finder-results.is-scope-volume .novelview-finder-file-group {
-  border-top: 2px solid color-mix(in srgb, var(--interactive-accent) 45%, transparent);
-}
-
-/* Book mode: path context is visible */
-.novelview-finder-results.is-scope-book .novelview-finder-file-path {
-  display: block;
-}
-
-/* Marks mode */
+/*章节模式：单列有序行*/
+/*卷模式：带紧凑标题的文件分区*/
+/*全书模式：显示路径上下文*/
+/*标记模式*/
 .novelview-finder-mark-card {
   display: flex;
   flex-direction: column;
@@ -5319,7 +4159,7 @@
   line-height: 1.55;
 }
 
-/* Pending mode */
+/*待修订模式*/
 .novelview-finder-pending-card {
   display: flex;
   flex-direction: column;
@@ -5348,7 +4188,7 @@
   border-left: 2px solid color-mix(in srgb, #e67e22 40%, transparent);
 }
 
-/* Keyword mode */
+/*关键词模式*/
 .novelview-finder-keyword-card {
   display: flex;
   flex-direction: column;
@@ -5399,9 +4239,9 @@
   -webkit-line-clamp: 2;
 }
 
-/* Compact NovelFinder layout */
+/*紧凑 NovelFinder 布局*/
 .novelview-search-v2 {
-  width: min(520px, calc(100vw - 40px));
+  width: min(520px, 100vw - 40px);
 }
 
 .novelview-search-v2-controls {
@@ -5457,7 +4297,7 @@
   position: fixed;
   z-index: 1101;
   display: none;
-  width: min(360px, calc(100vw - 40px));
+  width: min(360px, 100vw - 40px);
   padding: 8px 10px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
@@ -5467,26 +4307,6 @@
 
 .novelview-replacer.is-open {
   display: block;
-}
-
-.novelview-replacer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-  color: var(--text-normal);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.novelview-replacer-header button {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  box-shadow: none;
 }
 
 .novelview-replacer-input {
@@ -5499,7 +4319,7 @@
   margin-top: 7px;
 }
 
-/* NovelFinder: attached right-side replacement card */
+/*NovelFinder：附着在右侧的替换卡片*/
 .novelview-search-v2 {
   overflow: visible;
 }
@@ -5571,7 +4391,7 @@
   font-size: 9px;
 }
 
-/* NovelFinder volume selector */
+/*NovelFinder 卷选择器*/
 .novelview-search-v2-volume {
   width: 100%;
   height: 30px;
@@ -5582,7 +4402,7 @@
   display: none;
 }
 
-/* NovelFinder context slot for chapter/volume/keyword filters */
+/*NovelFinder 的章节、卷、关键词筛选上下文槽位*/
 .novelview-search-v2-context {
   display: flex;
   align-items: center;
@@ -5610,7 +4430,7 @@
   display: none;
 }
 
-/* Chapter and volume controls share the same chip-like frame. */
+/*章节与卷控件使用相同的胶囊式边框。*/
 .novelview-search-v2-context-control {
   box-sizing: border-box;
   height: 30px;
@@ -5627,7 +4447,7 @@
   display: none;
 }
 
-/* Setting records as fixed-size focus cards */
+/*固定尺寸的设定记录聚焦卡片*/
 .novelview-setting-collection-tag:hover > .novelview-setting-collection-tag-body,
 .novelview-setting-collection-tag.is-focused > .novelview-setting-collection-tag-body,
 .is-setting-dragging .novelview-setting-collection-tag-body {
@@ -5637,8 +4457,7 @@
   padding-top: 6px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
   position: relative;
   display: flex;
   align-items: flex-end;
@@ -5655,22 +4474,19 @@
   transition: background 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry:hover {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry:hover {
   background: var(--background-modifier-hover);
   border-color: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry.is-record-focused {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry.is-record-focused {
   background: color-mix(in srgb, var(--interactive-accent) 12%, var(--background-secondary));
   border-color: var(--interactive-accent);
   outline: 2px solid color-mix(in srgb, var(--interactive-accent) 45%, transparent);
   outline-offset: -1px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry > .novelview-setting-collection-keyword {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-keyword {
   display: block;
   overflow: hidden;
   width: 100%;
@@ -5683,40 +4499,34 @@
   white-space: nowrap;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry > .novelview-setting-collection-drag-grip {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-drag-grip {
   position: absolute;
   top: 4px;
   left: 4px;
   opacity: 0;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry:hover
-  > .novelview-setting-collection-drag-grip {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry:hover > .novelview-setting-collection-drag-grip {
   opacity: 0.7;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry > .novelview-setting-collection-entry-actions {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-actions {
   position: absolute;
   top: 3px;
   right: 3px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-empty {
-  grid-column: 1 / -1;
+.novelview-setting-collection-tag-body > .novelview-setting-collection-empty {
+  grid-column: 1/-1;
 }
 
-/* Tag focus and record hover preview */
+/*标签聚焦与记录悬停预览*/
 .novelview-setting-collection-tag.is-active {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--interactive-accent) 35%, transparent);
 }
 
-.novelview-setting-collection-tag.is-active
-  > .novelview-setting-collection-tag-body {
+.novelview-setting-collection-tag.is-active > .novelview-setting-collection-tag-body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -5762,7 +4572,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Setting record icons */
+/*设定记录图标*/
 .novelview-setting-collection-entry-icon {
   display: flex;
   align-items: center;
@@ -5890,36 +4700,30 @@
   height: 12px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
 }
 
-/* Poker-sized setting record cards */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
-  aspect-ratio: 5 / 7;
+/*扑克牌尺寸的设定记录卡片*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
+  aspect-ratio: 5/7;
   min-height: 108px;
   padding-top: 24px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon {
   width: 26px;
   height: 26px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon img {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon img {
   width: 26px;
   height: 26px;
 }
 
-/* Custom image icons float inside the detail description */
+/*自定义图片图标悬浮在详情描述内*/
 .novelview-setting-record-detail-content {
   display: flow-root;
 }
@@ -5935,25 +4739,19 @@
   border-radius: 5px;
 }
 
-/* Larger record card icons */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon {
+/*更大的记录卡片图标*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon {
   width: 40px;
   height: 40px;
   color: var(--text-muted);
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon svg {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon svg {
   width: 38px;
   height: 38px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon img {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon img {
   width: 40px;
   height: 40px;
 }
@@ -5968,23 +4766,18 @@
   height: 22px;
 }
 
-/* Center the record icon in the poker card */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
+/*扑克牌卡片中的记录图标居中*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
   justify-content: center;
   padding: 0 7px 26px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon {
   align-self: center;
   margin: 0;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-keyword {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-keyword {
   position: absolute;
   right: 6px;
   bottom: 7px;
@@ -5993,17 +4786,13 @@
   text-align: center;
 }
 
-/* Larger custom image icons */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon {
+/*更大的自定义图片图标*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon {
   width: 56px;
   height: 56px;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon img {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon img {
   width: 54px;
   height: 54px;
   object-fit: contain;
@@ -6019,22 +4808,16 @@
   max-height: 210px;
 }
 
-/* Icons scale proportionally with the card width */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon {
+/*图标随卡片宽度等比缩放*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon {
   width: 45%;
   height: auto;
   max-width: none;
   aspect-ratio: 1;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon svg,
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry
-  > .novelview-setting-collection-entry-icon img {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon svg,
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry > .novelview-setting-collection-entry-icon img {
   width: 100%;
   height: 100%;
   max-width: none;
@@ -6042,9 +4825,8 @@
   object-fit: contain;
 }
 
-/* Tag body opens only after explicit tag focus, not hover */
-.novelview-setting-collection-tag:hover:not(.is-active)
-  > .novelview-setting-collection-tag-body {
+/*标签主体仅在明确聚焦后展开，悬停不展开*/
+.novelview-setting-collection-tag:hover:not(.is-active) > .novelview-setting-collection-tag-body {
   display: none;
 }
 
@@ -6053,28 +4835,23 @@
   box-shadow: none;
 }
 
-/* Whole record card is draggable */
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
+/*整张记录卡片可拖拽*/
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
   cursor: grab;
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry:active {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry:active {
   cursor: grabbing;
 }
 
-/* During record drag: keep only the focused tag and current drop target open */
+/*记录拖拽期间：仅保持聚焦标签与当前放置目标展开*/
 .is-setting-dragging .novelview-setting-collection-tag-body {
   display: none;
 }
 
-.novelview-setting-collection-tag.is-active
-  > .novelview-setting-collection-tag-body,
-.novelview-setting-collection-tag:hover.is-drop-inside
-  > .novelview-setting-collection-tag-body,
-.novelview-setting-collection-tag.is-drop-inside
-  > .novelview-setting-collection-tag-body {
+.novelview-setting-collection-tag.is-active > .novelview-setting-collection-tag-body,
+.novelview-setting-collection-tag:hover.is-drop-inside > .novelview-setting-collection-tag-body,
+.novelview-setting-collection-tag.is-drop-inside > .novelview-setting-collection-tag-body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -6085,20 +4862,16 @@
   border-color: var(--interactive-accent);
 }
 
-.novelview-setting-collection-tag-body
-  > .novelview-setting-collection-entry {
+.novelview-setting-collection-tag-body > .novelview-setting-collection-entry {
   user-select: none;
 }
 
-
-/* During record drag the target tag stays collapsed */
-.is-setting-dragging
-  .novelview-setting-collection-tag.is-drop-inside:not(.is-active)
-  > .novelview-setting-collection-tag-body {
+/*记录拖拽期间目标标签保持折叠*/
+.is-setting-dragging .novelview-setting-collection-tag.is-drop-inside:not(.is-active) > .novelview-setting-collection-tag-body {
   display: none;
 }
 
-/* Keep blank lines tall enough for vertical cursor movement to land on them */
+/*保持空行高度，确保纵向移动光标可落在空行上*/
 .novelview-editor-view .cm-line.novelview-editor-empty-line {
   min-height: calc(var(--novelview-line-height, 1.8) * 1em);
 }
@@ -6107,16 +4880,20 @@
   min-height: calc(var(--novelview-line-height, 1.8) * 1em);
 }
 
-/* Every line has a measurable height so vertical navigation cannot skip it */
+/*每行都有可测量的高度，避免纵向导航跳过*/
 .novelview-editor-view .cm-line {
   min-height: calc(var(--novelview-line-height, 1.8) * 1em);
 }
 
-/* Immersive / lyric-style editor */
+/*沉浸式/诗歌式编辑器*/
 .novelview-editor-toolbar-button.is-active {
   color: var(--text-on-accent);
   background: var(--interactive-accent);
   border-color: var(--interactive-accent);
+}
+
+.novelview-editor-view.is-seamless-mode .novelview-editor-title {
+  display: none;
 }
 
 .novelview-editor-view.is-immersive .novelview-editor-title {
@@ -6152,11 +4929,7 @@
 .novelview-editor-view.is-immersive .cm-line.novelview-editor-current-line {
   opacity: 1;
   filter: none;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 8%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
   border-radius: 6px;
 }
 
@@ -6177,31 +4950,19 @@
 
 .novelview-editor-view.is-immersive .novelview-editor-host::before {
   top: 0;
-  background: linear-gradient(
-    var(--background-primary),
-    color-mix(in srgb, var(--background-primary) 0%, transparent)
-  );
+  background: linear-gradient(var(--background-primary), color-mix(in srgb, var(--background-primary) 0%, transparent));
 }
 
 .novelview-editor-view.is-immersive .novelview-editor-host::after {
   bottom: 0;
-  background: linear-gradient(
-    color-mix(in srgb, var(--background-primary) 0%, transparent),
-    var(--background-primary)
-  );
+  background: linear-gradient(color-mix(in srgb, var(--background-primary) 0%, transparent), var(--background-primary));
 }
 
-
-/* NovelFinder chapter result highlights */
+/*NovelFinder 章节结果高亮*/
 .novelview-search-highlight {
-  background: color-mix(
-    in srgb,
-    var(--text-highlight-bg, #f5d76e) 55%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--text-highlight-bg, #f5d76e) 55%, transparent);
   border-radius: 3px;
-  box-shadow: inset 0 -1px 0
-    color-mix(in srgb, var(--interactive-accent) 45%, transparent);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--interactive-accent) 45%, transparent);
 }
 
 .novelview-search-highlight.is-active {
@@ -6210,7 +4971,7 @@
   box-shadow: 0 0 0 1px var(--interactive-accent);
 }
 
-/* NovelFinder chapter summaries and result navigator */
+/*NovelFinder 章节摘要与结果导航*/
 .novelview-finder-chapter-row {
   display: flex;
   align-items: center;
@@ -6305,7 +5066,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Setting collection list reuses the article list shell */
+/*设定集列表复用文章列表外壳*/
 .novelview-setting-list-empty {
   padding: 22px 8px;
   color: var(--text-faint);
@@ -6325,7 +5086,7 @@
   background: var(--background-modifier-border);
 }
 
-/* Article and setting-list toolbar labels */
+/*文章与设定列表工具栏标签*/
 .novelview-article-toolbar-button.novelview-article-toolbar-settings,
 .novelview-article-toolbar-button.novelview-setting-toolbar-back-article {
   width: 27px;
@@ -6335,7 +5096,7 @@
   padding: 0;
 }
 
-/* Setting-group list rows */
+/*设定组列表行*/
 .novelview-setting-list-view {
   overflow: hidden;
 }
@@ -6350,11 +5111,7 @@
   color: var(--text-accent);
   font-size: 8.5px;
   line-height: 1.4;
-  background: color-mix(
-    in srgb,
-    var(--interactive-accent) 12%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
   border-radius: 999px;
 }
 
@@ -6374,42 +5131,33 @@
   flex-wrap: wrap;
 }
 
-/* Pending/control-group count beside chapter words */
+/*章节字数旁的待处理与控制组计数*/
 .novelview-article-row-pending {
   padding: 1px 5px;
   color: var(--text-normal);
   font-size: 9px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  background: color-mix(
-    in srgb,
-    var(--color-green, #4caf50) 17%,
-    transparent
-  );
-  border: 1px solid color-mix(
-    in srgb,
-    var(--color-green, #4caf50) 62%,
-    transparent
-  );
+  background: color-mix(in srgb, var(--color-green, #4caf50) 17%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-green, #4caf50) 62%, transparent);
   border-radius: 4px;
   white-space: nowrap;
 }
 
-/* Collapsible setting tags and text-mark cards */
+/*可折叠设定标签与文本标记卡片*/
 .novelview-setting-collection-tag-body.is-collapsed {
   display: none;
 }
 
-.novelview-setting-collection-tag-title[role="button"] {
+.novelview-setting-collection-tag-title[role=button] {
   cursor: pointer;
 }
 
-.novelview-setting-collection-tag.is-collapsed
-  .novelview-setting-collection-tag-title {
+.novelview-setting-collection-tag.is-collapsed .novelview-setting-collection-tag-title {
   border-bottom-color: transparent;
 }
 
-/* Text-mark description */
+/*文本标记描述*/
 .novelview-mark-note {
   display: flex;
   align-items: flex-start;
@@ -6469,20 +5217,25 @@
   font-family: var(--font-interface);
   font-size: 13px;
   line-height: 1.6;
-}:root /* Persistent expanded/collapsed states */
-.novelview-setting-collection-tag.is-collapsed
-  > .novelview-setting-collection-tag-body {
+}
+
+:root .novelview-setting-collection-tag.is-collapsed > .novelview-setting-collection-tag-body {
   display: none;
-}:root .novelview-setting-collection-tag.is-expanded
-  > .novelview-setting-collection-tag-body {
+}
+
+:root .novelview-setting-collection-tag.is-expanded > .novelview-setting-collection-tag-body {
   display: grid;
-}:root .novelview-mark-tag.is-collapsed > .novelview-mark-tag-body {
+}
+
+:root .novelview-mark-tag.is-collapsed > .novelview-mark-tag-body {
   display: none;
-}:root .novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
+}
+
+:root .novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
   display: block;
 }
 
-/* Collection search */
+/*设定集搜索*/
 .novelview-collection-search {
   margin-top: 6px;
 }
@@ -6503,11 +5256,13 @@
 .novelview-collection-search-input:focus {
   border-color: var(--interactive-accent);
   outline: none;
-}:root .is-search-hidden {
+}
+
+:root .is-search-hidden {
   display: none;
 }
 
-/* Text-mark excerpt cards: compact, content-driven, reorderable */
+/*文本标记摘录卡片：紧凑、内容驱动、可排序*/
 .novelview-mark-entries {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6531,11 +5286,7 @@
 }
 
 .novelview-mark-entry:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--interactive-accent) 35%,
-    var(--background-modifier-border)
-  );
+  border-color: color-mix(in srgb, var(--interactive-accent) 35%, var(--background-modifier-border));
 }
 
 .novelview-mark-entry > .novelview-setting-collection-drag-grip {
@@ -6594,16 +5345,714 @@
   .novelview-mark-entries {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}:root /* Never reveal card content on hover; only explicit expanded state does. */
-.novelview-mark-collection-view
-  .novelview-setting-collection-tag:not(.is-expanded)
-  > .novelview-setting-collection-tag-body, :root .novelview-setting-collection-view
-  .novelview-setting-collection-tag:not(.is-expanded)
-  > .novelview-setting-collection-tag-body, :root .novelview-mark-tag:not(.is-expanded) > .novelview-mark-tag-body {
+}
+:root .novelview-mark-collection-view .novelview-setting-collection-tag:not(.is-expanded) > .novelview-setting-collection-tag-body,
+:root .novelview-setting-collection-view .novelview-setting-collection-tag:not(.is-expanded) > .novelview-setting-collection-tag-body,
+:root .novelview-mark-tag:not(.is-expanded) > .novelview-mark-tag-body {
   display: none;
-}:root .novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
+}
+
+:root .novelview-mark-tag.is-expanded > .novelview-mark-tag-body {
   display: block;
-}:root .novelview-setting-collection-tag.is-expanded
-  > .novelview-setting-collection-tag-body {
+}
+
+:root .novelview-setting-collection-tag.is-expanded > .novelview-setting-collection-tag-body {
   display: grid;
+}
+
+/*编辑器模式*/
+body.novelview-pure-mode .workspace-tab-header-container,
+body.novelview-pure-mode .workspace-split.mod-left-split,
+body.novelview-pure-mode .workspace-split.mod-right-split,
+body.novelview-pure-mode .workspace-ribbon,
+body.novelview-pure-mode .status-bar {
+  display: none;
+}
+
+body.novelview-dark-room {
+  background: #000;
+}
+
+body.novelview-dark-room .workspace-tab-header-container,
+body.novelview-dark-room .workspace-split.mod-left-split,
+body.novelview-dark-room .workspace-split.mod-right-split,
+body.novelview-dark-room .workspace-ribbon,
+body.novelview-dark-room .status-bar {
+  display: none;
+}
+
+.novelview-editor-view.has-manual-page-width .cm-content {
+  box-sizing: border-box;
+  max-width: calc(var(--novelview-page-chars, 42) * 1em + 3em);
+  margin-inline: auto;
+}
+
+.novelview-editor-view.has-manual-page-width .novelview-editor-title {
+  max-width: calc(var(--novelview-page-chars, 42) * 1em);
+  margin-inline: auto;
+}
+
+/*脚注*/
+.novelview-footnote-ref {
+  color: var(--text-accent);
+  font-size: 0.72em;
+  font-weight: 700;
+  vertical-align: super;
+  cursor: pointer;
+}
+
+.novelview-footnote-ref:hover {
+  text-decoration: underline;
+}
+
+/*引用块*/
+.novelview-editor-view .cm-line.novelview-quote-line {
+  margin-block: calc(var(--novelview-paragraph-spacing, 0.65em) * 1.2);
+  margin-inline: -3ch;
+  padding: 0.25em 1.2ch;
+  color: var(--text-muted);
+  font-size: 0.92em;
+  background: var(--background-secondary);
+  border-left: 3px solid var(--interactive-accent);
+  border-radius: 0 4px 4px 0;
+}
+
+/*文章信息侧栏*/
+.novelview-article-info-view {
+  padding: 10px 12px 24px;
+  overflow-y: auto;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+}
+
+.novelview-article-info-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.novelview-article-info-section {
+  margin-top: 12px;
+}
+
+.novelview-article-info-section-title {
+  margin-bottom: 5px;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.novelview-article-info-summary {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.novelview-article-info-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  width: 100%;
+  margin: 3px 0;
+  padding: 6px 7px;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  text-align: left;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.novelview-article-info-item:hover {
+  border-color: var(--interactive-accent);
+}
+
+.novelview-article-info-item-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.novelview-article-info-item-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.novelview-article-info-item-body {
+  min-width: 0;
+}
+
+.novelview-article-info-item-label {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novelview-article-info-item-meta {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novelview-article-info-empty {
+  padding: 18px 6px;
+  color: var(--text-faint);
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+/*设定记录中的单级列表*/
+.novelview-setting-record-detail-content ul,
+.novelview-setting-record-detail-content ol {
+  margin: 4px 0 6px;
+  padding-left: 1.4em;
+}
+
+.novelview-setting-record-detail-content li {
+  margin: 1px 0;
+  line-height: 1.6;
+}
+
+/*文章信息卡片*/
+.novelview-article-info-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.novelview-article-info-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.novelview-article-info-stat-value {
+  color: var(--text-normal);
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.novelview-article-info-summary-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 70px;
+  padding: 7px 8px;
+  resize: vertical;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 11px;
+  line-height: 1.6;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+}
+
+.novelview-article-info-footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 7px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
+.novelview-article-info-footnote-number {
+  flex: 0 0 auto;
+  min-width: 18px;
+  color: var(--text-accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.novelview-article-info-footnote-input {
+  box-sizing: border-box;
+  flex: 1;
+  width: 100%;
+  min-height: 42px;
+  padding: 5px 6px;
+  resize: vertical;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+}
+
+.novelview-article-info-item {
+  margin: 4px 0;
+  background: var(--background-primary);
+}
+
+.novelview-footnote-ref {
+  font-size: 0;
+}
+
+.novelview-footnote-ref::after {
+  content: attr(data-footnote-number);
+  color: var(--text-accent);
+  font-size: 0.72em;
+  font-weight: 700;
+  vertical-align: super;
+}
+
+/*脚注序号使用固定字号，避免被父级 font-size:0 隐藏*/
+.novelview-footnote-ref::after {
+  font-size: 0.72rem;
+}
+
+/*NovelEditor 独立视图：固定标签，不显示 Obsidian 视图头栏*/
+.novelview-editor-leaf .view-header {
+  display: none;
+}
+
+/*无缝模式：章节边界装饰与状态*/
+.novelview-seamless-separator {
+  margin: 2.6em 0 1em;
+  padding: 0 0 0.55em;
+  border-bottom: 1px solid var(--background-modifier-border);
+  user-select: none;
+}
+
+.novelview-seamless-separator-title {
+  color: var(--text-normal);
+  font-family: var(--font-text, var(--font-interface));
+  font-size: 1.25em;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/*文章信息标题栏*/
+/*右侧模式栏：只承载模式开关*/
+.novelview-editor-mode-bar {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 30;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  padding: 4px 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-s, 0 4px 14px rgba(0, 0, 0, 0.16));
+}
+
+.novelview-editor-mode-bar .novelview-editor-toolbar-button {
+  width: 28px;
+  height: 28px;
+}
+
+/*无缝模式隐藏滚动条，但不影响滚动*/
+.novelview-editor-view.is-seamless-mode .cm-scroller {
+  scrollbar-width: none;
+}
+
+.novelview-editor-view.is-seamless-mode .cm-scroller::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*格式设置卡片：锚定按钮上方*/
+.novelview-mode-settings {
+  max-width: calc(100vw - 16px);
+}
+
+.novelview-mode-settings-page-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.novelview-mode-settings-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.novelview-mode-settings-auto input[type=checkbox] {
+  margin: 0;
+}
+
+.novelview-mode-settings-page-range {
+  flex: 1 0 100%;
+}
+
+.novelview-mode-settings-page-value {
+  color: var(--text-faint);
+  font-size: 10px;
+}
+
+/*文章信息：标题、分隔线、普通分区*/
+.novelview-article-info-title {
+  margin: 0 0 10px;
+  overflow: hidden;
+  color: var(--text-normal);
+  font-family: var(--font-text, var(--font-interface));
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.novelview-article-info-divider {
+  height: 1px;
+  margin: 0 0 4px;
+  background: var(--background-modifier-border);
+}
+
+.novelview-article-info-section {
+  padding: 9px 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.novelview-article-info-section:last-child {
+  border-bottom: none;
+}
+
+.novelview-article-info-section-title {
+  margin-bottom: 5px;
+  color: var(--text-faint);
+  font-family: var(--font-interface);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.novelview-article-info-summary-input {
+  display: block;
+  min-height: 76px;
+}
+
+.novelview-article-info-stats {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.novelview-article-info-stats .novelview-article-info-section-title {
+  margin-bottom: 0;
+}
+
+.novelview-article-info-section .novelview-article-info-item {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 5px 2px;
+  box-shadow: none;
+}
+
+.novelview-article-info-section .novelview-article-info-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.novelview-article-info-section .novelview-article-info-footnote {
+  margin-top: 5px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.novelview-mode-settings-page-range.is-hidden,
+.novelview-mode-settings-page-value.is-hidden {
+  display: none;
+}
+
+/* 默认设定记录按单设定行显示在设定列表 */
+.novelview-setting-list-single-row .novelview-setting-list-single-badge {
+  flex: 0 0 auto;
+  max-width: 34%;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*移动端适配：窄屏、安全区与触控尺寸*/
+@media (max-width: 700px) {
+  :root .novelview-editor-view .cm-content {
+    padding: 14px 14px 96px;
+  }
+  .novelview-editor-view .novelview-editor-title {
+    width: calc(100% - 24px);
+    margin: 12px 12px 0;
+    min-height: 44px;
+    padding: 8px 0 7px;
+    font-size: calc(var(--novelview-font-size, 16px) * 1.15);
+  }
+  .novelview-editor-toolbar {
+    left: 8px;
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .novelview-editor-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .novelview-editor-mode-bar {
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    max-width: calc(100vw - 16px);
+    padding: 3px 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .novelview-editor-mode-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .novelview-editor-toolbar-button,
+  .novelview-editor-mode-bar .novelview-editor-toolbar-button {
+    width: 32px;
+    height: 32px;
+  }
+  .novelview-editor-toc {
+    top: 8px;
+    right: 8px;
+  }
+  .novelview-editor-toc.is-expanded {
+    width: min(190px, 100vw - 16px);
+    max-width: min(190px, 100vw - 16px);
+    max-height: 42vh;
+  }
+  .novelview-editor-image {
+    margin: 8px 0 12px;
+  }
+  .novelview-article-list-view {
+    height: 100%;
+    padding: 8px 9px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+  .novelview-setting-collection-view {
+    padding: 8px 8px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+  .novelview-article-row {
+    min-height: 36px;
+    padding: 5px 8px;
+  }
+  .novelview-article-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .novelview-article-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .novelview-article-toolbar-button {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+  }
+  .novelview-article-header {
+    padding: 8px 2px 4px;
+  }
+  .novelview-article-title,
+  .novelview-src-title {
+    font-size: 16px;
+  }
+  .novelview-workbench {
+    padding: 12px 12px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+  .novelview-workbench-novel {
+    padding: 12px;
+  }
+  .novelview-setting-collection-button {
+    width: 30px;
+    height: 30px;
+  }
+  .novelview-setting-collection-small-button {
+    width: 26px;
+    height: 26px;
+  }
+  .novelview-setting-record-detail-files {
+    grid-template-columns: 1fr;
+  }
+  .novelview-setting-record-detail-panel,
+  .novelview-setting-record-editor-panel {
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    right: auto;
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 72px);
+  }
+  .novelview-mode-settings {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
+  }
+  .novelview-search-v2 {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .novelview-search-v2-controls {
+    grid-template-columns: 1fr;
+  }
+  .novelview-search-v2-options {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .novelview-description-panel {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+  .novelview-setting-keyword-tooltip {
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+  }
+  .novelview-form-field input,
+  .novelview-form-field textarea {
+    font-size: 16px;
+  }
+  .novelview-setting-record-detail-field-value,
+  .novelview-setting-collection-content {
+    overflow-wrap: anywhere;
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  .novelview-editor-toolbar-button,
+  .novelview-editor-mode-bar .novelview-editor-toolbar-button {
+    width: 34px;
+    height: 34px;
+  }
+  .novelview-article-row {
+    min-height: 40px;
+  }
+  .novelview-setting-collection-small-button {
+    width: 30px;
+    height: 30px;
+  }
+}
+/*软键盘打开时隐藏底部浮动栏，避免遮挡输入区域*/
+.novelview-editor-view.is-mobile-keyboard .novelview-editor-toolbar,
+.novelview-editor-view.is-mobile-keyboard .novelview-editor-mode-bar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.novelview-editor-toolbar,
+.novelview-editor-mode-bar {
+  transition: opacity 120ms ease;
+}
+
+/*移动端：防止背景跟随滚动，并保证长内容可换行*/
+@media (max-width: 700px) {
+  .novelview-editor-view .cm-scroller,
+  .novelview-article-list,
+  .novelview-setting-collection-view {
+    overscroll-behavior: contain;
+  }
+  .novelview-article-list-view {
+    height: 100%;
+    min-height: 0;
+  }
+  .novelview-setting-collection-view {
+    height: 100%;
+    min-height: 0;
+  }
+  .novelview-setting-record-detail-panel input,
+  .novelview-setting-record-detail-panel textarea,
+  .novelview-setting-record-editor-panel input,
+  .novelview-setting-record-editor-panel textarea,
+  .modal .novelview-form-field input,
+  .modal .novelview-form-field textarea {
+    font-size: 16px;
+  }
+  .novelview-editor-view .novelview-editor-toolbar {
+    flex-wrap: nowrap;
+  }
+}
+/*平板与窄桌面窗口*/
+@media (min-width: 701px) and (max-width: 1024px) {
+  :root .novelview-editor-view .cm-content {
+    padding: 18px 20px 84px;
+  }
+  .novelview-editor-view .novelview-editor-title {
+    width: calc(100% - 40px);
+    margin: 16px 20px 0;
+  }
+  .novelview-editor-view .novelview-editor-mode-bar {
+    right: 12px;
+  }
+  .novelview-editor-view .novelview-editor-toolbar {
+    left: 12px;
+  }
+  .novelview-setting-record-detail-panel,
+  .novelview-setting-record-editor-panel {
+    max-width: calc(100vw - 48px);
+  }
+  .novelview-workbench {
+    padding: 16px 18px 28px;
+  }
+}
+/*手机横屏：优先保证正文高度*/
+@media (max-height: 520px) and (orientation: landscape) {
+  :root .novelview-editor-view .cm-content {
+    padding-top: 8px;
+    padding-bottom: 72px;
+  }
+  .novelview-editor-view .novelview-editor-title {
+    min-height: 34px;
+    margin-top: 6px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    font-size: calc(var(--novelview-font-size, 16px) * 1.05);
+  }
+  .novelview-editor-view .novelview-editor-toolbar {
+    bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+  .novelview-editor-view .novelview-editor-mode-bar {
+    bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  }
+  .novelview-editor-view .novelview-editor-toc.is-expanded {
+    max-height: 70vh;
+  }
+  .novelview-editor-view .novelview-editor-toolbar-button,
+  .novelview-editor-view .novelview-editor-mode-bar .novelview-editor-toolbar-button {
+    width: 28px;
+    height: 28px;
+  }
+}
+/*移动端：设定编辑操作栏固定在面板底部附近*/
+@media (max-width: 700px) {
+  .novelview-setting-record-editor-panel .novelview-setting-editor-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 8px;
+    padding: 8px 0 2px;
+    background: var(--background-primary);
+    border-top: 1px solid var(--background-modifier-border);
+  }
+}
+/*触屏设备减少沉浸式模糊，避免滚动掉帧*/
+@media (hover: none) and (pointer: coarse) {
+  .novelview-editor-view.is-immersive .cm-line {
+    filter: none;
+  }
 }

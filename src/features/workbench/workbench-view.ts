@@ -15,24 +15,29 @@ export class NovelWorkbenchView extends ItemView {
   private renderToken = 0;
 
 
+  /** 初始化工作台视图并关闭导航 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回工作台视图的唯一类型标识 */
   override getViewType(): string {
     return WORKBENCH_VIEW_TYPE;
   }
 
+  /** 提供标签页显示的工作台标题 */
   override getDisplayText(): string {
     return "Novel View 工作台";
   }
 
+  /** 返回工作台标签页使用的图标 */
   override getIcon(): string {
     return "layout-dashboard";
   }
 
+  /** 注册事件监听并首次渲染工作台 */
   protected override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-workbench");
@@ -59,6 +64,7 @@ export class NovelWorkbenchView extends ItemView {
     await this.render();
   }
 
+  /** 取消待刷新帧并清空工作台内容 */
   protected override async onClose(): Promise<void> {
     await Promise.resolve();
     this.renderToken += 1;
@@ -69,6 +75,7 @@ export class NovelWorkbenchView extends ItemView {
     this.contentEl.empty();
   }
 
+  /** 合并刷新请求到下一动画帧执行 */
   scheduleRefresh(): void {
     if (this.refreshFrame !== null) {
       return;
@@ -79,6 +86,7 @@ export class NovelWorkbenchView extends ItemView {
     });
   }
 
+  /** 汇总小说信息、统计与历史后重绘 */
   private async render(): Promise<void> {
     const token = ++this.renderToken;
     const scrollTop = this.contentEl.scrollTop;
@@ -115,6 +123,7 @@ export class NovelWorkbenchView extends ItemView {
     }
   }
 
+  /** 渲染小说封面、可编辑名称与统计 */
   private renderNovelOverview(novel: {
     folderPath: string;
     name: string;
@@ -218,6 +227,7 @@ export class NovelWorkbenchView extends ItemView {
   }
 
 
+  /** 按时间分组列出近期写作历史 */
   private renderHistory(folderPath: string): void {
     const config = this.plugin.getNovelConfig(folderPath);
     const section = this.contentEl.createDiv({ cls: "novelview-history" });
@@ -271,6 +281,7 @@ export class NovelWorkbenchView extends ItemView {
     }
   }
 
+  /** 无小说组时提示当前目录与文件 */
   private renderContext(current: TFile | null, folderPath: string | null): void {
     const context = this.contentEl.createDiv({
       cls: "novelview-workbench-context",

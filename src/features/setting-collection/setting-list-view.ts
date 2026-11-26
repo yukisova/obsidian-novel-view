@@ -12,10 +12,6 @@ import {
   OUTLINE_MARKS_PROPERTY,
   parseOutlineMarks,
 } from "../../core/model/outline-marks";
-import {
-  isSettingDetailFileName,
-  settingDetailFileDisplayName,
-} from "../../core/model/setting-collection";
 import type NovelViewPlugin from "../../main";
 
 export const SETTING_LIST_VIEW_TYPE = "novelview-setting-list";
@@ -27,11 +23,6 @@ interface SettingListGroup {
   recordCount: number;
 }
 
-interface SettingListDetailFile {
-  file: TFile;
-  name: string;
-}
-
 export class NovelSettingListView extends ItemView {
   private readonly plugin: NovelViewPlugin;
   private folderPath = "";
@@ -39,28 +30,34 @@ export class NovelSettingListView extends ItemView {
   private refreshTimer: number | null = null;
   private renamingRow: HTMLElement | null = null;
 
+  /** 初始化设定集列表视图实例 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回设定集列表的类型标识 */
   override getViewType(): string {
     return SETTING_LIST_VIEW_TYPE;
   }
 
+  /** 返回列表视图的显示标题 */
   override getDisplayText(): string {
     return "设定集列表";
   }
 
+  /** 返回视图在侧栏显示的图标 */
   override getIcon(): string {
     return "library";
   }
 
+  /** 导出当前列表视图状态 */
   override getState(): Record<string, unknown> {
     return { folderPath: this.folderPath };
   }
 
+  /** 恢复视图状态并重新渲染 */
   override async setState(
     state: Record<string, unknown>,
     result: import("obsidian").ViewStateResult,
@@ -73,6 +70,7 @@ export class NovelSettingListView extends ItemView {
     await this.render();
   }
 
+  /** 初始化列表并监听库变化 */
   protected override async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass(
@@ -82,8 +80,7 @@ export class NovelSettingListView extends ItemView {
     const schedule = (file: TAbstractFile): void => {
       if (
         file instanceof TFolder
-        || file.name === "index.md"
-        || (file instanceof TFile && isSettingDetailFileName(file.name))
+        || (file instanceof TFile && file.extension === "md")
       ) {
         this.scheduleRefresh();
       }
@@ -95,6 +92,7 @@ export class NovelSettingListView extends ItemView {
     await this.render();
   }
 
+  /** 关闭视图并停止刷新计时 */
   protected override async onClose(): Promise<void> {
     this.refreshToken += 1;
     if (this.refreshTimer !== null) {
@@ -104,6 +102,7 @@ export class NovelSettingListView extends ItemView {
     this.contentEl.empty();
   }
 
+  /** 防抖安排列表刷新任务 */
   private scheduleRefresh(): void {
     if (this.refreshTimer !== null) {
       window.clearTimeout(this.refreshTimer);
@@ -114,6 +113,7 @@ export class NovelSettingListView extends ItemView {
     }, 120);
   }
 
+  /** 切换回小说文章列表视图 */
   private async backToArticles(): Promise<void> {
     await this.leaf.setViewState({
       type: ARTICLE_LIST_VIEW_TYPE,
@@ -122,6 +122,7 @@ export class NovelSettingListView extends ItemView {
     });
   }
 
+  /** 渲染设定集列表与统计信息 */
   private async render(): Promise<void> {
     const token = ++this.refreshToken;
     this.contentEl.empty();
@@ -157,7 +158,16 @@ export class NovelSettingListView extends ItemView {
     articleButton.addClass("novelview-setting-toolbar-back-article");
 
     const groups = await this.loadGroups(novelRoot);
-    const detailFiles = this.loadDetailFiles(novelRoot);
+    const defaultGroup = groups.find((group) => group.folder.name === "-");
+    const defaultTags = defaultGroup
+      ? await this.plugin.readSettingCollectionIndex(defaultGroup.folder.path)
+      : {};
+    const defaultEntries = Object.values(defaultTags)
+      .flatMap((tags) => tags.flatMap((tag) => tag.contain.map((entry) => ({
+        entry,
+        tag,
+      }))));
+    const regularGroups = groups.filter((group) => group.folder.name !== "-");
     if (token !== this.refreshToken) {
       return;
     }
@@ -185,9 +195,9 @@ export class NovelSettingListView extends ItemView {
         openWorkbench();
       }
     });
-    const total = detailFiles.length > 0
-      ? `${groups.length} 个设定集 · ${detailFiles.length} 个详细设定`
-      : `${groups.length} 个设定集`;
+    const total = defaultEntries.length > 0
+      ? `${regularGroups.length} 个设定集 · ${defaultEntries.length} 个默认设定`
+      : `${regularGroups.length} 个设定集`;
     titleBlock.createDiv({
       cls: "novelview-article-total",
       text: total,
@@ -232,14 +242,14 @@ export class NovelSettingListView extends ItemView {
     markRow.addEventListener("click", () => {
       void this.plugin.openTextMarks(novelRoot, this.leaf);
     });
-    if (groups.length === 0 && detailFiles.length === 0) {
+    if (regularGroups.length === 0 && defaultEntries.length === 0) {
       list.createDiv({
         cls: "novelview-setting-list-empty",
         text: "暂无设定集。右击列表空白处可新建设定组。",
       });
       return;
     }
-    for (const group of groups) {
+    for (const group of regularGroups) {
       const row = list.createEl("button", {
         cls: "novelview-article-row novelview-setting-list-row",
         attr: {
@@ -283,75 +293,56 @@ export class NovelSettingListView extends ItemView {
         menu.showAtMouseEvent(event);
       });
     }
-    if (detailFiles.length > 0) {
-      if (groups.length > 0) {
-        list.createDiv({ cls: "novelview-setting-list-divider" });
+    if (defaultEntries.length > 0) {
+      list.createDiv({ cls: "novelview-setting-list-divider" });
+    for (const [index, item] of defaultEntries.entries()) {
+      const row = list.createEl("button", {
+        cls: "novelview-article-row novelview-setting-list-row novelview-setting-list-single-row novelview-setting-list-detail-row",
+        attr: {
+          type: "button",
+          title: `${item.tag.tag} / 默认设定`,
+        },
+      });
+      const icon = row.createSpan({ cls: "novelview-article-row-icon" });
+      icon.setAttr("aria-hidden", "true");
+      setIcon(icon, item.entry.icon?.startsWith("lucide:")
+        ? item.entry.icon.slice("lucide:".length)
+        : "file-text");
+      row.createSpan({
+        cls: "novelview-article-row-name",
+        text: item.entry.keyword,
+      });
+      row.createSpan({
+        cls: "novelview-setting-list-single-badge",
+        text: "默认设定",
+      });
+      if (index === 0) {
+        row.addClass("is-first-default-row");
       }
-      for (const detail of detailFiles) {
-        const row = list.createEl("button", {
-          cls: "novelview-article-row novelview-setting-list-row novelview-setting-list-detail-row",
-          attr: {
-            type: "button",
-            title: detail.file.path,
-          },
-        });
-        const icon = row.createSpan({ cls: "novelview-article-row-icon" });
-        icon.setAttr("aria-hidden", "true");
-        setIcon(icon, "file-text");
-        row.createSpan({
-          cls: "novelview-article-row-name",
-          text: detail.name,
-        });
-        row.createSpan({
-          cls: "novelview-article-row-count",
-          text: "详细",
-        });
-        row.addEventListener("click", () => {
-          if (this.renamingRow === row) {
-            return;
-          }
-          void this.app.workspace.getLeaf(false).openFile(detail.file);
-        });
-        row.addEventListener("contextmenu", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          const menu = new Menu();
-          menu.addItem((item) => {
-            item.setTitle("重命名").setIcon("pencil").onClick(() => {
-              this.beginDetailRename(row, detail);
-            });
-          });
-          menu.showAtMouseEvent(event);
-        });
-      }
+      row.addEventListener("click", () => {
+        if (!defaultGroup) {
+          return;
+        }
+        const file = this.plugin.getSettingRecordFile(
+          defaultGroup.folder.path,
+          item.entry.keyword,
+        );
+        if (file) {
+          void this.app.workspace.getLeaf(false).openFile(file);
+        }
+      });
+    }
     }
   }
 
-  private loadDetailFiles(novelRoot: string): SettingListDetailFile[] {
-    const root = this.plugin.normalizeFolderPath(novelRoot);
-    return this.app.vault.getFiles()
-      .filter((file) => (
-        file.extension === "md"
-        && this.plugin.normalizeFolderPath(file.parent?.path ?? "/") === root
-        && isSettingDetailFileName(file.name)
-      ))
-      .map((file) => ({
-        file,
-        name: settingDetailFileDisplayName(file.name),
-      }))
-      .sort((left, right) => left.name.localeCompare(
-        right.name,
-        "zh-CN",
-        { numeric: true, sensitivity: "base" },
-      ));
-  }
-
+  /** 删除设定组文件夹并刷新 */
   private async deleteSettingGroup(group: SettingListGroup): Promise<void> {
     await this.app.fileManager.trashFile(group.folder);
     this.renamingRow = null;
     this.scheduleRefresh();
   }
 
+  /** 在空白处弹出新建菜单 */
   private openBlankMenu(event: MouseEvent, novelRoot: string): void {
     const menu = new Menu();
     menu.addItem((item) => {
@@ -361,97 +352,10 @@ export class NovelSettingListView extends ItemView {
         });
       });
     });
-    menu.addItem((item) => {
-      item.setTitle("新建单设定").setIcon("file-plus").onClick(() => {
-        void this.createDetailFile(novelRoot);
-      });
-    });
     menu.showAtMouseEvent(event);
   }
 
-  private async createDetailFile(novelRoot: string): Promise<void> {
-    const folder = this.app.vault.getAbstractFileByPath(novelRoot);
-    if (!(folder instanceof TFolder)) {
-      return;
-    }
-    let index = 1;
-    let path = `${folder.path}/设定.d.md`;
-    while (this.app.vault.getAbstractFileByPath(path)) {
-      index += 1;
-      path = `${folder.path}/设定 ${index}.d.md`;
-    }
-    const file = await this.app.vault.create(path, "# 设定\n\n");
-    this.scheduleRefresh();
-    await this.app.workspace.getLeaf(false).openFile(file);
-  }
-
-  private beginDetailRename(
-    row: HTMLElement,
-    detail: SettingListDetailFile,
-  ): void {
-    this.beginInlineRename(
-      row,
-      detail.name,
-      (value) => this.validateDetailName(detail, value),
-      async (value) => {
-        const name = this.cleanDetailName(value);
-        if (!name) {
-          return "名称不能为空。";
-        }
-        const parent = detail.file.parent?.path ?? "";
-        const targetPath = `${parent}/${name}.d.md`;
-        if (targetPath === detail.file.path) {
-          return null;
-        }
-        try {
-          await this.app.fileManager.renameFile(detail.file, targetPath);
-          return null;
-        } catch (error) {
-          console.error("Novel View: detail file rename failed", error);
-          return "详细设定重命名失败。";
-        }
-      },
-    );
-  }
-
-  private cleanDetailName(value: string): string {
-    let name = value.trim();
-    if (name.toLocaleLowerCase().endsWith(".d.md")) {
-      name = name.slice(0, -5);
-    } else if (name.toLocaleLowerCase().endsWith(".md")) {
-      name = name.slice(0, -3);
-    }
-    return name.trim();
-  }
-
-  private validateDetailName(
-    detail: SettingListDetailFile,
-    value: string,
-  ): string | null {
-    if (value !== value.trim()) {
-      return "名称首尾不能有空格。";
-    }
-    const name = this.cleanDetailName(value);
-    if (!name) {
-      return "名称不能为空。";
-    }
-    if (/[\\/:*?"<>|]/u.test(name)) {
-      return "名称包含路径非法字符。";
-    }
-    if (name.endsWith(".") || name === "." || name === "..") {
-      return "名称不能以点号结尾。";
-    }
-    const parent = detail.file.parent?.path ?? "";
-    const target = `${parent}/${name}.d.md`;
-    if (
-      target !== detail.file.path
-      && this.app.vault.getAbstractFileByPath(target)
-    ) {
-      return "同名详细设定已存在。";
-    }
-    return null;
-  }
-
+  /** 开始就地重命名设定组 */
   private beginGroupRename(row: HTMLElement, group: SettingListGroup): void {
     this.beginInlineRename(
       row,
@@ -464,6 +368,7 @@ export class NovelSettingListView extends ItemView {
     );
   }
 
+  /** 校验设定组名称是否合法 */
   private validateGroupName(
     group: SettingListGroup,
     value: string,
@@ -497,6 +402,7 @@ export class NovelSettingListView extends ItemView {
     return null;
   }
 
+  /** 在行内嵌入重命名输入框 */
   private beginInlineRename(
     row: HTMLElement,
     initial: string,
@@ -523,7 +429,7 @@ export class NovelSettingListView extends ItemView {
       },
     });
     input.value = initial;
-    const error = row.createEl("span", {
+    const error = row.createSpan({
       cls: "novelview-setting-inline-error",
     });
     nameEl.replaceWith(input);
@@ -588,6 +494,7 @@ export class NovelSettingListView extends ItemView {
     }, 0);
   }
 
+  /** 加载设定组及标签记录统计 */
   private async loadGroups(novelRoot: string): Promise<SettingListGroup[]> {
     const groups: SettingListGroup[] = [];
     for (const folder of this.plugin.getSettingGroupsForNovel(novelRoot)) {
@@ -602,7 +509,7 @@ export class NovelSettingListView extends ItemView {
       }
       groups.push({
         folder,
-        name: folder.name.replace(/^-+/u, ""),
+        name: folder.name === "-" ? "默认设定" : folder.name.replace(/^-+/u, ""),
         tagCount,
         recordCount,
       });
@@ -614,6 +521,7 @@ export class NovelSettingListView extends ItemView {
     ));
   }
 
+  /** 统计小说正文中的文字标记 */
   private countTextMarks(novelRoot: string): number {
     const root = this.plugin.normalizeFolderPath(novelRoot);
     let count = 0;
@@ -624,14 +532,17 @@ export class NovelSettingListView extends ItemView {
       ) {
         continue;
       }
-      const frontmatter = this.app.metadataCache.getFileCache(file)
-        ?.frontmatter as Record<string, unknown> | undefined;
-      const raw: unknown = frontmatter?.[OUTLINE_MARKS_PROPERTY];
+      const frontmatter: unknown = this.app.metadataCache.getFileCache(file)
+        ?.frontmatter;
+      const raw: unknown = frontmatter && typeof frontmatter === "object"
+        ? (frontmatter as Record<string, unknown>)[OUTLINE_MARKS_PROPERTY]
+        : undefined;
       count += parseOutlineMarks(raw).length;
     }
     return count;
   }
 
+  /** 创建带图标的工具栏按钮 */
   private createToolbarButton(
     parent: HTMLElement,
     icon: string,

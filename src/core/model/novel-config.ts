@@ -2,6 +2,7 @@ export const NOVEL_CONFIG_FILENAME = "novel.json";
 
 export const HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** 剔除超过保留期的历史记录 */
 export function pruneNovelHistory<T extends { bucketStart: number }>(
   history: T[],
   now = Date.now(),
@@ -10,6 +11,7 @@ export function pruneNovelHistory<T extends { bucketStart: number }>(
   return history.filter((entry) => entry.bucketStart >= cutoff);
 }
 
+/** 判断两个时间是否处于同一本地日 */
 function isSameLocalDay(left: Date, right: Date): boolean {
   return left.getFullYear() === right.getFullYear()
     && left.getMonth() === right.getMonth()
@@ -139,14 +141,17 @@ export interface NovelConfigFileLike {
   extension?: string;
 }
 
+/** 判断文件是否为小说配置文件 */
 export function isNovelConfigFile(file: NovelConfigFileLike): boolean {
   return file.name === NOVEL_CONFIG_FILENAME;
 }
 
+/** 拼接小说配置文件的完整路径 */
 export function getNovelConfigPath(folderPath: string): string {
   return joinVaultPath(folderPath, NOVEL_CONFIG_FILENAME);
 }
 
+/** 拼接多段路径并去除首尾斜杠 */
 export function joinVaultPath(...parts: string[]): string {
   return parts
     .map((part) => part.replace(/^\/+|\/+$/gu, ""))
@@ -154,6 +159,7 @@ export function joinVaultPath(...parts: string[]): string {
     .join("/");
 }
 
+/** 生成默认小说配置的 JSON 文本 */
 export function createNovelConfigContent(): string {
   const config: NovelConfig = {
     "novel-description": "",
@@ -166,6 +172,7 @@ export function createNovelConfigContent(): string {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
+/** 把任意输入解析为合规的小说配置 */
 export function parseNovelConfig(value: unknown): NovelConfig {
   const source = value && typeof value === "object"
     ? value as Record<string, unknown>
@@ -254,10 +261,12 @@ export function parseNovelConfig(value: unknown): NovelConfig {
   };
 }
 
+/** 把小说配置序列化为格式化 JSON 文本 */
 export function serializeNovelConfig(config: NovelConfig): string {
   return `${JSON.stringify(config, null, 2)}\n`;
 }
 
+/** 从链接或路径中提取规范的封面路径 */
 export function normalizeCoverPath(value: string): string {
   let cover = value.trim();
   if (!cover) {

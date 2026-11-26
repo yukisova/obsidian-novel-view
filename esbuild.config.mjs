@@ -31,6 +31,7 @@ const context = await esbuild.context({
   treeShaking: true,
   minify: production,
   legalComments: "none",
+  loader: { ".md": "text" },
   outfile: "main.js",
 });
 

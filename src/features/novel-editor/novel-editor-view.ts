@@ -14,6 +14,7 @@ import {
   historyKeymap,
 } from "@codemirror/commands";
 import {
+  Compartment,
   EditorSelection,
   EditorState,
   Prec,
@@ -50,7 +51,18 @@ import {
   setOutlineMarksEffect,
 } from "../../editor/outline-marks";
 import { settingKeywordExtension } from "../../editor/setting-keyword-extension";
+import {
+  nextFootnoteKey,
+  parseFootnoteReferences,
+  footnoteExtension,
+} from "../../editor/footnotes";
+import { quoteBlockExtension } from "../../editor/quote-block";
 import { TextPromptModal } from "../../ui/text-prompt-modal";
+import { confirmAction } from "../../ui/confirm-modal";
+import {
+  SeamlessController,
+  getSeamlessSections,
+} from "./seamless-controller";
 import {
   PENDING_COLOR_OPTIONS,
   pendingBlockExtension,
@@ -61,11 +73,23 @@ import {
   type PendingColor,
 } from "../../editor/pending-block";
 import type NovelViewPlugin from "../../main";
+import {
+  loadFootnoteNotes,
+  saveFootnoteNote,
+  type ArticleInfoSnapshot,
+} from "../article-info/model";
+import { countNovelCharacters } from "../../core/text/status";
 
 export const NOVEL_EDITOR_VIEW_TYPE = "novelview-editor";
 
 const sharedSaveChains = new Map<string, Promise<void>>();
 
+/** 从文件路径回退生成章节标题 */
+function loadChapterTitleFallback(path: string): string {
+  return path.split("/").pop()?.replace(/\.md$/iu, "") ?? "NovelEditor";
+}
+
+/** 跨行移动光标并保持目标列 */
 function moveCursorOneLine(view: EditorView, direction: -1 | 1): boolean {
   const state = view.state;
   const selection = state.selection.main;
@@ -100,6 +124,7 @@ function moveCursorOneLine(view: EditorView, direction: -1 | 1): boolean {
 }
 
 class EditorImageWidget extends WidgetType {
+  /** 初始化图片内嵌展示组件 */
   constructor(
     private readonly src: string,
     private readonly alt: string,
@@ -107,10 +132,12 @@ class EditorImageWidget extends WidgetType {
     super();
   }
 
+  /** 判断图片组件是否需要复用 */
   override eq(other: EditorImageWidget): boolean {
     return other.src === this.src && other.alt === this.alt;
   }
 
+  /** 创建图片及图注的展示元素 */
   override toDOM(): HTMLElement {
     const figure = createEl("figure");
     figure.className = "novelview-editor-image";
@@ -127,6 +154,7 @@ class EditorImageWidget extends WidgetType {
     return figure;
   }
 
+  /** 声明组件不忽略鼠标编辑事件 */
   override ignoreEvent(): boolean {
     return false;
   }
@@ -137,6 +165,7 @@ interface EditorImageInfo {
   alt: string;
 }
 
+/** 解析图片行并获取资源地址 */
 function resolveImageLine(
   text: string,
   sourcePath: string,
@@ -159,6 +188,7 @@ function resolveImageLine(
   };
 }
 
+/** 扫描全文并生成图片替换装饰 */
 function buildImageDecorations(
   state: EditorState,
   sourcePath: string,
@@ -186,6 +216,7 @@ function buildImageDecorations(
   return builder.finish();
 }
 
+/** 创建图片预览状态的编辑器扩展 */
 function imageExtension(
   app: import("obsidian").App,
   getSourcePath: () => string,
@@ -205,6 +236,7 @@ function imageExtension(
 
 const hrLine = Decoration.line({ class: "novelview-editor-hr" });
 
+/** 为可见分隔线生成行装饰 */
 function buildHrDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   for (const range of view.visibleRanges) {
@@ -225,10 +257,12 @@ function buildHrDecorations(view: EditorView): DecorationSet {
 class HrDecorationPlugin {
   decorations: DecorationSet;
 
+  /** 初始化分隔线装饰插件 */
   constructor(view: EditorView) {
     this.decorations = buildHrDecorations(view);
   }
 
+  /** 内容或视口变化时重建装饰 */
   update(update: ViewUpdate): void {
     if (update.docChanged || update.viewportChanged) {
       this.decorations = buildHrDecorations(update.view);
@@ -241,10 +275,25 @@ const hrDecorationExtension = ViewPlugin.fromClass(HrDecorationPlugin, {
 });
 
 
+/** 为正文行计算段落样式装饰 */
 function buildProseDecorations(view: EditorView): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { doc } = view.state;
   const visited = new Set<number>();
+  const forcedStarts = new Set<number>();
+  for (const section of getSeamlessSections(view.state)) {
+    let line = doc.lineAt(Math.min(section.from, doc.length));
+    while (
+      line.from < section.to
+      && !line.text.trim()
+      && line.number < doc.lines
+    ) {
+      line = doc.line(line.number + 1);
+    }
+    if (line.from < section.to && line.text.trim()) {
+      forcedStarts.add(line.number);
+    }
+  }
   for (const range of view.visibleRanges) {
     let line = doc.lineAt(range.from);
     while (line.from <= range.to) {
@@ -261,7 +310,10 @@ function buildProseDecorations(view: EditorView): DecorationSet {
           );
         } else if (classification.prose) {
           const classes: string[] = [];
-          if (classification.paragraphStart) {
+          if (
+            classification.paragraphStart
+            || forcedStarts.has(line.number)
+          ) {
             classes.push("novelview-editor-paragraph-start");
           }
           if (classification.paragraphEnd) {
@@ -285,6 +337,7 @@ function buildProseDecorations(view: EditorView): DecorationSet {
   return builder.finish();
 }
 
+/** 生成当前光标行的装饰 */
 function buildImmersiveLineDecorations(view: EditorView): DecorationSet {
   const head = view.state.selection.main.head;
   const line = view.state.doc.lineAt(head);
@@ -296,10 +349,12 @@ function buildImmersiveLineDecorations(view: EditorView): DecorationSet {
 class ImmersiveLinePlugin {
   decorations: DecorationSet;
 
+  /** 初始化当前行高亮插件 */
   constructor(view: EditorView) {
     this.decorations = buildImmersiveLineDecorations(view);
   }
 
+  /** 选择或内容变化时刷新高亮 */
   update(update: ViewUpdate): void {
     if (update.selectionSet || update.docChanged) {
       this.decorations = buildImmersiveLineDecorations(update.view);
@@ -323,6 +378,7 @@ const setNovelSearchHighlightsEffect = StateEffect.define<{
 
 const novelSearchHighlightsField = StateField.define<DecorationSet>({
   create: () => Decoration.none,
+  /** 同步搜索高亮范围到文档变更 */
   update(value, transaction) {
     let next = value.map(transaction.changes);
     for (const effect of transaction.effects) {
@@ -356,10 +412,12 @@ const novelSearchHighlightsField = StateField.define<DecorationSet>({
 class ProseDecorationPlugin {
   decorations: DecorationSet;
 
+  /** 初始化正文段落装饰插件 */
   constructor(view: EditorView) {
     this.decorations = buildProseDecorations(view);
   }
 
+  /** 内容或视口变化时重算段落 */
   update(update: ViewUpdate): void {
     if (update.docChanged || update.viewportChanged) {
       this.decorations = buildProseDecorations(update.view);
@@ -396,16 +454,42 @@ export class NovelEditorView extends ItemView {
   private lastSavedBody = "";
   private pendingBlocks: PendingBlock[] = [];
   private pendingBlocksTimer: number | null = null;
+  private cursorSaveTimer: number | null = null;
+  private loadedCursor = false;
   private resizeObserver: ResizeObserver | null = null;
   private resizeFrame: number | null = null;
   private measureTimer: number | null = null;
   private readonly handleWindowResize = (): void => {
     this.scheduleEditorMeasure();
   };
+  private readonly handleVisualViewportResize = (): void => {
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+    const keyboardHeight = Math.max(
+      0,
+      window.innerHeight - viewport.height - viewport.offsetTop,
+    );
+    const mobile = window.matchMedia("(max-width: 700px)").matches;
+    this.contentEl.toggleClass(
+      "is-mobile-keyboard",
+      mobile && keyboardHeight > 100,
+    );
+  };
   private saveChain: Promise<void> = Promise.resolve();
   private outlineMarksTimer: number | null = null;
   private immersiveMode = false;
+  private readonly seamlessCompartment = new Compartment();
+  private readonly seamlessController: SeamlessController;
+  private seamlessButton: HTMLButtonElement | null = null;
   private immersiveButton: HTMLButtonElement | null = null;
+  private pureButton: HTMLButtonElement | null = null;
+  private darkRoomButton: HTMLButtonElement | null = null;
+  private pureMode = false;
+  private darkRoomMode = false;
+  private darkRoomDialogOpen = false;
+  private darkRoomTimer: number | null = null;
   private immersiveScrollFrame: number | null = null;
   private immersiveCenterFrame: number | null = null;
   private immersiveProgrammaticScrollTop: number | null = null;
@@ -413,27 +497,42 @@ export class NovelEditorView extends ItemView {
   private searchHighlightRanges: NovelSearchHighlightRange[] = [];
   private activeSearchHighlight = -1;
 
+  /** 初始化小说编辑器视图 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
+    const neighbors = Number(
+      window.localStorage.getItem("novelview:seamless-neighbors"),
+    );
+    this.seamlessController = new SeamlessController(
+      this.app,
+      this.plugin,
+      this.seamlessCompartment,
+      Number.isFinite(neighbors) ? Math.min(3, Math.max(0, neighbors)) : 1,
+    );
   }
 
+  /** 返回编辑器视图的类型标识 */
   override getViewType(): string {
     return NOVEL_EDITOR_VIEW_TYPE;
   }
 
+  /** 返回当前章节的显示标题 */
   override getDisplayText(): string {
     if (!this.filePath) {
-      return "Novel View";
+      return "NovelEditor";
     }
-    return this.filePath.split("/").pop()?.replace(/\.md$/iu, "") ?? "Novel View";
+    return this.filePath.split("/").pop()?.replace(/\.md$/iu, "")
+      ?? "NovelEditor";
   }
 
+  /** 返回编辑器标签页图标 */
   override getIcon(): string {
     return "book-open";
   }
 
+  /** 获取当前打开的章节文件 */
   getNovelEditorFile(): TFile | null {
     if (!this.filePath) {
       return null;
@@ -442,10 +541,12 @@ export class NovelEditorView extends ItemView {
     return file instanceof TFile ? file : null;
   }
 
+  /** 导出视图的文件路径状态 */
   override getState(): Record<string, unknown> {
     return { file: this.filePath };
   }
 
+  /** 恢复文件路径并重新加载内容 */
   override async setState(
     state: Record<string, unknown>,
     result: import("obsidian").ViewStateResult,
@@ -453,18 +554,27 @@ export class NovelEditorView extends ItemView {
     const nextFile = typeof state.file === "string" ? state.file : this.filePath;
     if (nextFile !== this.filePath) {
       await this.flushSave();
-      await this.flushOutlineMarks();
+      if (!this.seamlessController.enabled) {
+        await this.flushOutlineMarks();
+      }
     }
     this.filePath = nextFile;
     this.pendingLine = typeof state.line === "number" ? state.line : 1;
     result.history = true;
     await super.setState(state, result);
+    if (this.seamlessController.enabled) {
+      await this.seamlessController.jumpToPath(nextFile);
+      this.updateTabTitle();
+      return;
+    }
     await this.loadFile();
   }
 
+  /** 构建界面并初始化编辑器 */
   protected override async onOpen(): Promise<void> {
+    this.containerEl.addClass("novelview-editor-leaf");
     this.contentEl.empty();
-    this.contentEl.addClass("novelview-novel-mode", "novelview-editor-view");
+    this.contentEl.addClass("novelview-editor-view");
     this.contentEl.setCssProps({
       "--novelview-font-size": `${Number(this.plugin.settings.fontSize) || 16}px`,
       "--novelview-line-height": `${Number(this.plugin.settings.lineHeight) || 1.8}`,
@@ -472,6 +582,11 @@ export class NovelEditorView extends ItemView {
       "--novelview-first-line-indent": `${Number(this.plugin.settings.firstLineIndent) || 2}em`,
     });
     this.applySettings();
+    this.applyPageSettings();
+    window.visualViewport?.addEventListener("resize", this.handleVisualViewportResize);
+    window.visualViewport?.addEventListener("scroll", this.handleVisualViewportResize);
+    window.addEventListener("orientationchange", this.handleVisualViewportResize);
+    this.handleVisualViewportResize();
     const toolbar = this.contentEl.createDiv({ cls: "novelview-editor-toolbar" });
     this.addToolbarButton(toolbar, "wand-2", "自动排版", () => this.autoFormat());
     this.addToolbarButton(toolbar, "search", "查找替换", () => {
@@ -480,17 +595,47 @@ export class NovelEditorView extends ItemView {
     this.addToolbarButton(toolbar, "image-plus", "插入图片", () => {
       void this.insertImage();
     });
-    this.addToolbarButton(toolbar, "settings-2", "格式设置", () => {
-      this.plugin.openModeSettings();
+    const settingsButton = this.addToolbarButton(
+      toolbar,
+      "settings-2",
+      "格式设置",
+      () => {
+        this.plugin.openModeSettings(settingsButton);
+      },
+    );
+    const modeBar = this.contentEl.createDiv({
+      cls: "novelview-editor-mode-bar",
     });
     this.immersiveButton = this.addToolbarButton(
-      toolbar,
+      modeBar,
       "focus",
-      "沉浸模式",
+      "打字模式",
       () => this.setImmersiveMode(!this.immersiveMode),
     );
     this.immersiveButton.toggleClass("is-active", this.immersiveMode);
     this.immersiveButton.setAttr("aria-pressed", String(this.immersiveMode));
+    this.pureButton = this.addToolbarButton(
+      modeBar,
+      "scan",
+      "纯粹模式：只显示主编辑区",
+      () => this.togglePureMode(),
+    );
+    this.darkRoomButton = this.addToolbarButton(
+      modeBar,
+      "moon",
+      "黑屋模式：限时全屏写作",
+      () => {
+        void this.toggleDarkRoomMode();
+      },
+    );
+    this.seamlessButton = this.addToolbarButton(
+      modeBar,
+      "layers",
+      "无缝模式：连续加载前后章节",
+      () => {
+        void this.toggleSeamlessMode();
+      },
+    );
     this.chapterTitleEl = this.contentEl.createDiv({
       cls: "novelview-editor-title is-editable",
       attr: {
@@ -636,6 +781,18 @@ export class NovelEditorView extends ItemView {
       }, 0);
     });
     this.contentEl.addEventListener("click", (event) => {
+      const footnote = (event.target as HTMLElement | null)?.closest<HTMLElement>(
+        ".novelview-footnote-ref",
+      );
+      if (footnote) {
+        event.preventDefault();
+        event.stopPropagation();
+        const key = footnote.dataset.footnoteKey ?? "";
+        if (key) {
+          void this.plugin.focusArticleInfoFootnote(this.filePath, key);
+        }
+        return;
+      }
       const keyword = (event.target as HTMLElement | null)?.closest<HTMLElement>(
         ".novelview-setting-keyword",
       );
@@ -648,14 +805,32 @@ export class NovelEditorView extends ItemView {
         }
       }
     });
+    this.registerEvent(this.app.workspace.on("active-leaf-change", (leaf) => {
+      if (this.darkRoomMode && leaf && leaf !== this.leaf) {
+        void this.app.workspace.revealLeaf(this.leaf);
+      }
+    }));
     if (this.filePath) {
       await this.loadFile();
     }
   }
 
+  /** 关闭视图前保存并清理资源 */
   protected override async onClose(): Promise<void> {
-    await this.flushSave();
-    await this.flushOutlineMarks();
+    if (this.cursorSaveTimer !== null) {
+      window.clearTimeout(this.cursorSaveTimer);
+      this.cursorSaveTimer = null;
+    }
+    this.saveCursor();
+    const seamlessWasEnabled = this.seamlessController.enabled;
+    if (seamlessWasEnabled) {
+      await this.seamlessController.disable();
+    } else {
+      await this.flushSave();
+    }
+    if (!seamlessWasEnabled) {
+      await this.flushOutlineMarks();
+    }
     if (this.outlineMarksTimer !== null) {
       window.clearTimeout(this.outlineMarksTimer);
       this.outlineMarksTimer = null;
@@ -672,6 +847,7 @@ export class NovelEditorView extends ItemView {
     this.tocList = null;
     this.tocHovered = false;
     this.pendingButton = null;
+    this.seamlessButton = null;
     this.pendingPanel = null;
     this.pendingInput = null;
     this.pendingTitleError = null;
@@ -686,6 +862,14 @@ export class NovelEditorView extends ItemView {
       window.clearTimeout(this.pendingBlocksTimer);
       this.pendingBlocksTimer = null;
     }
+    this.stopDarkRoom();
+    if (this.pureMode) {
+      this.pureMode = false;
+      activeDocument.body.removeClass("novelview-pure-mode");
+    }
+    window.visualViewport?.removeEventListener("resize", this.handleVisualViewportResize);
+    window.visualViewport?.removeEventListener("scroll", this.handleVisualViewportResize);
+    window.removeEventListener("orientationchange", this.handleVisualViewportResize);
     this.disconnectResizeObserver();
     this.clearImmersiveScrollFrame();
     this.clearImmersiveCenterFrame();
@@ -696,7 +880,214 @@ export class NovelEditorView extends ItemView {
     this.contentEl.empty();
   }
 
+  /** 切换只显示编辑区的纯粹模式 */
+  private togglePureMode(): void {
+    this.pureMode = !this.pureMode;
+    activeDocument.body.toggleClass("novelview-pure-mode", this.pureMode);
+    this.pureButton?.toggleClass("is-active", this.pureMode);
+    this.pureButton?.setAttr("aria-pressed", String(this.pureMode));
+  }
+
+  /** 进入或退出限时黑屋模式 */
+  private async toggleDarkRoomMode(): Promise<void> {
+    if (this.darkRoomDialogOpen) {
+      return;
+    }
+    if (this.darkRoomMode) {
+      this.darkRoomDialogOpen = true;
+      try {
+        const confirmed = await confirmAction(
+          this.app,
+          "退出黑屋模式",
+          "确定要退出黑屋模式吗？",
+          "退出",
+        );
+        if (confirmed) {
+          this.stopDarkRoom();
+        }
+      } finally {
+        this.darkRoomDialogOpen = false;
+      }
+      return;
+    }
+    this.darkRoomDialogOpen = true;
+    new TextPromptModal(this.app, {
+      title: "黑屋模式",
+      description: "输入时长（分钟）。开始后会进入全屏，并在倒计时结束前阻止切换 Obsidian 页面。",
+      initialValue: "25",
+      placeholder: "25",
+      submitLabel: "开始",
+      onClose: () => {
+        this.darkRoomDialogOpen = false;
+      },
+      onSubmit: (value) => {
+        const minutes = Math.min(480, Math.max(1, Number(value) || 25));
+        this.startDarkRoom(minutes);
+      },
+    }).open();
+  }
+
+  /** 启动全屏倒计时并锁定页面 */
+  private startDarkRoom(minutes: number): void {
+    this.stopDarkRoom();
+    this.darkRoomMode = true;
+    this.darkRoomButton?.addClass("is-active");
+    this.darkRoomButton?.setAttr("aria-pressed", "true");
+    activeDocument.body.addClass("novelview-dark-room");
+    const requestFullscreen = activeDocument.documentElement.requestFullscreen;
+    if (requestFullscreen) {
+      void requestFullscreen.call(activeDocument.documentElement).catch(() => {
+        // 全屏不可用时仍保留黑屋遮罩与倒计时。
+      });
+    }
+    const end = Date.now() + minutes * 60_000;
+    const tick = (): void => {
+      const remaining = Math.max(0, end - Date.now());
+      if (this.darkRoomButton) {
+        const text = `${Math.ceil(remaining / 60_000)} 分钟`;
+        this.darkRoomButton.setAttr("title", `黑屋模式剩余 ${text}`);
+      }
+      if (remaining <= 0) {
+        this.stopDarkRoom();
+        new Notice("Novel View：黑屋模式结束。");
+      }
+    };
+    tick();
+    this.darkRoomTimer = window.setInterval(tick, 1_000);
+    new Notice(`Novel View：黑屋模式开始，持续 ${minutes} 分钟。`);
+  }
+
+  /** 停止倒计时并退出全屏状态 */
+  private stopDarkRoom(): void {
+    this.darkRoomMode = false;
+    this.darkRoomDialogOpen = false;
+    this.darkRoomButton?.removeClass("is-active");
+    this.darkRoomButton?.setAttr("aria-pressed", "false");
+    this.darkRoomButton?.setAttr("title", "黑屋模式：限时全屏写作");
+    activeDocument.body.removeClass("novelview-dark-room");
+    if (this.darkRoomTimer !== null) {
+      window.clearInterval(this.darkRoomTimer);
+      this.darkRoomTimer = null;
+    }
+    if (activeDocument.fullscreenElement) {
+      void activeDocument.exitFullscreen().catch(() => {});
+    }
+  }
+
+  /** 汇总文章字数标记等信息 */
+  getArticleInfo(): ArticleInfoSnapshot | null {
+    const view = this.editorView;
+    if (!view || !this.filePath) {
+      return null;
+    }
+    const center = this.seamlessController.enabled
+      ? this.seamlessController.getCenterSection()
+      : null;
+    const filePath = center?.path ?? this.filePath;
+    const body = center?.body ?? view.state.doc.toString();
+    const marks = getOutlineMarks(view.state).map((mark) => ({
+      label: mark.label,
+      start: mark.start,
+      end: mark.end,
+      line: view.state.doc.lineAt(mark.start).number,
+    }));
+    const pending = parsePendingBlocks(view.state).map((block) => ({
+      title: block.title,
+      from: block.openFrom,
+      to: block.closeTo,
+      line: block.openLine,
+    }));
+    const notes = loadFootnoteNotes(filePath);
+    const footnoteMap = new Map<string, {
+      key: string;
+      text: string;
+      line: number;
+    }>();
+    for (const reference of parseFootnoteReferences(body)) {
+      if (!footnoteMap.has(reference.key)) {
+        footnoteMap.set(reference.key, {
+          key: reference.key,
+          text: notes[reference.key] ?? "",
+          line: reference.line,
+        });
+      }
+    }
+    return {
+      filePath,
+      title: loadChapterTitleFallback(filePath),
+      summary: "",
+      wordCount: countNovelCharacters(body),
+      marks,
+      pending,
+      footnotes: [...footnoteMap.values()],
+    };
+  }
+
+  /** 返回黑屋模式是否开启 */
+  isDarkRoomActive(): boolean {
+    return this.darkRoomMode;
+  }
+
+  /** 刷新工作区标签页标题 */
+  private updateTabTitle(): void {
+    const tab = this.containerEl.closest(".workspace-tab");
+    const title = tab?.querySelector<HTMLElement>(
+      ".workspace-tab-header-inner-title",
+    );
+    if (title) {
+      title.setText(this.getDisplayText());
+    }
+  }
+
+  /** 开启或关闭跨章节无缝模式 */
+  private async toggleSeamlessMode(): Promise<void> {
+    if (this.seamlessController.enabled) {
+      const path = await this.seamlessController.disable();
+      this.contentEl.removeClass("is-seamless-mode");
+      this.seamlessButton?.removeClass("is-active");
+      if (path) {
+        this.filePath = path;
+      }
+      await this.loadFile();
+      return;
+    }
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    await this.flushSave();
+    await this.flushOutlineMarks();
+    const cursor = this.editorView.state.selection.main.head;
+    await this.seamlessController.enable(
+      this.editorView,
+      this.filePath,
+      cursor,
+    );
+    this.contentEl.addClass("is-seamless-mode");
+    this.seamlessButton?.addClass("is-active");
+  }
+
+  /** 应用页宽模式与每行字数 */
+  applyPageSettings(): void {
+    const mode = window.localStorage.getItem("novelview:page-margin-mode")
+      === "manual"
+      ? "manual"
+      : "auto";
+    const chars = Math.min(
+      80,
+      Math.max(
+        24,
+        Number(window.localStorage.getItem("novelview:page-chars")) || 42,
+      ),
+    );
+    this.contentEl.toggleClass("has-manual-page-width", mode === "manual");
+    this.contentEl.setCssProps({
+      "--novelview-page-chars": String(chars),
+    });
+  }
+
+  /** 激活时同步文件并读取磁盘 */
   activate(): void {
+    this.updateTabTitle();
     const file = this.app.vault.getAbstractFileByPath(this.filePath);
     if (file instanceof TFile) {
       this.plugin.setNovelEditorFile(file);
@@ -704,6 +1095,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 写入搜索高亮范围列表 */
   setSearchHighlights(ranges: NovelSearchHighlightRange[]): void {
     this.searchHighlightRanges = ranges
       .map((range) => ({
@@ -716,6 +1108,7 @@ export class NovelEditorView extends ItemView {
     this.applySearchHighlights();
   }
 
+  /** 滚动编辑器对齐高亮锚点 */
   alignSearchHighlightTo(anchorY: number): void {
     const view = this.editorView;
     if (!view) {
@@ -732,16 +1125,19 @@ export class NovelEditorView extends ItemView {
     );
   }
 
+  /** 清空全部搜索高亮范围 */
   clearSearchHighlights(): void {
     this.searchHighlightRanges = [];
     this.activeSearchHighlight = -1;
     this.applySearchHighlights();
   }
 
+  /** 转发到 showSearchHighlight */
   revealSearchHighlight(from: number, to: number): void {
     this.showSearchHighlight(from, to, true, true);
   }
 
+  /** 展示单个搜索命中并定位 */
   showSearchHighlight(
     from: number,
     to: number,
@@ -784,6 +1180,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 派发搜索高亮状态效果 */
   private applySearchHighlights(): void {
     this.editorView?.dispatch({
       effects: setNovelSearchHighlightsEffect.of({
@@ -793,18 +1190,22 @@ export class NovelEditorView extends ItemView {
     });
   }
 
+  /** 判断编辑器实例是否就绪 */
   isEditorReady(): boolean {
     return this.editorView !== null;
   }
 
+  /** 获取编辑区滚动视口尺寸 */
   getScrollViewportRect(): DOMRect | null {
     return this.editorView?.scrollDOM.getBoundingClientRect() ?? null;
   }
 
+  /** 读取编辑器中的当前全文 */
   getEditorText(): string {
     return this.editorView?.state.doc.toString() ?? "";
   }
 
+  /** 应用字体行高等显示设置 */
   applySettings(): void {
     this.contentEl.setCssProps({
       "--novelview-font-size": `${Number(this.plugin.settings.fontSize) || 16}px`,
@@ -822,6 +1223,7 @@ export class NovelEditorView extends ItemView {
     );
   }
 
+  /** 生成带图标的工具按钮 */
   private addToolbarButton(
     toolbar: HTMLElement,
     icon: string,
@@ -837,6 +1239,7 @@ export class NovelEditorView extends ItemView {
     return button;
   }
 
+  /** 读取章节内容并重建编辑器 */
   private async loadFile(): Promise<void> {
     if (!this.editorHost || !this.filePath) {
       return;
@@ -873,6 +1276,7 @@ export class NovelEditorView extends ItemView {
         state: EditorState.create({
           doc: body,
           extensions: [
+            this.seamlessCompartment.of([]),
             history(),
             drawSelection(),
             Prec.highest(keymap.of([
@@ -888,6 +1292,9 @@ export class NovelEditorView extends ItemView {
             keymap.of([...defaultKeymap, ...historyKeymap]),
             EditorView.lineWrapping,
             EditorView.updateListener.of((update) => {
+              if (this.seamlessController.enabled && update.docChanged) {
+                this.seamlessController.handleDocChanged();
+              }
               if (update.docChanged) {
                 this.schedulePendingBlocksRefresh();
               }
@@ -899,9 +1306,13 @@ export class NovelEditorView extends ItemView {
               if (update.docChanged || update.selectionSet) {
                 this.updatePendingUi();
               }
+              if (update.selectionSet && !this.loading) {
+                this.scheduleCursorSave();
+              }
               if (
                 this.immersiveMode
                 && !this.immersiveSyncing
+                && !this.seamlessController.isMutating
                 && (update.docChanged || update.selectionSet)
               ) {
                 this.scheduleImmersiveCenter();
@@ -910,6 +1321,8 @@ export class NovelEditorView extends ItemView {
             immersiveLineExtension,
             novelSearchHighlightsField,
             settingKeywordExtension,
+            footnoteExtension,
+            quoteBlockExtension,
             imageExtension(this.app, () => this.filePath),
             hrDecorationExtension,
             proseDecorationExtension,
@@ -947,15 +1360,25 @@ export class NovelEditorView extends ItemView {
         effects: setOutlineMarksEffect.of(outlineMarks),
       });
       this.observeEditorResize();
-      const lineNumber = Math.min(
-        Math.max(1, this.pendingLine),
-        this.editorView.state.doc.lines,
-      );
-      const line = this.editorView.state.doc.line(lineNumber);
-      this.editorView.dispatch({
-        selection: { anchor: line.from },
-        effects: EditorView.scrollIntoView(line.from, { y: "center" }),
-      });
+      const savedCursor = this.readSavedCursor();
+      if (this.pendingLine > 1 || savedCursor === null) {
+        const lineNumber = Math.min(
+          Math.max(1, this.pendingLine),
+          this.editorView.state.doc.lines,
+        );
+        const line = this.editorView.state.doc.line(lineNumber);
+        this.editorView.dispatch({
+          selection: { anchor: line.from },
+          effects: EditorView.scrollIntoView(line.from, { y: "center" }),
+        });
+      } else {
+        const at = Math.min(savedCursor, this.editorView.state.doc.length);
+        this.editorView.dispatch({
+          selection: { anchor: at },
+          effects: EditorView.scrollIntoView(at, { y: "center" }),
+        });
+      }
+      this.loadedCursor = true;
       this.lastSavedBody = body;
       this.editorView.scrollDOM.addEventListener("scroll", () => {
         this.updateTocVisibility();
@@ -972,6 +1395,7 @@ export class NovelEditorView extends ItemView {
       this.containerEl.querySelector<HTMLElement>(".view-header-title")
         ?.setText(this.getDisplayText());
       this.chapterTitleEl?.setText(this.getDisplayText());
+      this.updateTabTitle();
       this.renderToc();
       this.updatePendingUi();
     } catch (error) {
@@ -986,6 +1410,102 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 生成光标位置的存储键名 */
+  private cursorStorageKey(): string {
+    return `novelview:cursor:${this.filePath}`;
+  }
+
+  /** 读取上次保存的光标位置 */
+  private readSavedCursor(): number | null {
+    try {
+      const value = Number(window.localStorage.getItem(this.cursorStorageKey()));
+      return Number.isFinite(value) && value >= 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 延迟保存当前光标位置 */
+  private scheduleCursorSave(): void {
+    if (!this.loadedCursor) {
+      return;
+    }
+    if (this.cursorSaveTimer !== null) {
+      window.clearTimeout(this.cursorSaveTimer);
+    }
+    this.cursorSaveTimer = window.setTimeout(() => {
+      this.cursorSaveTimer = null;
+      this.saveCursor();
+    }, 180);
+  }
+
+  /** 把光标位置写入本地存储 */
+  private saveCursor(): void {
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        this.cursorStorageKey(),
+        String(this.editorView.state.selection.main.head),
+      );
+    } catch {
+      // 本地存储不可用时忽略。
+    }
+  }
+
+  /** 把选中内容转换为引用块 */
+  private wrapSelectionInQuote(): void {
+    if (!this.editorView) {
+      return;
+    }
+    const view = this.editorView;
+    const selection = view.state.selection.main;
+    if (selection.empty) {
+      const head = selection.head;
+      view.dispatch({
+        changes: { from: head, insert: "> " },
+        selection: { anchor: head + 2 },
+      });
+      view.focus();
+      return;
+    }
+    const doc = view.state.doc;
+    const start = doc.lineAt(selection.from);
+    const end = doc.lineAt(selection.to);
+    const lines: string[] = [];
+    for (let lineNumber = start.number; lineNumber <= end.number; lineNumber += 1) {
+      const line = doc.line(lineNumber);
+      lines.push(line.text.startsWith(">") ? line.text : `> ${line.text}`);
+    }
+    const replacement = lines.join("\n");
+    view.dispatch({
+      changes: { from: start.from, to: end.to, insert: replacement },
+      selection: { anchor: start.from + replacement.length },
+    });
+    view.focus();
+  }
+
+  /** 插入新脚注引用并定位 */
+  private insertFootnote(): void {
+    if (!this.editorView || !this.filePath) {
+      return;
+    }
+    const view = this.editorView;
+    const key = nextFootnoteKey(view.state.doc.toString());
+    const head = view.state.selection.main.head;
+    const reference = `[^${key}]`;
+    const filePath = this.filePath;
+    saveFootnoteNote(filePath, key, "");
+    view.dispatch({
+      changes: { from: head, insert: reference },
+      selection: { anchor: head + reference.length },
+    });
+    view.focus();
+    void this.plugin.focusArticleInfoFootnote(filePath, key);
+  }
+
+  /** 为选中文字添加高亮标记 */
   private addOutlineMark(): void {
     if (!this.editorView) {
       return;
@@ -1024,6 +1544,7 @@ export class NovelEditorView extends ItemView {
     }).open();
   }
 
+  /** 查找选区覆盖的标记范围 */
   private outlineMarksAtSelection(): OutlineMark[] {
     if (!this.editorView) {
       return [];
@@ -1036,6 +1557,7 @@ export class NovelEditorView extends ItemView {
     ));
   }
 
+  /** 移除选区命中的文字标记 */
   private removeOutlineMarks(): void {
     if (!this.editorView) {
       return;
@@ -1054,7 +1576,11 @@ export class NovelEditorView extends ItemView {
     new Notice("Novel View：已移除文字标记。");
   }
 
+  /** 延迟将标记写入章节属性 */
   private scheduleOutlineMarksSave(): void {
+    if (this.seamlessController.enabled) {
+      return;
+    }
     if (this.outlineMarksTimer !== null) {
       window.clearTimeout(this.outlineMarksTimer);
     }
@@ -1064,6 +1590,7 @@ export class NovelEditorView extends ItemView {
     }, 700);
   }
 
+  /** 立即把标记写入文件属性 */
   private async flushOutlineMarks(): Promise<void> {
     if (this.outlineMarksTimer !== null) {
       window.clearTimeout(this.outlineMarksTimer);
@@ -1102,6 +1629,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 按标题输入重命名章节文件 */
   private async renameFromTitle(): Promise<void> {
     if (!this.chapterTitleEl || !this.filePath) {
       return;
@@ -1146,6 +1674,7 @@ export class NovelEditorView extends ItemView {
       ?.setText(base);
   }
 
+  /** 监听编辑区域尺寸变化 */
   private observeEditorResize(): void {
     if (!this.editorHost) {
       return;
@@ -1162,17 +1691,27 @@ export class NovelEditorView extends ItemView {
     window.visualViewport?.addEventListener("resize", this.handleWindowResize);
   }
 
+  /** 退出当前沉浸式打字模式 */
   exitImmersiveMode(): void {
     if (this.immersiveMode) {
       this.setImmersiveMode(false);
     }
   }
 
+  /** 开启或关闭沉浸打字模式 */
   private setImmersiveMode(enabled: boolean): void {
     if (enabled && this.plugin.isNovelFinderOpen()) {
-      new Notice("Novel View：NovelFinder 打开时无法进入沉浸模式。");
+      new Notice("Novel View：NovelFinder 打开时无法进入打字模式。");
       return;
     }
+    const restore = !enabled && this.editorView
+      ? {
+        head: this.editorView.state.selection.main.head,
+        before: this.editorView.coordsAtPos(
+          this.editorView.state.selection.main.head,
+        ),
+      }
+      : null;
     this.immersiveMode = enabled;
     this.contentEl.toggleClass("is-immersive", enabled);
     this.immersiveButton?.toggleClass("is-active", enabled);
@@ -1186,15 +1725,20 @@ export class NovelEditorView extends ItemView {
       this.clearImmersiveScrollFrame();
       this.clearImmersiveCenterFrame();
       this.immersiveProgrammaticScrollTop = null;
-      if (this.editorView) {
-        const head = this.editorView.state.selection.main.head;
-        this.editorView.dispatch({
-          effects: EditorView.scrollIntoView(head, { y: "center" }),
+      const view = this.editorView;
+      if (view && restore) {
+        this.scheduleEditorMeasure();
+        window.requestAnimationFrame(() => {
+          const after = view.coordsAtPos(restore.head);
+          if (restore.before && after) {
+            view.scrollDOM.scrollTop += after.top - restore.before.top;
+          }
         });
       }
     }
   }
 
+  /** 应用沉浸模式上下留白 */
   private applyImmersiveLayout(): void {
     const view = this.editorView;
     if (!view) {
@@ -1209,8 +1753,13 @@ export class NovelEditorView extends ItemView {
     this.scheduleEditorMeasure();
   }
 
+  /** 延迟把光标滚动到中央 */
   private scheduleImmersiveCenter(): void {
-    if (!this.immersiveMode || this.immersiveCenterFrame !== null) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || this.immersiveCenterFrame !== null
+    ) {
       return;
     }
     this.immersiveCenterFrame = window.requestAnimationFrame(() => {
@@ -1219,9 +1768,14 @@ export class NovelEditorView extends ItemView {
     });
   }
 
+  /** 将光标所在行滚动到中央 */
   private centerImmersiveCursor(): void {
     const view = this.editorView;
-    if (!this.immersiveMode || !view) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !view
+    ) {
       return;
     }
     const head = view.state.selection.main.head;
@@ -1241,8 +1795,13 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 滚动时安排光标居中同步 */
   private handleImmersiveScroll(): void {
-    if (!this.immersiveMode || !this.editorView) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !this.editorView
+    ) {
       return;
     }
     if (this.immersiveProgrammaticScrollTop !== null) {
@@ -1262,9 +1821,14 @@ export class NovelEditorView extends ItemView {
     });
   }
 
+  /** 按视口中心反向移动光标 */
   private syncCursorToImmersiveCenter(): void {
     const view = this.editorView;
-    if (!this.immersiveMode || !view) {
+    if (
+      !this.immersiveMode
+      || this.seamlessController.isMutating
+      || !view
+    ) {
       return;
     }
     const scroller = view.scrollDOM;
@@ -1291,6 +1855,7 @@ export class NovelEditorView extends ItemView {
     this.centerImmersiveCursor();
   }
 
+  /** 取消待执行的滚动同步帧 */
   private clearImmersiveScrollFrame(): void {
     if (this.immersiveScrollFrame !== null) {
       window.cancelAnimationFrame(this.immersiveScrollFrame);
@@ -1298,6 +1863,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 取消待执行的居中滚动帧 */
   private clearImmersiveCenterFrame(): void {
     if (this.immersiveCenterFrame !== null) {
       window.cancelAnimationFrame(this.immersiveCenterFrame);
@@ -1305,6 +1871,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 设置编辑区上下留白高度 */
   private setImmersivePadding(pad: number | null): void {
     const content = this.editorView?.contentDOM;
     if (!content) {
@@ -1316,6 +1883,7 @@ export class NovelEditorView extends ItemView {
     });
   }
 
+  /** 安排编辑器重新测量布局 */
   private scheduleEditorMeasure(): void {
     if (this.immersiveMode) {
       const pad = Math.max(80, Math.ceil(
@@ -1343,6 +1911,7 @@ export class NovelEditorView extends ItemView {
     }, 120);
   }
 
+  /** 移除尺寸与窗口事件监听 */
   private disconnectResizeObserver(): void {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
@@ -1359,6 +1928,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 延迟刷新章节大纲列表 */
   private scheduleTocRefresh(): void {
     if (this.tocTimer !== null) {
       window.clearTimeout(this.tocTimer);
@@ -1369,6 +1939,7 @@ export class NovelEditorView extends ItemView {
     }, 120);
   }
 
+  /** 解析正文并渲染大纲列表 */
   private renderToc(): void {
     const toc = this.tocEl;
     const list = this.tocList;
@@ -1469,6 +2040,7 @@ export class NovelEditorView extends ItemView {
     this.updateTocVisibility();
   }
 
+  /** 按悬停状态切换大纲显隐 */
   private updateTocVisibility(): void {
     if (!this.tocEl || !this.editorView) {
       return;
@@ -1477,6 +2049,7 @@ export class NovelEditorView extends ItemView {
     this.tocEl.toggleClass("is-collapsed", !this.tocHovered);
   }
 
+  /** 选择本地图片并插入引用 */
   private async insertImage(): Promise<void> {
     if (!this.editorView || !this.filePath) {
       return;
@@ -1529,6 +2102,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 取消对照组面板的隐藏计时 */
   private cancelPendingPanelHide(): void {
     if (this.pendingHideTimer !== null) {
       window.clearTimeout(this.pendingHideTimer);
@@ -1536,6 +2110,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 悬停结束后延迟收起面板 */
   private schedulePendingPanelHide(): void {
     this.cancelPendingPanelHide();
     this.pendingHideTimer = window.setTimeout(() => {
@@ -1553,6 +2128,7 @@ export class NovelEditorView extends ItemView {
     }, 160);
   }
 
+  /** 延迟重新解析对照组代码块 */
   private schedulePendingBlocksRefresh(): void {
     if (this.pendingBlocksTimer !== null) {
       window.clearTimeout(this.pendingBlocksTimer);
@@ -1567,6 +2143,7 @@ export class NovelEditorView extends ItemView {
     }, 120);
   }
 
+  /** 查找光标所在的对照区块 */
   private pendingBlockAt(position: number): PendingBlock | null {
     if (!this.editorView || this.pendingBlocks.length === 0) {
       return null;
@@ -1587,6 +2164,7 @@ export class NovelEditorView extends ItemView {
     return null;
   }
 
+  /** 更新对照组按钮与面板状态 */
   private updatePendingUi(): void {
     if (!this.editorView || !this.pendingButton || !this.pendingPanel) {
       return;
@@ -1635,6 +2213,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 打开当前对照组的编辑面板 */
   private openPendingPanel(): void {
     if (!this.activePending || !this.pendingPanel || !this.pendingInput) {
       return;
@@ -1657,6 +2236,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 修改当前对照组的标题或颜色 */
   private updateActivePending(patch: {
     title?: string;
     emoji?: string;
@@ -1695,6 +2275,7 @@ export class NovelEditorView extends ItemView {
     this.updatePendingUi();
   }
 
+  /** 删除当前对照组的围栏标记 */
   private deleteActivePending(): void {
     if (!this.editorView || !this.activePending) {
       return;
@@ -1734,6 +2315,7 @@ export class NovelEditorView extends ItemView {
     this.scheduleTocRefresh();
   }
 
+  /** 检查对照组标题是否重复 */
   private isPendingTitleDuplicate(title: string): boolean {
     if (!this.editorView) {
       return false;
@@ -1745,6 +2327,7 @@ export class NovelEditorView extends ItemView {
     ));
   }
 
+  /** 判断选区是否覆盖对照区块 */
   private selectionOverlapsPending(): boolean {
     if (!this.editorView) {
       return false;
@@ -1758,19 +2341,33 @@ export class NovelEditorView extends ItemView {
     ));
   }
 
+  /** 为选区弹出编辑上下文菜单 */
   private openSelectionContextMenu(event: MouseEvent): void {
     if (!this.editorView) {
       return;
     }
     const selection = this.editorView.state.selection.main;
     const marks = this.outlineMarksAtSelection();
-    if (
-      (selection.empty || this.selectionOverlapsPending())
-      && marks.length === 0
-    ) {
+    if (this.selectionOverlapsPending() && marks.length === 0) {
       return;
     }
     const menu = new Menu();
+    if (!selection.empty) {
+      menu.addItem((item) => {
+        item
+          .setTitle("插入引用块")
+          .setIcon("quote")
+          .onClick(() => this.wrapSelectionInQuote());
+      });
+    }
+    if (!selection.empty || !this.selectionOverlapsPending()) {
+      menu.addItem((item) => {
+        item
+          .setTitle("插入脚注")
+          .setIcon("superscript")
+          .onClick(() => this.insertFootnote());
+      });
+    }
     if (!selection.empty && !this.selectionOverlapsPending()) {
       menu.addItem((item) => {
         item
@@ -1798,6 +2395,7 @@ export class NovelEditorView extends ItemView {
     menu.showAtMouseEvent(event);
   }
 
+  /** 生成不重复的对照组标题 */
   private uniquePendingTitle(): string {
     if (!this.editorView) {
       return "对照组";
@@ -1815,6 +2413,7 @@ export class NovelEditorView extends ItemView {
     return `对照组 ${index}`;
   }
 
+  /** 把选中文本包进对照区块 */
   private wrapSelectionInPending(): void {
     if (!this.editorView) {
       return;
@@ -1852,6 +2451,7 @@ export class NovelEditorView extends ItemView {
     this.scheduleTocRefresh();
   }
 
+  /** 格式化全文并安排保存 */
   private autoFormat(): void {
     if (!this.editorView) {
       return;
@@ -1873,8 +2473,12 @@ export class NovelEditorView extends ItemView {
     this.scheduleSave();
   }
 
+  /** 延迟保存编辑中的正文 */
   private scheduleSave(): void {
     if (this.loading) {
+      return;
+    }
+    if (this.seamlessController.enabled) {
       return;
     }
     if (this.saveTimer !== null) {
@@ -1886,7 +2490,12 @@ export class NovelEditorView extends ItemView {
     }, 400);
   }
 
+  /** 立即把正文写回章节文件 */
   private async flushSave(): Promise<void> {
+    if (this.seamlessController.enabled) {
+      await this.seamlessController.flush();
+      return;
+    }
     if (!this.editorView || !this.filePath) {
       return;
     }
@@ -1923,6 +2532,7 @@ export class NovelEditorView extends ItemView {
     }
   }
 
+  /** 把磁盘内容同步回编辑器 */
   private async syncFromDisk(): Promise<void> {
     if (!this.editorView || !this.filePath) {
       return;

@@ -18,10 +18,12 @@ export const TEXT_MARKS_VIEW_TYPE = "novelview-text-marks";
 const MARK_NOTES_FILENAME = "novelview-mark-notes.json";
 const MARK_ORDER_FILENAME = "novelview-mark-order.json";
 
+/** 生成标记实例的唯一键值 */
 function markOccurrenceKey(occurrence: MarkOccurrence): string {
   return `${occurrence.file.path}\u0000${occurrence.start}\u0000${occurrence.end}`;
 }
 
+/** 按已保存顺序排列同一标记实例 */
 function orderedOccurrences(
   occurrences: MarkOccurrence[],
   order: string[],
@@ -41,6 +43,7 @@ class MarkNoteModal extends Modal {
   private readonly initial: string;
   private readonly onSave: (value: string) => void;
 
+  /** 初始化标记说明弹窗的初始文本与回调 */
   constructor(
     app: import("obsidian").App,
     private readonly label: string,
@@ -52,6 +55,7 @@ class MarkNoteModal extends Modal {
     this.onSave = onSave;
   }
 
+  /** 渲染说明文本框与保存按钮 */
   override onOpen(): void {
     this.setTitle(`说明：${this.label}`);
     this.modalEl.addClass("novelview-mark-note-modal");
@@ -86,6 +90,7 @@ class MarkNoteModal extends Modal {
     }, 0);
   }
 
+  /** 关闭说明弹窗时清空内容 */
   override onClose(): void {
     this.contentEl.empty();
   }
@@ -131,28 +136,34 @@ export class TextMarkCollectionView extends ItemView {
   private searchQuery = "";
   private readonly expandedLabels = new Set<string>();
 
+  /** 初始化文字标记视图并关闭导航 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回文字标记视图的类型标识 */
   override getViewType(): string {
     return TEXT_MARKS_VIEW_TYPE;
   }
 
+  /** 提供标签页显示的文字标记标题 */
   override getDisplayText(): string {
     return "文字标记";
   }
 
+  /** 返回文字标记页签使用的图标 */
   override getIcon(): string {
     return "highlighter";
   }
 
+  /** 保存文字标记所属目录状态 */
   override getState(): Record<string, unknown> {
     return { folderPath: this.folderPath };
   }
 
+  /** 恢复目录状态并刷新标记列表 */
   override async setState(
     state: Record<string, unknown>,
     result: import("obsidian").ViewStateResult,
@@ -165,6 +176,7 @@ export class TextMarkCollectionView extends ItemView {
     await this.render(true);
   }
 
+  /** 监听文件变化并首次收集标记 */
   protected override async onOpen(): Promise<void> {
     this.contentEl.addClass("novelview-mark-collection-view");
     const schedule = (file: TAbstractFile): void => {
@@ -184,6 +196,7 @@ export class TextMarkCollectionView extends ItemView {
     await this.render(true);
   }
 
+  /** 终止待刷新任务并清空视图 */
   protected override async onClose(): Promise<void> {
     this.refreshToken += 1;
     if (this.refreshTimer !== null) {
@@ -193,6 +206,7 @@ export class TextMarkCollectionView extends ItemView {
     this.contentEl.empty();
   }
 
+  /** 延迟合并刷新以避免频繁重建 */
   private scheduleRefresh(): void {
     if (this.drag) {
       this.pendingRefresh = true;
@@ -207,6 +221,7 @@ export class TextMarkCollectionView extends ItemView {
     }, 320);
   }
 
+  /** 汇总标记、说明与排序后重绘视图 */
   private async render(force = false): Promise<void> {
     const token = ++this.refreshToken;
     const novelRoot = this.plugin.findNovelGroupRoot(this.folderPath)
@@ -313,6 +328,7 @@ export class TextMarkCollectionView extends ItemView {
     this.contentEl.scrollTop = scrollTop;
   }
 
+  /** 渲染单个标记分组及其全部实例 */
   private renderMarkGroup(
     parent: HTMLElement,
     group: MarkGroup,
@@ -429,6 +445,7 @@ export class TextMarkCollectionView extends ItemView {
     }
   }
 
+  /** 拼接标记说明文件的存放路径 */
   private markNotesPath(novelRoot: string): string {
     const root = this.plugin.normalizeFolderPath(novelRoot);
     return root
@@ -436,6 +453,7 @@ export class TextMarkCollectionView extends ItemView {
       : MARK_NOTES_FILENAME;
   }
 
+  /** 读取并校验标记说明 JSON */
   private async loadMarkNotes(
     novelRoot: string,
   ): Promise<Record<string, string>> {
@@ -463,6 +481,7 @@ export class TextMarkCollectionView extends ItemView {
     }
   }
 
+  /** 写入或移除单条标记说明 */
   private async saveMarkNote(
     novelRoot: string,
     label: string,
@@ -485,6 +504,7 @@ export class TextMarkCollectionView extends ItemView {
     await this.app.vault.create(path, content);
   }
 
+  /** 拼接标记排序文件的存放路径 */
   private markOrderPath(novelRoot: string): string {
     const root = this.plugin.normalizeFolderPath(novelRoot);
     return root
@@ -492,6 +512,7 @@ export class TextMarkCollectionView extends ItemView {
       : MARK_ORDER_FILENAME;
   }
 
+  /** 读取并校验标记排序数据 */
   private async loadMarkOrders(
     novelRoot: string,
   ): Promise<Record<string, string[]>> {
@@ -524,6 +545,7 @@ export class TextMarkCollectionView extends ItemView {
     }
   }
 
+  /** 把标记排序写回存储文件 */
   private async saveMarkOrders(
     novelRoot: string,
     orders: Record<string, string[]>,
@@ -538,6 +560,7 @@ export class TextMarkCollectionView extends ItemView {
     }
   }
 
+  /** 按拖放目标调整标记实例顺序 */
   private async reorderOccurrence(
     novelRoot: string,
     label: string,
@@ -564,6 +587,7 @@ export class TextMarkCollectionView extends ItemView {
     this.scheduleRefresh();
   }
 
+  /** 按搜索词过滤并展开匹配分组 */
   private applyMarkSearch(): void {
     const query = this.searchQuery.trim().toLocaleLowerCase();
     for (const card of this.contentEl.querySelectorAll<HTMLElement>(
@@ -589,6 +613,7 @@ export class TextMarkCollectionView extends ItemView {
     }
   }
 
+  /** 为标记条目绑定拖拽排序交互 */
   private attachInstanceDrag(
     row: HTMLElement,
     occurrence: MarkOccurrence,
@@ -703,6 +728,7 @@ export class TextMarkCollectionView extends ItemView {
     });
   }
 
+  /** 修改标记属性将其移入其他分组 */
   private async moveOccurrence(
     occurrence: MarkOccurrence,
     label: string,
@@ -726,6 +752,7 @@ export class TextMarkCollectionView extends ItemView {
   }
 }
 
+/** 扫描正文收集标记并统计区间冲突 */
 export async function collectTextMarks(
   app: import("obsidian").App,
   plugin: NovelViewPlugin,

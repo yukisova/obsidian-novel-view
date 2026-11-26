@@ -1,15 +1,17 @@
 {
   "name": "novelview",
-  "version": "0.12.3",
+  "version": "0.13.4",
   "description": "Novel writing workflow with chapter statuses, materials/link libraries, link-library keywords, and find/replace.",
   "main": "main.js",
   "scripts": {
-    "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc --noEmit && node esbuild.config.mjs production && node scripts/deploy.mjs",
-    "build:only": "tsc --noEmit && node esbuild.config.mjs production",
+    "dev": "npm run styles && node esbuild.config.mjs --watch",
+    "build": "npm run build:only && node scripts/deploy.mjs",
+    "build:only": "npm run styles && tsc --noEmit && node esbuild.config.mjs production",
     "deploy": "node scripts/deploy.mjs",
     "check": "tsc --noEmit",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "styles": "node scripts/build-styles.mjs",
+    "styles:watch": "sass --watch styles.sass styles.css"
   },
   "keywords": [
     "obsidian",
@@ -28,6 +30,7 @@
     "@types/node": "^24.0.0",
     "esbuild": "^0.28.2",
     "obsidian": "^1.14.4",
+    "sass": "^1.108.2",
     "typescript": "^5.9.3"
   },
   "author": "yukisova",

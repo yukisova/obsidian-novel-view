@@ -26,28 +26,34 @@ export class NovelSrcGalleryView extends ItemView {
   private readonly plugin: NovelViewPlugin;
   private folderPath = "";
 
+  /** 初始化素材库视图并关闭导航栏 */
   constructor(leaf: WorkspaceLeaf, plugin: NovelViewPlugin) {
     super(leaf);
     this.plugin = plugin;
     this.navigation = false;
   }
 
+  /** 返回素材库视图的唯一类型标识 */
   override getViewType(): string {
     return SRC_GALLERY_VIEW_TYPE;
   }
 
+  /** 提供标签页显示的素材库标题 */
   override getDisplayText(): string {
     return "素材库";
   }
 
+  /** 返回素材库标签页使用的图标 */
   override getIcon(): string {
     return "image";
   }
 
+  /** 保存当前素材库所属目录状态 */
   override getState(): Record<string, unknown> {
     return { folderPath: this.folderPath };
   }
 
+  /** 恢复目录状态并触发重新渲染 */
   override async setState(
     state: Record<string, unknown>,
     result: ViewStateResult,
@@ -60,6 +66,7 @@ export class NovelSrcGalleryView extends ItemView {
     this.render();
   }
 
+  /** 监听文件变化并渲染素材网格 */
   protected override async onOpen(): Promise<void> {
     await Promise.resolve();
     this.contentEl.empty();
@@ -82,11 +89,13 @@ export class NovelSrcGalleryView extends ItemView {
     this.render();
   }
 
+  /** 关闭视图时清空素材库内容 */
   protected override async onClose(): Promise<void> {
     await Promise.resolve();
     this.contentEl.empty();
   }
 
+  /** 过滤已用素材并渲染素材库界面 */
   private render(): void {
     this.contentEl.empty();
 
@@ -150,6 +159,7 @@ export class NovelSrcGalleryView extends ItemView {
     }
   }
 
+  /** 渲染单个素材的预览与操作按钮 */
   private renderFileCard(parent: HTMLElement, file: TFile): void {
     const card = parent.createDiv({
       cls: "novelview-src-card",
@@ -220,6 +230,7 @@ export class NovelSrcGalleryView extends ItemView {
 
   }
 
+  /** 显示素材库为空时的导入提示 */
   private renderEmpty(): void {
     const empty = this.contentEl.createDiv({
       cls: "novelview-src-empty",
@@ -230,6 +241,7 @@ export class NovelSrcGalleryView extends ItemView {
     });
   }
 
+  /** 弹出文件选择框导入素材图片 */
   private chooseMaterialImage(): void {
     if (!this.folderPath) {
       new Notice("Novel View：请先打开小说组素材库。");
@@ -252,6 +264,7 @@ export class NovelSrcGalleryView extends ItemView {
     input.click();
   }
 
+  /** 确认后将素材文件移入回收站 */
   private deleteFile(file: TFile): void {
     void this.app.fileManager.promptForDeletion(file).then((confirmed) => {
       if (confirmed) {
@@ -260,6 +273,7 @@ export class NovelSrcGalleryView extends ItemView {
     });
   }
 
+  /** 在卡片内切换输入框重命名素材 */
   private startInlineRename(
     nameEl: HTMLElement,
     file: TFile,
@@ -320,6 +334,7 @@ export class NovelSrcGalleryView extends ItemView {
     }, 0);
   }
 
+  /** 在视图内显示一行提示信息 */
   private renderMessage(text: string): void {
     this.contentEl.createDiv({
       cls: "novelview-src-message",

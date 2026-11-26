@@ -6,7 +6,6 @@ import {
   hasFrontmatterBlock,
   joinFrontmatterContent,
   splitFrontmatterContent,
-  isMarkdownSpecialLine,
   isProseLine,
   isSpecialBlockLine,
 } from "../.test-build/paragraphs.mjs";
@@ -32,8 +31,8 @@ import {
   serializeSettingGroupMarkdown,
   serializeSettingCollectionIndex,
   settingGroupFolderName,
-  isSettingDetailFileName,
-  settingDetailFileDisplayName,
+  parseSettingRecordMarkdown,
+  serializeSettingRecordMarkdown,
 } from "../.test-build/setting-collection.mjs";
 import {
   createNovelConfigContent,
@@ -49,40 +48,6 @@ import {
   DEFAULT_SETTINGS,
   normalizeSettings,
 } from "../.test-build/settings.mjs";
-
-test("recognizes ordinary Chinese prose", () => {
-  assert.equal(isProseLine("夜雨落在青石板上，沿街的灯一盏接一盏地暗下去。"), true);
-  assert.equal(isProseLine("第一章　风从旧巷来"), true);
-  assert.equal(isProseLine("***"), false);
-  assert.equal(isProseLine("   "), false);
-});
-
-test("skips Markdown block syntax", () => {
-  const special = [
-    "# 第一章",
-    "###### 小节",
-    "> 引用",
-    "- 列表项",
-    "1. 编号项",
-    "```ts",
-    "~~~",
-    "---",
-    "***",
-    "| 列一 | 列二 |",
-    "<div>",
-    "[^1]: 脚注",
-    "%% 注释",
-    "![[封面.png]]",
-    "$$ 数学 $$",
-    "    indented code",
-    "\tcode",
-  ];
-
-  for (const line of special) {
-    assert.equal(isMarkdownSpecialLine(line), true, line);
-    assert.equal(isProseLine(line), false, line);
-  }
-});
 
 test("does not mistake inline emphasis for a block marker", () => {
   assert.equal(isProseLine("**强调**不是列表。"), true);
@@ -102,21 +67,6 @@ test("marks the first, middle, and last prose line of a paragraph", () => {
   assert.deepEqual(
     classifyLine("第三行", "第二行", null),
     { prose: true, paragraphStart: false, paragraphEnd: true },
-  );
-});
-
-test("blank and special lines delimit paragraphs", () => {
-  assert.deepEqual(
-    classifyLine("正文", "", "正文二"),
-    { prose: true, paragraphStart: true, paragraphEnd: false },
-  );
-  assert.deepEqual(
-    classifyLine("正文", "# 标题", null),
-    { prose: true, paragraphStart: true, paragraphEnd: true },
-  );
-  assert.deepEqual(
-    classifyLine("# 标题", null, "正文"),
-    { prose: false, paragraphStart: false, paragraphEnd: false },
   );
 });
 
@@ -544,11 +494,22 @@ test("history uses four-hour periods today and day periods before today", () => 
   assert.equal(groups[2].entries[0].delta, 16);
 });
 
-test("recognizes .d.md detail setting files", () => {
-  assert.equal(isSettingDetailFileName("人物志.d.md"), true);
-  assert.equal(isSettingDetailFileName("普通.md"), false);
-  assert.equal(isSettingDetailFileName(".d.md"), false);
-  assert.equal(settingDetailFileDisplayName("人物志.d.md"), "人物志");
+test("round-trips setting record markdown files", () => {
+  const content = serializeSettingRecordMarkdown(
+    {
+      keyword: "飞电或人",
+      content: "社长",
+      fields: [{ name: "年龄", value: "23" }],
+      marks: [],
+      icon: "lucide:user",
+    },
+    "飞电智能",
+    "#3498db",
+  );
+  const parsed = parseSettingRecordMarkdown(content, "飞电或人");
+  assert.equal(parsed.tag, "飞电智能");
+  assert.equal(parsed.entry.content, "社长");
+  assert.equal(parsed.entry.fields[0].value, "23");
 });
 
 test("TXT import strips two full-width spaces and splits volumes/chapters", () => {

@@ -55,6 +55,7 @@ export interface PendingBlock {
 const OPEN_RE = /^(?:`{3,})(?:[ \t]*)(?:待修改部分|对照组)(.*)$/u;
 const CLOSE_RE = /^`{3,}[ \t]*$/u;
 
+/** 从围栏首行解析标题表情与颜色 */
 function extractInfo(rest: string): {
   title: string;
   emoji: string;
@@ -72,6 +73,7 @@ function extractInfo(rest: string): {
   };
 }
 
+/** 扫描文档并解析全部待修改区块 */
 export function parsePendingBlocks(state: EditorState): PendingBlock[] {
   const blocks: PendingBlock[] = [];
   const { doc } = state;
@@ -109,6 +111,7 @@ export function parsePendingBlocks(state: EditorState): PendingBlock[] {
   return blocks;
 }
 
+/** 返回指定位置所在的待修改区块 */
 export function pendingBlockAt(state: EditorState, position: number): PendingBlock | null {
   for (const block of parsePendingBlocks(state)) {
     const first = block.contentStartLine <= state.doc.lines
@@ -125,16 +128,19 @@ export function pendingBlockAt(state: EditorState, position: number): PendingBlo
 }
 
 class PendingHeaderWidget extends WidgetType {
+  /** 保存区块信息以渲染头部组件 */
   constructor(private readonly block: PendingBlock) {
     super();
   }
 
+  /** 比较标题表情颜色决定组件可否复用 */
   override eq(other: PendingHeaderWidget): boolean {
     return other.block.title === this.block.title
       && other.block.emoji === this.block.emoji
       && other.block.color === this.block.color;
   }
 
+  /** 创建带颜色与标题的块首部元素 */
   override toDOM(): HTMLElement {
     const header = createDiv();
     header.className = `novelview-pending-header novelview-pending-${this.block.color}`;
@@ -148,31 +154,37 @@ class PendingHeaderWidget extends WidgetType {
     return header;
   }
 
+  /** 让头部组件忽略事件以保持可编辑 */
   override ignoreEvent(): boolean {
     return true;
   }
 }
 
 class PendingCloseWidget extends WidgetType {
+  /** 关闭组件彼此等价可直接复用 */
   override eq(other: PendingCloseWidget): boolean {
     return other instanceof PendingCloseWidget;
   }
 
+  /** 创建块结尾的占位元素 */
   override toDOM(): HTMLElement {
     const spacer = createDiv();
     spacer.className = "novelview-pending-close";
     return spacer;
   }
 
+  /** 关闭组件不占高度返回零 */
   override get estimatedHeight(): number {
     return 0;
   }
 
+  /** 让关闭组件忽略事件保持只读 */
   override ignoreEvent(): boolean {
     return true;
   }
 }
 
+/** 为待修改区块生成组件与内容行装饰 */
 function buildPendingDecorations(state: EditorState): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const { doc } = state;
@@ -215,6 +227,7 @@ function buildPendingDecorations(state: EditorState): DecorationSet {
 
 export const pendingBlockExtension = StateField.define<DecorationSet>({
   create: buildPendingDecorations,
+  /** 文档变化时重建装饰或按变更映射位置 */
   update(value, transaction) {
     if (!transaction.docChanged) {
       return value;
@@ -235,6 +248,7 @@ export const pendingBlockExtension = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 });
 
+/** 拦截会破坏区块围栏的编辑操作 */
 export function pendingFenceProtection(isAllowed: () => boolean) {
   return EditorState.transactionFilter.of((transaction) => {
     if (!transaction.docChanged || isAllowed()) {

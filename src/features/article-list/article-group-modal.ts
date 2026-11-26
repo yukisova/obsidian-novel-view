@@ -12,6 +12,7 @@ export class ArticleGroupModal extends Modal {
   private nameValue: string;
   private descriptionValue: string;
 
+  /** 初始化文章组编辑所需的回调与初始值 */
   constructor(
     app: App,
     initial: ArticleGroupDraft,
@@ -26,6 +27,7 @@ export class ArticleGroupModal extends Modal {
     this.descriptionValue = initial.description;
   }
 
+  /** 渲染文章组名称与描述的编辑表单 */
   override onOpen(): void {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-article-group-modal");
@@ -68,6 +70,7 @@ export class ArticleGroupModal extends Modal {
     name.focus();
   }
 
+  /** 关闭时清空模态框内容 */
   override onClose(): void {
     this.contentEl.empty();
   }

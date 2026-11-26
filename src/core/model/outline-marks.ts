@@ -6,6 +6,7 @@ export interface OutlineMark {
   label: string;
 }
 
+/** 解析标注数据并校验、排序后返回 */
 export function parseOutlineMarks(value: unknown): OutlineMark[] {
   let source: unknown = value;
   if (typeof value === "string") {
@@ -42,6 +43,7 @@ export function parseOutlineMarks(value: unknown): OutlineMark[] {
   return marks.sort((left, right) => left.start - right.start);
 }
 
+/** 把大纲标注序列化为 JSON 字符串 */
 export function serializeOutlineMarks(marks: OutlineMark[]): string {
   return JSON.stringify(
     marks.map((mark) => ({

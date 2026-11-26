@@ -6,6 +6,7 @@ export interface ParsedTxtChapter {
 
 const VOLUME_LINE = /^第([0-9一二三四五六七八九十百千万零〇两]+)卷(?:[\s\u3000]+(.*))?$/u;
 
+/** 返回去掉末尾连续空行后的行数组 */
 function trimTrailingBlankLines(lines: string[]): string[] {
   let end = lines.length;
   while (end > 0 && lines[end - 1].trim() === "") {

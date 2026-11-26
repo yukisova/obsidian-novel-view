@@ -78,10 +78,12 @@ export class SearchPanelV2 {
   private navigatorCounter: HTMLElement | null = null;
 
 
+  /** 初始化查找面板的状态与依赖 */
   constructor(plugin: NovelViewPlugin) {
     this.plugin = plugin;
   }
 
+  /** 创建或唤起面板并聚焦输入框 */
   open(view?: MarkdownView): void {
     if (!this.plugin.getActiveNovelEditorFile()) {
       this.close();
@@ -282,6 +284,7 @@ export class SearchPanelV2 {
     window.setTimeout(() => this.queryInput?.focus(), 0);
   }
 
+  /** 编辑器切换后刷新上下文并重查 */
   refreshForActiveEditor(): void {
     if (!this.root) {
       return;
@@ -290,14 +293,17 @@ export class SearchPanelV2 {
     void this.search();
   }
 
+  /** 检查面板当前是否处于打开状态 */
   isOpen(): boolean {
     return this.root !== null;
   }
 
+  /** 返回面板在页面中的矩形范围 */
   getCardRect(): DOMRect | null {
     return this.root?.getBoundingClientRect() ?? null;
   }
 
+  /** 关闭面板并清理查找状态 */
   close(): void {
     this.plugin.clearNovelFinderHighlights();
     this.lastResults = [];
@@ -316,6 +322,7 @@ export class SearchPanelV2 {
     this.ownerView = null;
   }
 
+  /** 按当前范围返回替换框提示 */
   private replacerLabel(): string {
     switch (this.activeScope) {
       case "marks":
@@ -329,6 +336,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 展开或收起替换操作区域 */
   private toggleReplacer(): void {
     if (this.replacerRoot) {
       this.closeReplacer();
@@ -383,6 +391,7 @@ export class SearchPanelV2 {
     window.setTimeout(() => this.replacerInput?.focus(), 0);
   }
 
+  /** 移除替换区域并复位按钮 */
   private closeReplacer(): void {
     this.replacerRoot?.remove();
     this.replacerRoot = null;
@@ -394,6 +403,7 @@ export class SearchPanelV2 {
     this.replacerToggle?.setAttr("title", "点击展开替换界面");
   }
 
+  /** 创建带文字的复选项控件 */
   private option(parent: HTMLElement, label: string): HTMLInputElement {
     const wrapper = parent.createEl("label");
     const input = wrapper.createEl("input", { attr: { type: "checkbox" } });
@@ -401,6 +411,7 @@ export class SearchPanelV2 {
     return input;
   }
 
+  /** 刷新小说组与章节上下文 */
   private refreshContextHeader(): void {
     const file = this.plugin.getActiveNovelEditorFile();
     const groupName = this.currentGroupName();
@@ -414,6 +425,7 @@ export class SearchPanelV2 {
     this.syncScopeUi();
   }
 
+  /** 填充设定组筛选下拉项 */
   private populateKeywordGroups(): void {
     if (!this.keywordGroupSelect) {
       return;
@@ -439,6 +451,7 @@ export class SearchPanelV2 {
     this.populateKeywordRecords();
   }
 
+  /** 按设定组填充记录下拉项 */
   private populateKeywordRecords(): void {
     if (!this.keywordRecordSelect) {
       return;
@@ -466,6 +479,7 @@ export class SearchPanelV2 {
     this.keywordRecordSelect.value = this.keywordRecord;
   }
 
+  /** 根据范围切换可见的控件 */
   private syncScopeUi(): void {
     const special = this.activeScope === "marks"
       || this.activeScope === "pending"
@@ -493,6 +507,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 填充当前小说组的卷选项 */
   private populateVolumes(): void {
     if (!this.volumeSelect) {
       return;
@@ -533,6 +548,7 @@ export class SearchPanelV2 {
     this.volumeSelect.value = preferred;
   }
 
+  /** 按查找范围收集待搜索文件 */
   private searchFiles(): TFile[] {
     const current = this.plugin.getActiveNovelEditorFile();
     if (!current) {
@@ -563,6 +579,7 @@ export class SearchPanelV2 {
     ));
   }
 
+  /** 读取当前查询与匹配选项 */
   private options() {
     return {
       query: this.queryInput?.value ?? "",
@@ -573,6 +590,7 @@ export class SearchPanelV2 {
     };
   }
 
+  /** 取得当前章节所属组名称 */
   private currentGroupName(): string {
     const current = this.plugin.getActiveNovelEditorFile();
     const root = current
@@ -585,6 +603,7 @@ export class SearchPanelV2 {
       : "未归属小说组";
   }
 
+  /** 组装结果展示所需的上下文 */
   private createContext(total: number): FinderContext {
     const options = this.options();
     return {
@@ -601,6 +620,7 @@ export class SearchPanelV2 {
     };
   }
 
+  /** 把外部选中的结果同步为当前项 */
   syncActiveResult(result: FinderResult): void {
     if (!this.searchCompleted) {
       return;
@@ -617,6 +637,7 @@ export class SearchPanelV2 {
     this.updateNavigator();
   }
 
+  /** 校验令牌后展示并定位结果 */
   private async finishSearch(
     context: FinderContext,
     results: FinderResult[],
@@ -647,6 +668,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 在查找结果之间循环切换 */
   private async stepResult(direction: -1 | 1): Promise<void> {
     if (!this.searchCompleted || this.lastResults.length === 0) {
       return;
@@ -666,6 +688,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 更新结果计数与导航显隐 */
   private updateNavigator(): void {
     if (!this.navigator || !this.navigatorCounter) {
       return;
@@ -684,6 +707,7 @@ export class SearchPanelV2 {
     );
   }
 
+  /** 执行查找并在结束后恢复焦点 */
   private async search(): Promise<void> {
     const focused = activeDocument.activeElement;
     try {
@@ -699,6 +723,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 按范围与条件执行实际查找 */
   private async performSearch(): Promise<void> {
     const token = ++this.searchToken;
     const options = this.options();
@@ -772,6 +797,7 @@ export class SearchPanelV2 {
     );
   }
 
+  /** 收集标记、对照组或关键词结果 */
   private async collectSpecialResults(
     scope: "marks" | "pending" | "keywords",
     query: string,
@@ -845,9 +871,11 @@ export class SearchPanelV2 {
         }
         continue;
       }
-      const frontmatter = this.plugin.app.metadataCache.getFileCache(file)
+      const frontmatter: unknown = this.plugin.app.metadataCache.getFileCache(file)
         ?.frontmatter;
-      const raw = frontmatter?.["novelview-marks"];
+      const raw: unknown = frontmatter && typeof frontmatter === "object"
+        ? (frontmatter as Record<string, unknown>)["novelview-marks"]
+        : undefined;
       let marks: Array<{ start: number; end: number; label: string }> = [];
       if (typeof raw === "string") {
         try {
@@ -883,6 +911,7 @@ export class SearchPanelV2 {
     return results.slice(0, 200);
   }
 
+  /** 替换当前文件中的首个匹配 */
   private async replaceOne(): Promise<void> {
     if (
       this.activeScope === "marks"
@@ -927,6 +956,7 @@ export class SearchPanelV2 {
     new Notice("Novel View：没有可替换的匹配。");
   }
 
+  /** 返回特殊范围替换对象的称谓 */
   private specialReplacementLabel(): string {
     switch (this.activeScope) {
       case "marks":
@@ -940,6 +970,7 @@ export class SearchPanelV2 {
     }
   }
 
+  /** 列出小说组内可处理的正文文件 */
   private novelMarkdownFiles(root: string): TFile[] {
     return this.plugin.app.vault.getMarkdownFiles().filter((file) => (
       file.path.startsWith(`${root}/`)
@@ -947,6 +978,7 @@ export class SearchPanelV2 {
     ));
   }
 
+  /** 按不区分大小写方式替换文字 */
   private replaceInsensitive(
     text: string,
     query: string,
@@ -956,6 +988,7 @@ export class SearchPanelV2 {
     return text.replace(new RegExp(escaped, "giu"), () => replacement);
   }
 
+  /** 批量替换正文标记的名称 */
   private async replaceMarkLabels(
     root: string,
     query: string,
@@ -1003,6 +1036,7 @@ export class SearchPanelV2 {
     return count;
   }
 
+  /** 批量替换对照组的标题 */
   private async replacePendingTitles(
     root: string,
     query: string,
@@ -1042,6 +1076,7 @@ export class SearchPanelV2 {
     return count;
   }
 
+  /** 确认后批量替换特殊范围内容 */
   private async replaceAllSpecial(): Promise<void> {
     const replacement = this.replacerInput?.value ?? "";
     if (!replacement.trim()) {
@@ -1114,6 +1149,7 @@ export class SearchPanelV2 {
     await this.search();
   }
 
+  /** 批量替换所有匹配的正文内容 */
   private async replaceAll(): Promise<void> {
     if (
       this.activeScope === "marks"

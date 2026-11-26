@@ -15,19 +15,9 @@ export interface LineClassification {
 
 const FRONTMATTER_SCAN_LIMIT = 300;
 
-const HEADING = /^#{1,6}(?:[ \t]|$)/;
 const BLOCKQUOTE = /^>/;
-const LIST_ITEM = /^(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)/;
-const FENCE = /^(?:`{3,}|~{3,})/;
-const THEMATIC_BREAK = /^(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/;
-const TABLE_ROW = /^\|/;
-const HTML_BLOCK = /^</;
-const FOOTNOTE_DEFINITION = /^\[\^[^\]]+\]:/;
-const OBSIDIAN_COMMENT = /^%%/;
-const EMBED_ONLY_LINE = /^!\[/;
-const MATH_BLOCK = /^\$\$/;
-const INDENTED_CODE = /^(?: {4}|\t)/;
 
+/** 判断整行是否为空或仅含空白字符 */
 export function isBlankLine(text: string): boolean {
   return text.trim().length === 0;
 }
@@ -38,25 +28,13 @@ export function isBlankLine(text: string): boolean {
  * if a line is ambiguous, it is treated as prose.
  */
 export function isMarkdownSpecialLine(text: string): boolean {
-  if (INDENTED_CODE.test(text)) {
-    return true;
-  }
 
   const line = text.replace(/^ {0,3}/, "");
 
-  return HEADING.test(line)
-    || BLOCKQUOTE.test(line)
-    || LIST_ITEM.test(line)
-    || FENCE.test(line)
-    || THEMATIC_BREAK.test(line)
-    || TABLE_ROW.test(line)
-    || HTML_BLOCK.test(line)
-    || FOOTNOTE_DEFINITION.test(line)
-    || OBSIDIAN_COMMENT.test(line)
-    || EMBED_ONLY_LINE.test(line)
-    || MATH_BLOCK.test(line);
+  return BLOCKQUOTE.test(line);
 }
 
+/** 判断本行是否按普通正文参与排版 */
 export function isProseLine(text: string): boolean {
   return !isBlankLine(text) && !isMarkdownSpecialLine(text);
 }
@@ -166,6 +144,7 @@ export function splitFrontmatterContent(content: string): SplitFrontmatterConten
   };
 }
 
+/** 把属性头与正文拼回完整文档内容 */
 export function joinFrontmatterContent(head: string, body: string): string {
   return head ? `${head}\n${body}` : body;
 }

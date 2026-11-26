@@ -13,12 +13,14 @@ export class VolumeEditModal extends Modal {
   private readonly options: VolumeEditOptions;
   private descriptionValue: string;
 
+  /** 初始化卷编辑的选项与描述草稿 */
   constructor(app: App, options: VolumeEditOptions) {
     super(app);
     this.options = options;
     this.descriptionValue = options.description;
   }
 
+  /** 渲染卷海报与描述的编辑界面 */
   override onOpen(): void {
     this.contentEl.empty();
     this.contentEl.addClass("novelview-volume-edit-modal");
@@ -65,6 +67,7 @@ export class VolumeEditModal extends Modal {
     });
   }
 
+  /** 关闭时清空模态框内容 */
   override onClose(): void {
     this.contentEl.empty();
   }

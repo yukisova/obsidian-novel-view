@@ -110,6 +110,7 @@ export function formatNovelMarkdown(content: string): NovelFormatResult {
   };
 }
 
+/** 判定该行属于列表、引用、表格还是分隔线 */
 function classifyBlockLine(line: string, previousKind: LineKind): LineKind {
   if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/u.test(line)) {
     return "hr";

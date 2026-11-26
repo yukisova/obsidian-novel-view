@@ -10,6 +10,7 @@ export interface TextPromptOptions {
   submitLabel?: string;
   initialValue?: string;
   onSubmit: (value: string) => void;
+  onClose?: () => void;
 }
 
 export class TextPromptModal extends Modal {
@@ -17,11 +18,13 @@ export class TextPromptModal extends Modal {
   private input: HTMLInputElement | null = null;
   private errorEl: HTMLElement | null = null;
 
+  /** 初始化文本输入弹窗配置 */
   constructor(app: App, options: TextPromptOptions) {
     super(app);
     this.options = options;
   }
 
+  /** 渲染输入框与操作按钮 */
   override onOpen(): void {
     this.setTitle(this.options.title);
     this.modalEl.addClass("novelview-text-prompt-modal");
@@ -75,10 +78,13 @@ export class TextPromptModal extends Modal {
     }, 0);
   }
 
+  /** 关闭弹窗并触发关闭回调 */
   override onClose(): void {
     this.contentEl.empty();
+    this.options.onClose?.();
   }
 
+  /** 校验输入后提交并关闭弹窗 */
   private submit(): void {
     const value = this.input?.value.trim() ?? "";
     if (!value) {

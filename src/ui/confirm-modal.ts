@@ -3,6 +3,7 @@ import {
   Modal,
 } from "obsidian";
 
+/** 弹出确认框并返回用户选择 */
 export function confirmAction(
   app: App,
   title: string,
@@ -21,6 +22,7 @@ class ConfirmActionModal extends Modal {
   private readonly resolve: (confirmed: boolean) => void;
   private settled = false;
 
+  /** 初始化确认框的文案与回调 */
   constructor(
     app: App,
     title: string,
@@ -35,6 +37,7 @@ class ConfirmActionModal extends Modal {
     this.resolve = resolve;
   }
 
+  /** 渲染提示信息与确认按钮 */
   override onOpen(): void {
     this.setTitle(this.titleText);
     this.contentEl.empty();
@@ -56,6 +59,7 @@ class ConfirmActionModal extends Modal {
     }).addEventListener("click", () => this.finish(true));
   }
 
+  /** 关闭时未选择按取消处理 */
   override onClose(): void {
     this.contentEl.empty();
     if (!this.settled) {
@@ -64,6 +68,7 @@ class ConfirmActionModal extends Modal {
     }
   }
 
+  /** 记录选择结果并关闭弹窗 */
   private finish(confirmed: boolean): void {
     if (this.settled) {
       return;

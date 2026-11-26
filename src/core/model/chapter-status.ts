@@ -35,6 +35,7 @@ const ALIASES: Record<string, ChapterStatus> = {
   完稿: "done",
 };
 
+/** 把别名或数组解析为章节状态值 */
 export function parseChapterStatus(value: unknown): ChapterStatus {
   if (typeof value === "string") {
     return ALIASES[value.trim().toLowerCase()] ?? "todo";
@@ -49,6 +50,7 @@ export function parseChapterStatus(value: unknown): ChapterStatus {
   return "todo";
 }
 
+/** 从文档属性中读取章节状态 */
 export function readChapterStatus(
   frontmatter: Record<string, unknown> | undefined,
 ): ChapterStatus {

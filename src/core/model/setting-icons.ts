@@ -23,6 +23,7 @@ export interface ParsedSettingIcon {
   value: string;
 }
 
+/** 解析图标配置并区分内置图标与图片 */
 export function parseSettingIcon(value: string | undefined): ParsedSettingIcon | null {
   const icon = value?.trim() ?? "";
   if (!icon) {
@@ -42,6 +43,7 @@ export function parseSettingIcon(value: string | undefined): ParsedSettingIcon |
   return { kind: "lucide", value: icon };
 }
 
+/** 判断路径是否指向可用的图标图片 */
 export function isSettingIconImageFile(path: string): boolean {
   return /\.(svg|png|jpe?g|webp)$/iu.test(path);
 }
