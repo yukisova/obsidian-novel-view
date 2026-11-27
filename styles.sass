@@ -5323,3 +5323,10 @@ body.novelview-dark-room .status-bar
 @media (hover: none) and (pointer: coarse)
   .novelview-editor-view.is-immersive .cm-line
     filter: none
+
+/*桌面端：标签卡片只在当前悬停/键盘聚焦时展开，鼠标移开后收起扑克牌*/
+@media (hover: hover)
+  :root .novelview-setting-collection-view .novelview-setting-collection-tag.is-active:not(:hover):not(:focus-within) > .novelview-setting-collection-tag-body,
+  :root .novelview-setting-collection-view .novelview-setting-collection-tag.is-expanded:not(:hover):not(:focus-within) > .novelview-setting-collection-tag-body,
+  :root .novelview-setting-collection-view .novelview-setting-collection-tag.is-focused:not(:hover):not(:focus-within) > .novelview-setting-collection-tag-body
+    display: none
